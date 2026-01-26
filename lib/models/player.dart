@@ -75,10 +75,16 @@ class Player {
   String? concentrationTargetName;
   String? lastRevealedPlayerName;
   int devinRevealsCount;
+  List<String> revealedPlayersHistory; // Historique pour "Double Check"
+  bool hasRevealedSamePlayerTwice;
+
+  // Enculateur du bled
+  Set<String> protectedPlayersHistory; // Historique pour "Sortez couvert"
 
   // Tardos
   Player? tardosTarget;
-  bool hasPlacedBomb;
+  bool hasPlacedBomb;      // Vrai si une bombe est en cours (tic-tac)
+  bool hasUsedBombPower;   // Vrai si le pouvoir a été consommé définitivement
   int bombTimer;
 
   // Houston
@@ -156,8 +162,12 @@ class Player {
     this.concentrationTargetName,
     this.lastRevealedPlayerName,
     this.devinRevealsCount = 0,
+    this.revealedPlayersHistory = const [], // Init
+    this.hasRevealedSamePlayerTwice = false, // Init
+    this.protectedPlayersHistory = const {}, // Init (Set)
     this.tardosTarget,
     this.hasPlacedBomb = false,
+    this.hasUsedBombPower = false,
     this.bombTimer = 0,
     this.houstonTargets = const [],
     this.somnifereUses = 2,
@@ -204,7 +214,7 @@ class Player {
 
   void resetTemporaryStates() {
     // IMPORTANT : On ne reset NI dingoStrikeCount, NI travelerBullets, NI bombTimer
-    // NI hasSurvivedVote (Pantin)
+    // NI hasSurvivedVote, NI hasUsedBombPower
     isMutedDay = false;
     isProtectedByPokemon = false;
     isVoteCancelled = false;
@@ -242,7 +252,10 @@ class Player {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.gps_fixed, size: 14, color: Colors.red),
-            Text("$dingoStrikeCount", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(
+              "$dingoStrikeCount",
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
           ],
         ),
       ));
@@ -255,8 +268,11 @@ class Player {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent), // Triangle
-            Text("$travelerBullets", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent), // Triangle comme balle
+            Text(
+              "$travelerBullets",
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
           ],
         ),
       ));
@@ -317,8 +333,11 @@ class Player {
       'concentrationTargetName': concentrationTargetName,
       'lastRevealedPlayerName': lastRevealedPlayerName,
       'devinRevealsCount': devinRevealsCount,
-      // On sauvegarde si la bombe est posée et le timer, pas la cible entière pour éviter les soucis de réhydratation
+      'revealedPlayersHistory': revealedPlayersHistory, // ADD
+      'hasRevealedSamePlayerTwice': hasRevealedSamePlayerTwice, // ADD
+      'protectedPlayersHistory': protectedPlayersHistory.toList(), // ADD
       'hasPlacedBomb': hasPlacedBomb,
+      'hasUsedBombPower': hasUsedBombPower,
       'bombTimer': bombTimer,
       'somnifereUses': somnifereUses,
       'lastQuicheTurn': lastQuicheTurn,
@@ -384,7 +403,11 @@ class Player {
       ..concentrationTargetName = map['concentrationTargetName']
       ..lastRevealedPlayerName = map['lastRevealedPlayerName']
       ..devinRevealsCount = map['devinRevealsCount'] ?? 0
+      ..revealedPlayersHistory = List<String>.from(map['revealedPlayersHistory'] ?? []) // RESTORE
+      ..hasRevealedSamePlayerTwice = map['hasRevealedSamePlayerTwice'] ?? false // RESTORE
+      ..protectedPlayersHistory = Set<String>.from(map['protectedPlayersHistory'] ?? []) // RESTORE
       ..hasPlacedBomb = map['hasPlacedBomb'] ?? false
+      ..hasUsedBombPower = map['hasUsedBombPower'] ?? false
       ..bombTimer = map['bombTimer'] ?? 0
       ..somnifereUses = map['somnifereUses'] ?? 2
       ..lastQuicheTurn = map['lastQuicheTurn'] ?? -1

@@ -50,8 +50,10 @@ class RoleActionDispatcher extends StatelessWidget {
     debugPrint("🎬 LOG : Action en cours : ${action.role} (Joueur : ${actor.name})");
 
     // --- LOGIQUE D'ANONYMAT ET SOMMEIL ---
+    // L'Archiviste en exil est immunisé au sommeil car il n'est pas "physiquement" là
     bool isImmuneToSleep = (action.role == "Archiviste" && actor.isAwayAsMJ);
 
+    // Si le joueur est endormi (Zookeeper ou Pokémon)
     if (actor.isEffectivelyAsleep && !isImmuneToSleep && action.role != "Zookeeper") {
       debugPrint("💤 LOG : ${actor.name} est endormi (Zookeeper/Pokémon). Affichage écran sommeil.");
       return _buildAsleepScreen();
@@ -98,25 +100,23 @@ class RoleActionDispatcher extends StatelessWidget {
       case "Voyageur":
         return VoyageurInterface(
           actor: actor,
-          allPlayers: allPlayers, // Ajouté
+          allPlayers: allPlayers,
           onDepart: () {
             actor.isInTravel = true;
             onNext();
           },
           onReturnWithoutShooting: () {
             actor.isInTravel = false;
-            actor.canTravelAgain = false; // Il ne peut plus repartir après être rentré ? (Règle à vérifier)
-            // Si la règle est qu'il peut repartir, retire la ligne ci-dessus.
+            // Si la règle est qu'il doit attendre avant de repartir, mettre : actor.canTravelAgain = false;
             onNext();
           },
           onStayTraveling: () {
-            // Logique déjà gérée par NightActionsLogic pour le gain de balles
+            // Logique de stats gérée par NightActionsLogic
             onNext();
           },
           onStayAtVillage: onNext,
           onShoot: (target) {
-            // Logique de tir
-            actor.isInTravel = false; // Il rentre forcément pour tirer (ou était déjà là)
+            actor.isInTravel = false;
             actor.travelerBullets--;
             pendingDeaths[target] = "Tir du Voyageur (${actor.name})";
             onNext();
@@ -176,7 +176,8 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers,
           onComplete: (selected) {
             actor.houstonTargets = selected;
-            onNext();
+            // CORRECTIF : APPEL DE LA LOGIQUE DE COMPARAISON
+            _handleHoustonAction(selected);
           },
         );
 
@@ -292,8 +293,33 @@ class RoleActionDispatcher extends StatelessWidget {
     }
   }
 
-  // --- ÉCRAN DE SOMMEIL (POUR TOUS LES RÔLES BLOQUÉS) ---
+  // --- LOGIQUE HOUSTON (CORRIGÉE) ---
+  void _handleHoustonAction(List<Player> targets) {
+    if (targets.length != 2) {
+      onNext();
+      return;
+    }
 
+    Player p1 = targets[0];
+    Player p2 = targets[1];
+    bool sameTeam = (p1.team == p2.team);
+
+    // Message selon les règles : "Qui voilà-je" vs "Houston, on a un problème"
+    String phraseMJ = sameTeam ? "QUI VOILÀ-JE !" : "HOUSTON, ON A UN PROBLÈME !";
+    String details = sameTeam
+        ? "✅ Ils sont dans la MÊME équipe."
+        : "⚠️ Ils sont dans des équipes DIFFÉRENTES.";
+
+    String fullMessage = "Analyse terminée pour ${p1.name} et ${p2.name}.\n\n"
+        "Annoncez à voix haute :\n"
+        "📢 \"$phraseMJ\"\n\n"
+        "($details)";
+
+    // On utilise showPopUp qui doit être géré par NightActionsScreen pour passer au suivant à la fermeture
+    showPopUp("RAPPORT HOUSTON", fullMessage);
+  }
+
+  // --- ÉCRAN DE SOMMEIL ---
   Widget _buildAsleepScreen() {
     return Center(
       child: Column(
@@ -330,7 +356,6 @@ class RoleActionDispatcher extends StatelessWidget {
   }
 
   // --- HELPERS D'INTERFACE ---
-
   Widget _circleBtn(String text, Color col, VoidCallback fn) {
     return InkWell(
       onTap: fn,
@@ -341,32 +366,6 @@ class RoleActionDispatcher extends StatelessWidget {
         ]),
         alignment: Alignment.center,
         child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-      ),
-    );
-  }
-
-  void _showKillSelector(BuildContext context, Player killer, String reason, Function(Player) onKill) {
-    final targets = allPlayers.where((p) => p.isAlive && p != killer).toList();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1E33),
-        title: const Text("CIBLE DE L'ATTAQUE", style: TextStyle(color: Colors.redAccent)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: targets.length,
-            itemBuilder: (c, i) => ListTile(
-              leading: const Icon(Icons.gps_fixed, color: Colors.red),
-              title: Text(targets[i].name, style: const TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(ctx);
-                onKill(targets[i]);
-              },
-            ),
-          ),
-        ),
       ),
     );
   }

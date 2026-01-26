@@ -49,6 +49,7 @@ class GameLogic {
     for (var p in allPlayers) {
       if (!p.isAlive) {
         // On ne reset PAS les timers de bombes ici (gérés par NightLogic)
+        // On ne reset PAS hasPlacedBomb pour le Tardos mort (la bombe persiste)
         p.pantinCurseTimer = null;
         p.hasBeenHitByDart = false;
         p.zookeeperEffectReady = false;
@@ -86,9 +87,9 @@ class GameLogic {
   }
 
   // ==========================================================
-  // 2. ANALYSE DES VOTES (NOUVELLE MÉTHODE CRITIQUE)
+  // 2. ANALYSE DES VOTES (MÉTHODE CRITIQUE POUR LES SUCCÈS)
   // ==========================================================
-  /// Cette méthode doit être appelée par VoteScreens AVANT l'affichage des résultats MJ
+  /// Appelé par VoteScreens avant l'affichage du MJ
   static void validateVoteStats(List<Player> allPlayers) {
     debugPrint("📊 LOG [GameLogic] : Analyse statistique des votes...");
 
@@ -98,7 +99,7 @@ class GameLogic {
       if (p.role?.toLowerCase() == "dingo") {
         // Si le vote est nul (abstention/voyage) OU si le nom de la cible n'est pas son propre nom
         if (p.targetVote == null || p.targetVote!.name != p.name) {
-          debugPrint("❌ LOG [Dingo] : ${p.name} a voté pour ${p.targetVote?.name ?? 'Personne'}. Série brisée.");
+          debugPrint("❌ LOG [Dingo] : ${p.name} a voté pour ${p.targetVote?.name ?? 'Personne'}. Série 'Self Vote' brisée.");
           p.dingoSelfVotedOnly = false;
         } else {
           debugPrint("🤪 LOG [Dingo] : ${p.name} vote pour lui-même. Série OK.");
@@ -119,8 +120,10 @@ class GameLogic {
         p.totalVotesReceivedDuringGame += p.votes;
         // Check succès Fringale
         AchievementLogic.checkEvolvedHunger(p);
-        // Check succès Chaman
-        if (nightChamanTarget != null && p == nightChamanTarget) {
+
+        // Check succès Chaman : Si la cible du Chaman reçoit des votes (est en danger)
+        if (nightChamanTarget != null && p.name == nightChamanTarget!.name) {
+          debugPrint("🎯 LOG [Chaman] : La cible du Chaman (${p.name}) est sur la sellette au vote !");
           chamanSniperAchieved = true;
         }
       }
@@ -133,7 +136,7 @@ class GameLogic {
   static void processVillageVote(BuildContext context, List<Player> allPlayers) {
     debugPrint("🗳️ LOG [Vote] : Calcul du résultat du vote.");
 
-    // D'abord, on valide les stats (au cas où ce n'est pas fait par l'UI)
+    // Sécurité : On valide les stats si ce n'est pas déjà fait
     validateVoteStats(allPlayers);
 
     List<Player> votablePlayers =

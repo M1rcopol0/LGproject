@@ -24,14 +24,16 @@ class _TardosInterfaceState extends State<TardosInterface> {
 
   @override
   Widget build(BuildContext context) {
-    // LOG de statut au chargement
-    debugPrint("🧨 LOG [Tardos] : ${widget.actor.name} accède à l'interface. Bombe déjà posée : ${widget.actor.hasPlacedBomb}");
+    debugPrint("🧨 LOG [Tardos] : ${widget.actor.name} - Active: ${widget.actor.hasPlacedBomb} | Used: ${widget.actor.hasUsedBombPower}");
 
-    // Si la bombe est déjà posée (explosée ou en attente)
+    // =========================================================
+    // ÉTAT 1 : BOMBE EN COURS (Tic-Tac)
+    // =========================================================
+    // Prioritaire : Si la bombe est posée, on affiche le timer, même si hasUsedBombPower est true.
     if (widget.actor.hasPlacedBomb) {
       String status = (widget.actor.bombTimer > 0)
           ? "La bombe explosera dans ${widget.actor.bombTimer} nuit(s)."
-          : "La bombe a déjà explosé.";
+          : "La bombe va exploser ce matin !";
 
       return Center(
         child: Column(
@@ -51,6 +53,7 @@ class _TardosInterfaceState extends State<TardosInterface> {
                 style: const TextStyle(color: Colors.white70, fontSize: 16),
               ),
             ),
+            const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
               onPressed: () {
@@ -64,7 +67,45 @@ class _TardosInterfaceState extends State<TardosInterface> {
       );
     }
 
-    // Sinon, on propose de poser la bombe
+    // =========================================================
+    // ÉTAT 2 : POUVOIR DÉJÀ CONSOMMÉ (Plus de bombe)
+    // =========================================================
+    // Si hasPlacedBomb est false (elle a explosé) MAIS que hasUsedBombPower est true.
+    if (widget.actor.hasUsedBombPower) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.block, size: 80, color: Colors.grey),
+            const SizedBox(height: 20),
+            const Text(
+              "STOCK ÉPUISÉ",
+              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text(
+                "Vous avez déjà utilisé votre unique bombe.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
+              onPressed: () {
+                debugPrint("🧨 LOG [Tardos] : Action passée (Stock épuisé).");
+                widget.onNext();
+              },
+              child: const Text("CONTINUER", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // =========================================================
+    // ÉTAT 3 : PRÊT À POSER (Sélecteur)
+    // =========================================================
     return Column(
       children: [
         const Padding(
@@ -72,18 +113,18 @@ class _TardosInterfaceState extends State<TardosInterface> {
           child: Text(
             "TARDOS\nChoisissez une cible pour poser votre bombe.\nElle explosera dans 2 nuits.",
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(color: Colors.white70, fontSize: 16),
           ),
         ),
         Expanded(
           child: TargetSelectorInterface(
             players: widget.players.where((p) => p.isAlive && p != widget.actor).toList(),
             maxTargets: 1,
+            isProtective: false,
             onTargetsSelected: (selected) {
               if (selected.isNotEmpty) {
                 _placeBomb(selected.first);
               } else {
-                debugPrint("🧨 LOG [Tardos] : Aucune cible choisie.");
                 widget.onNext();
               }
             },
@@ -94,27 +135,31 @@ class _TardosInterfaceState extends State<TardosInterface> {
   }
 
   void _placeBomb(Player target) {
-    // 1% de chance d'explosion immédiate sur soi-même (Règle Tardos)
+    // --- MARQUAGE DÉFINITIF ---
+    // On marque que le pouvoir est consommé pour empêcher une seconde pose plus tard
+    widget.actor.hasUsedBombPower = true;
+
     int roll = Random().nextInt(100);
     debugPrint("🎲 LOG [Tardos] : Jet de dé pour la pose : $roll (Seuil critique : 0)");
 
     if (roll == 0) {
-      debugPrint("💥 LOG [Tardos] : ÉCHEC CRITIQUE ! La bombe explose sur Tardos (${widget.actor.name}).");
-      _showPop("CRITIQUE !", "La bombe vous a explosé dans les mains ! Vous mourrez ce matin.", true);
-
+      // ÉCHEC CRITIQUE (1%)
+      debugPrint("💥 LOG [Tardos] : ÉCHEC CRITIQUE ! La bombe explose sur Tardos.");
       setState(() {
         widget.actor.tardosTarget = widget.actor;
-        widget.actor.bombTimer = 0; // Explosion immédiate lors de la résolution
-        widget.actor.hasPlacedBomb = true;
+        widget.actor.bombTimer = 0; // Explosion immédiate
+        widget.actor.hasPlacedBomb = true; // Active l'état "Bombe en cours" pour ce tour
       });
+      _showPop("CRITIQUE !", "La bombe vous a explosé dans les mains !\nVous mourrez ce matin.", true);
     } else {
-      debugPrint("🧨 LOG [Tardos] : Bombe posée sur ${target.name}. Timer réglé sur 2.");
+      // SUCCÈS STANDARD
+      debugPrint("🧨 LOG [Tardos] : Bombe posée sur ${target.name}.");
       setState(() {
         widget.actor.tardosTarget = target;
-        widget.actor.bombTimer = 2; // Explose au bout de 2 nuits
+        widget.actor.bombTimer = 2; // Timer standard
         widget.actor.hasPlacedBomb = true;
       });
-      _showPop("BOMBE POSÉE", "La bombe explosera sur ${target.name} dans 2 nuits.", false);
+      _showPop("BOMBE POSÉE", "La bombe est armée sur ${target.name}.\nExplosion dans 2 nuits.", false);
     }
   }
 

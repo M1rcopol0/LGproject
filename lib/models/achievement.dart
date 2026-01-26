@@ -6,7 +6,7 @@ class Achievement {
   final String title;
   final String description;
   final String icon;
-  final int rarity;
+  final int rarity; // 1: Commun, 2: Rare, 3: Légendaire
   final bool Function(Map<String, dynamic> playerData) checkCondition;
 
   Achievement({
@@ -28,7 +28,6 @@ class AchievementData {
       title: "Le GOAT",
       description: "Gagner la partie en tant que Ron-Aldo.",
       icon: "⚽", rarity: 2,
-      // On vérifie que c'est le Maître (role) ET qu'il n'est pas fan (is_fan)
       checkCondition: (data) =>
       data['player_role']?.toString().trim() == "Ron-Aldo" &&
           data['is_fan'] == false &&
@@ -172,8 +171,7 @@ class AchievementData {
       title: "Fringale Nocturne",
       description: "La victime survit à votre morsure nocturne mais meurt au vote suivant.",
       icon: "🩸", rarity: 3,
-      // Le succès est attribué à n'importe quel loup gagnant si la condition a été remplie
-      checkCondition: (data) => data['evolved_hunger_achieved'] == true, //
+      checkCondition: (data) => data['evolved_hunger_achieved'] == true,
     ),
 
     Achievement(
@@ -185,7 +183,7 @@ class AchievementData {
     ),
 
 // --- MAISON ---
-      Achievement(
+    Achievement(
       id: "crazy_casa",
       title: "Crazy Casa",
       description: "En tant que maison, survivez à la partie.",
@@ -266,7 +264,7 @@ class AchievementData {
       description: "Ne réussissez aucun de vos tirs dans une partie (min. 3).",
       icon: "🎯", rarity: 1,
       checkCondition: (data) =>
-      data['player_role']?.toString().toLowerCase() == "dingo" && // Ajout sécurité rôle
+      data['player_role']?.toString().toLowerCase() == "dingo" && // Sécurité rôle
           data['dingo_shots_fired'] >= 3 &&
           data['dingo_shots_hit'] == 0,
     ),
@@ -284,7 +282,7 @@ class AchievementData {
       description: "Votez contre vous-même à chaque vote et survivez.",
       icon: "🤪", rarity: 3,
       checkCondition: (data) =>
-      data['player_role']?.toString().toLowerCase() == "dingo" && // Correction : Uniquement pour le Dingo
+      data['player_role']?.toString().toLowerCase() == "dingo" && // Sécurité rôle
           data['dingo_self_voted_all_game'] == true &&
           data['is_player_alive'] == true,
     ),
@@ -317,8 +315,8 @@ class AchievementData {
 // --- ARCHIVISTE ---
     Achievement(
       id: "archiviste_king",
-      title: "Le roi du CDI",
-      description: "Utilisez tous vos pouvoirs en une seule partie.",
+      title: "Le roi du CDI", // Succès 'One Shot' (Dans une seule partie)
+      description: "Utilisez 4 pouvoirs différents en une seule partie.",
       icon: "📚", rarity: 3,
       checkCondition: (data) => data['archiviste_all_powers_used_in_game'] == true,
     ),
@@ -329,7 +327,6 @@ class AchievementData {
       title: "Le Canaclean",
       description: "Clara, Gabriel, Jean, Marc et vous devez être dans la même équipe et vivants.",
       icon: "🧼", rarity: 2,
-      // La logique est calculée par AchievementLogic.checkCanacleanCondition
       checkCondition: (data) => data['canaclean_present'] == true,
     ),
 
@@ -353,8 +350,8 @@ class AchievementData {
       checkCondition: (data) => (data['cumulative_villageois_count'] ?? 0) >= 5,
     ),
     Achievement(
-      id: "archiviste_prince", title: "Le prince du CDI",
-      description: "Utilisez tous vos pouvoirs au moins une fois (cumulé).",
+      id: "archiviste_prince", title: "Le prince du CDI", // Succès 'Cumulatif' (Sur plusieurs parties)
+      description: "Utilisez 4 pouvoirs différents au cours de votre carrière.",
       icon: "📖", rarity: 2,
       checkCondition: (data) => data['archiviste_all_powers_cumulated'] == true,
     ),
@@ -369,6 +366,14 @@ class AchievementData {
         return (roles['VILLAGE'] ?? 0) >= 10;
       },
     ),
-
+    Achievement(
+      id: "veteran_wolf", title: "Vétéran de la Meute",
+      description: "Gagnez 10 parties en tant que Loup-garou.",
+      icon: "🩸", rarity: 2,
+      checkCondition: (data) {
+        final roles = Map<String, dynamic>.from(data['roles'] ?? {});
+        return (roles['LOUPS-GAROUS'] ?? 0) >= 10;
+      },
+    ),
   ];
 }

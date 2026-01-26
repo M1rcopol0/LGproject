@@ -54,30 +54,46 @@ class _DevinInterfaceState extends State<DevinInterface> {
               style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            const Text(
-              "(1 nuit passée)",
-              style: TextStyle(color: Colors.purpleAccent, fontStyle: FontStyle.italic),
+            Text(
+              "Nuit ${widget.devin.concentrationNights + 1} / 2", // +1 car on est dans la nuit courante
+              style: const TextStyle(color: Colors.purpleAccent, fontStyle: FontStyle.italic),
             ),
             const SizedBox(height: 40),
 
-            // BOUTON CONTINUER
-            SizedBox(
-              width: 280,
-              height: 60,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            // Si on a déjà passé au moins 1 nuit (donc on est à l'aube de la 2ème validation), on peut révéler
+            if (widget.devin.concentrationNights >= 1) ...[
+              SizedBox(
+                width: 280,
+                height: 60,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                  onPressed: () {
+                    debugPrint("👁️ LOG [Devin] : Révélation du rôle de ${currentTarget!.name}.");
+                    _revealRoleAndFinish(context, currentTarget);
+                  },
+                  icon: const Icon(Icons.check_circle, color: Colors.white),
+                  label: const Text("RÉVÉLER LE RÔLE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-                onPressed: () {
-                  // LOG : Indique que la concentration arrive à son terme
-                  debugPrint("👁️ LOG [Devin] : Poursuite de l'observation sur ${currentTarget!.name}. Révélation imminente.");
-                  _revealRoleAndFinish(context, currentTarget);
-                },
-                icon: const Icon(Icons.check_circle, color: Colors.white),
-                label: const Text("RÉVÉLER LE RÔLE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-            ),
+            ] else ...[
+              // Sinon, on doit continuer (valider la 2ème nuit)
+              SizedBox(
+                width: 280,
+                height: 60,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                  onPressed: () => widget.onNext(currentTarget!),
+                  icon: const Icon(Icons.hourglass_bottom, color: Colors.white),
+                  label: const Text("CONTINUER L'OBSERVATION", style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
 
             // BOUTON CHANGER
@@ -106,7 +122,7 @@ class _DevinInterfaceState extends State<DevinInterface> {
         const Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            "Choisissez un joueur à observer. (Nécessite 2 nuits consécutives)",
+            "Choisissez un joueur à observer.\n(Nécessite 2 nuits consécutives)",
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70),
           ),
@@ -135,7 +151,7 @@ class _DevinInterfaceState extends State<DevinInterface> {
     );
   }
 
-  // Affiche le rôle découvert avant de passer à l'action suivante
+  // Affiche le rôle découvert, met à jour les stats et reset le compteur
   void _revealRoleAndFinish(BuildContext context, Player target) {
     showDialog(
       context: context,
@@ -164,7 +180,29 @@ class _DevinInterfaceState extends State<DevinInterface> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
               onPressed: () {
+                // --- 1. TRACKING SUCCÈS ---
+                widget.devin.devinRevealsCount++; // Incrémente le nombre de révélations totales
+
+                // Vérification pour le succès "Double Check" (révéler 2 fois le même)
+                if (widget.devin.revealedPlayersHistory.contains(target.name)) {
+                  widget.devin.hasRevealedSamePlayerTwice = true;
+                  debugPrint("👁️ LOG [Devin] : SUCCÈS 'Double Check' validé !");
+                }
+                widget.devin.revealedPlayersHistory.add(target.name);
+
+                // --- 2. RESET DU CYCLE ---
+                // On met la cible à null manuellement.
+                // Cela force le Dispatcher à considérer l'appel suivant comme une NOUVELLE cible (Nuit 1)
+                // car (null != target.name) -> reset à 1.
+                widget.devin.concentrationTargetName = null;
+                widget.devin.concentrationNights = 0;
+
                 Navigator.pop(ctx);
+
+                // --- 3. NAVIGATION ---
+                // On passe la main au Dispatcher.
+                // Comme on a reset la variable juste avant, le dispatcher va initialiser un nouveau cycle (Nuit 1)
+                // sur la cible, ou simplement passer au joueur suivant si la nuit est finie.
                 widget.onNext(target);
               },
               child: const Text("BIEN REÇU", style: TextStyle(color: Colors.white)),

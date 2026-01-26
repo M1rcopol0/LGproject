@@ -62,7 +62,7 @@ class PassScreen extends StatelessWidget {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
 
                     // --- CORRECTIF CRUCIAL ---
-                    // On valide les statistiques (Dingo, Trahisons) avant d'afficher les résultats
+                    // On valide les statistiques (Dingo, Trahisons, Chaman) AVANT d'afficher les résultats
                     GameLogic.validateVoteStats(allPlayers);
                     // -------------------------
 
@@ -133,7 +133,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   Widget build(BuildContext context) {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
-    // TRI ALPHABÉTIQUE DES CIBLES
+    // --- TRI ALPHABÉTIQUE DES CIBLES ---
     final eligibleTargets = widget.allPlayers.where((p) => p.isAlive).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -272,7 +272,7 @@ class MJResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sortedPlayers = allPlayers.where((p) => p.isAlive).toList();
-    // Tri par votes décroissants, puis alphabétique
+    // Tri par votes décroissants, puis alphabétique pour les égalités
     sortedPlayers.sort((a, b) {
       if (b.votes != a.votes) {
         return b.votes.compareTo(a.votes);

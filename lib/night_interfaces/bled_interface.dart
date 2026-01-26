@@ -41,7 +41,7 @@ class BledInterface extends StatelessWidget {
         const SizedBox(height: 10),
         Expanded(
           child: TargetSelectorInterface(
-            // On exclut l'acteur de la liste des cibles
+            // On exclut l'acteur de la liste des cibles (il ne peut pas se protéger lui-même)
             players: players.where((p) => p.isAlive && p != actor).toList(),
             maxTargets: 1,
             isProtective: true, // Thème vert pour la protection
@@ -52,10 +52,14 @@ class BledInterface extends StatelessWidget {
                 // --- LOGS DE CONSOLE ---
                 debugPrint("🤫 LOG [Bled] : ${actor.name} protège et fait taire ${target.name}.");
 
-                // Application de l'immunité immédiate pour le vote de demain
+                // 1. Application de l'immunité immédiate pour le vote de demain
                 target.isImmunizedFromVote = true;
-                // Note: La censure (isMutedDay) est appliquée dans le dispatcher
-                // via le retour du onComplete, mais on pourrait aussi le faire ici.
+
+                // 2. TRACKING SUCCÈS (Sortez Couvert)
+                // On ajoute le nom au Set d'historique. Comme c'est un Set, les doublons sont gérés automatiquement.
+                actor.protectedPlayersHistory.add(target.name);
+                debugPrint("📊 LOG [Bled] : Historique protections uniques: ${actor.protectedPlayersHistory.length}");
+
               } else {
                 debugPrint("🤫 LOG [Bled] : ${actor.name} n'a choisi personne.");
               }

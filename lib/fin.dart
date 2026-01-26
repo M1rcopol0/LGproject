@@ -36,10 +36,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
     if (_hasProcessed) return;
     _hasProcessed = true;
 
-    // 1. Filtrage des joueurs actifs
     List<Player> activePlayers = widget.players.where((p) => p.isPlaying).toList();
 
-    // 2. Détermination des Vainqueurs
     List<Player> computedWinners = activePlayers.where((p) {
       final role = p.role?.toUpperCase().trim() ?? "";
       final team = p.team.toLowerCase();
@@ -71,19 +69,13 @@ class _GameOverScreenState extends State<GameOverScreen> {
     }).toList();
 
     computedWinners = computedWinners.toSet().toList();
-    debugPrint("🏆 LOG [GameOver] : Nombre de vainqueurs identifiés : ${computedWinners.length}");
+    if (mounted) setState(() => winners = computedWinners);
 
-    if (mounted) {
-      setState(() => winners = computedWinners);
-    }
-
-    // 3. Traitement des Succès et Statistiques
     if (widget.winnerType != "ÉGALITÉ_SANGUINAIRE" && winners.isNotEmpty) {
       String roleGroup = "SOLO";
       if (widget.winnerType == "VILLAGE") roleGroup = "VILLAGE";
       if (widget.winnerType == "LOUPS-GAROUS") roleGroup = "LOUPS-GAROUS";
 
-      // Stats globales pour l'historique
       Map<String, dynamic> customStats = {
         'winner_role': widget.winnerType,
         'turn_count': globalTurnNumber,
@@ -99,10 +91,9 @@ class _GameOverScreenState extends State<GameOverScreen> {
         'evolved_hunger_achieved': evolvedHungerAchieved,
         'wolves_night_kills': wolvesNightKills,
         'quiche_saved_count': quicheSavedThisNight,
-        'parking_shot_global_flag': parkingShotUnlocked, // Juste pour l'info globale
+        'parking_shot_global_flag': parkingShotUnlocked,
       };
 
-      debugPrint("📊 LOG [GameOver] : Statistiques globales enregistrées.");
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
 
       for (var winner in winners) {
@@ -110,7 +101,10 @@ class _GameOverScreenState extends State<GameOverScreen> {
         Map<String, dynamic> playerStats = stats[winner.name] ?? {};
         Map<String, dynamic> counters = playerStats['counters'] ?? {};
 
-        // Données spécifiques au joueur pour checking des succès
+        // Récupération des données brutes pour l'Archiviste
+        List<dynamic> rawHistory = counters['archiviste_actions_all_time'] ?? [];
+        int uniquePowersCount = rawHistory.toSet().length;
+
         Map<String, dynamic> checkData = {
           ...playerStats,
           ...counters,
@@ -127,35 +121,32 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'was_revived': winner.wasRevivedInThisGame,
           'totalVotesReceivedDuringGame': winner.totalVotesReceivedDuringGame,
           'hasBetrayedRonAldo': winner.hasBetrayedRonAldo,
-
-          // --- LOGIQUE DINGO SPÉCIFIQUE ---
           'dingo_shots_fired': winner.dingoShotsFired,
           'dingo_shots_hit': winner.dingoShotsHit,
           'dingo_self_voted_all_game': winner.dingoSelfVotedOnly,
-          // Correction : On utilise le flag personnel et non global
           'parking_shot_achieved': (winner.role?.toLowerCase() == "dingo" && winner.parkingShotUnlocked),
-
-          // --- LOGIQUE CANACLEAN ---
+          'chaman_sniper_achieved': chamanSniperAchieved && (winner.role?.toLowerCase() == "loup-garou chaman"),
           'canaclean_present': winner.canacleanPresent,
-
-          // --- LOGIQUE ARCHIVISTE ---
           'archiviste_all_powers_used_in_game': winner.archivisteActionsUsed.toSet().length >= 4,
-          'archiviste_all_powers_cumulated': (counters['archiviste_actions_all_time']?.length ?? 0) >= 4,
-          'bled_protected_everyone': winner.mutedPlayersCount >= (activePlayers.length - 1),
-
-          // --- LOGIQUE GRAND-MÈRE CORRIGÉE ---
-          // On utilise le flag hasSavedSelfWithQuiche calculé dans la NightLogic
+          'archiviste_all_powers_cumulated': uniquePowersCount >= 4,
           'saved_by_own_quiche': winner.hasSavedSelfWithQuiche,
+
+          // --- LOGIQUE BLED CORRIGÉE ---
+          // On compare le nombre de joueurs UNIQUES protégés au nombre total de joueurs - 1 (car il ne peut pas se protéger)
+          'bled_protected_everyone': winner.protectedPlayersHistory.length >= (widget.players.length - 1),
+
+          // --- LOGIQUE DEVIN CORRIGÉE ---
+          'devin_reveals_count': winner.devinRevealsCount,
+          'devin_revealed_same_twice': winner.hasRevealedSamePlayerTwice,
         };
 
-        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> DingoPark=${checkData['parking_shot_achieved']} | QuicheSelf=${checkData['saved_by_own_quiche']}");
+        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> BledUnique=${winner.protectedPlayersHistory.length}/${widget.players.length - 1} | DevinReveals=${winner.devinRevealsCount}");
 
         for (var ach in AchievementData.allAchievements) {
           try {
             if (ach.checkCondition(checkData)) {
               bool isNew = await TrophyService.unlockAchievement(winner.name, ach.id);
               if (isNew && mounted) {
-                debugPrint("🎁 LOG [GameOver] : SUCCÈS DÉBLOQUÉ -> ${ach.id} (${winner.name})");
                 TrophyService.showAchievementPopup(context, ach.title, ach.icon, winner.name);
               }
             }
@@ -170,9 +161,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
       }
     }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
