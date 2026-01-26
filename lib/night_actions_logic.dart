@@ -87,17 +87,37 @@ class NightActionsLogic {
       );
     }
 
-    // --- LOGIQUE EXPLOSION BOMBE TARDOS ---
+    // --- LOGIQUE EXPLOSION BOMBE TARDOS (AVANT TOUT LE RESTE) ---
+    // On doit ajouter ces morts à la map pendingDeathsMap pour qu'elles soient traitées
     for (var p in players) {
       if (p.hasPlacedBomb && p.bombTimer == 0 && p.tardosTarget != null) {
         Player target = p.tardosTarget!;
-        if (target.isAlive) {
-          debugPrint("💥 LOG [Explosion] : La bombe de ${p.name} EXPLOSE sur ${target.name} !");
-          pendingDeathsMap[target] = "Bombe de Tardos (${p.name})";
-        } else {
-          debugPrint("🌬️ LOG [Tardos] : La bombe de ${p.name} explose sur le cadavre de ${target.name}.");
+        debugPrint("💥 LOG [Explosion] : La bombe de ${p.name} EXPLOSE sur ${target.name} !");
+
+        // Cas Spécial : La bombe est DANS la maison ou SUR la Maison
+        if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
+          debugPrint("🏠💥 LOG [Tardos] : La bombe détruit la Maison et ses occupants !");
+
+          // 1. Trouver le proprio
+          try {
+            Player houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
+            pendingDeathsMap[houseOwner] = "Explosion Maison (Tardos)";
+          } catch(e) { /* Pas de maison en vie */ }
+
+          // 2. Trouver tous les occupants
+          for (var occupant in players.where((o) => o.isInHouse)) {
+            pendingDeathsMap[occupant] = "Effondrement Maison (Tardos)";
+          }
         }
-        p.hasPlacedBomb = false; // Désactivation après explosion
+        // Cas Standard
+        else if (target.isAlive) {
+          pendingDeathsMap[target] = "Explosion Bombe (Tardos)";
+        } else {
+          debugPrint("🌬️ LOG [Tardos] : La bombe explose sur un cadavre.");
+        }
+
+        // Désactivation de la bombe
+        p.hasPlacedBomb = false;
         p.tardosTarget = null;
       }
     }
@@ -120,15 +140,28 @@ class NightActionsLogic {
     pendingDeathsMap.forEach((target, reason) {
       if (!target.isAlive) return;
 
-      // Protection Quiche (ne protège pas des bombes de Tardos ou accidents)
-      if (quicheIsActive && !reason.contains("accidentelle") && !reason.contains("Bombe")) {
+      // Protection Quiche
+      // Elle ne protège PAS si la raison contient "Tardos", "Explosion", "Maison" (effondrement) ou "accidentelle"
+      bool isUnstoppable = reason.contains("accidentelle") ||
+          reason.contains("Bombe") ||
+          reason.contains("Tardos") ||
+          reason.contains("Maison");
+
+      if (quicheIsActive && !isUnstoppable) {
         quicheSavedThisNight++;
+
+        // Logique Succès Grand-Mère (S'est sauvée elle-même)
+        if (target.role?.toLowerCase() == "grand-mère") {
+          target.hasSavedSelfWithQuiche = true;
+        }
+
         debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
         return;
       }
 
       // Protection Pokémon (Individuelle)
-      if (target.isProtectedByPokemon) {
+      // Ne protège pas non plus des explosions nucléaires du Tardos
+      if (target.isProtectedByPokemon && !reason.contains("Tardos")) {
         debugPrint("🛡️ LOG [Pokémon] : ${target.name} protégé.");
         return;
       }
@@ -138,13 +171,23 @@ class NightActionsLogic {
       Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
       if (!finalVictim.isAlive) {
-        if (targetWasInHouse && finalVictim.role?.toLowerCase() == "maison" && finalVictim != target) {
+        // Logique Maison Standard (Ricochet) vs Explosion Tardos
+        // Si c'est le Tardos, tout le monde meurt (géré par l'ajout multiple dans pendingDeathsMap plus haut)
+        // Si c'est une morsure normale sur un occupant, la maison prend le coup.
+
+        if (targetWasInHouse &&
+            finalVictim.role?.toLowerCase() == "maison" &&
+            finalVictim != target &&
+            !reason.contains("Tardos")) { // La maison ne tanke pas pour le Tardos, elle meurt AVEC lui
+
           debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
           finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
+
         } else {
           debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
           finalDeathReasons[finalVictim.name] = reason;
         }
+
         if (reason.contains("Morsure")) wolvesNightKills++;
       }
     });
@@ -166,6 +209,7 @@ class NightActionsLogic {
           debugPrint("🥧 LOG [Grand-mère] : Quiche prête pour la Nuit ${globalTurnNumber + 1}.");
         } else if (p.isVillageProtected && !p.powerActiveThisTurn) {
           p.isVillageProtected = false;
+          p.hasSavedSelfWithQuiche = false; // Reset du flag de succès
           debugPrint("🥧 LOG [Grand-mère] : Fin de protection.");
         }
       }
@@ -180,6 +224,7 @@ class NightActionsLogic {
       deadPlayers: aliveBefore.where((p) => !p.isAlive).toList(),
       deathReasons: finalDeathReasons,
       villageWasProtected: quicheIsActive,
+      revealedRoleMessage: null,
       villageIsNarcoleptic: somnifereActive,
     );
   }

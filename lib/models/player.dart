@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Player {
   String name;
   String? role;
@@ -11,22 +13,22 @@ class Player {
 
   // --- ÉTATS DE JEU ---
   bool isInHouse;
-  bool isHouseDestroyed; // Marqueur définitif pour la Maison
+  bool isHouseDestroyed;
   bool isMutedDay;
   bool isImmunizedFromVote;
   bool isProtectedByPokemon;
   bool isEffectivelyAsleep;
 
   // --- ZOOKEEPER ---
-  bool hasBeenHitByDart;      // Cible touchée par le Zookeeper
-  bool zookeeperEffectReady;  // Le venin s'activera à la prochaine préparation nocturne
-  bool powerActiveThisTurn;   // Verrou de cycle (anti-réveil immédiat)
+  bool hasBeenHitByDart;
+  bool zookeeperEffectReady;
+  bool powerActiveThisTurn;
 
   // --- VOYAGEUR ---
   bool isInTravel;
   bool canTravelAgain;
   int travelNightsCount;
-  int travelerBullets;
+  int travelerBullets; // Munitions accumulées (1 tous les 2 tours)
 
   // --- ARCHIVISTE ---
   bool isAwayAsMJ;
@@ -55,16 +57,17 @@ class Player {
   bool isCursed;
 
   // Dingo
-  int dingoStrikeCount;
+  int dingoStrikeCount; // NE PAS RESET
   int dingoShotsFired;
   int dingoShotsHit;
   bool dingoSelfVotedOnly;
+  bool parkingShotUnlocked; // Pour le succès spécifique
 
-  // Dresseur / Pokémon (Duo Solo)
+  // Dresseur / Pokémon
   bool pokemonWillResurrect;
   bool wasRevivedInThisGame;
-  bool hasUsedRevive; // UNIQUE UTILISATION PAR PARTIE (Dresseur)
-  String? lastDresseurAction; // "IMMOBILISER", "PROTEGER", "ATTAQUE", "REVIVE"
+  bool hasUsedRevive;
+  String? lastDresseurAction;
 
   // Devin
   int concentrationNights;
@@ -85,8 +88,9 @@ class Player {
 
   // Grand-mère
   int lastQuicheTurn;
-  bool isVillageProtected; // Protection active ce tour
-  bool hasBakedQuiche;     // Quiche en préparation pour le tour suivant (N+1)
+  bool isVillageProtected;
+  bool hasBakedQuiche;
+  bool hasSavedSelfWithQuiche; // Pour le succès
 
   // --- STATS GLOBALES ET SUCCÈS ---
   int roleChangesCount;
@@ -107,23 +111,19 @@ class Player {
     this.isPlaying = false,
     this.isVillageChief = false,
     this.isRoleLocked = false,
-
     this.isInHouse = false,
     this.isHouseDestroyed = false,
     this.isMutedDay = false,
     this.isImmunizedFromVote = false,
     this.isProtectedByPokemon = false,
     this.isEffectivelyAsleep = false,
-
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
-
     this.isInTravel = false,
     this.canTravelAgain = true,
     this.travelNightsCount = 0,
     this.travelerBullets = 0,
-
     this.isAwayAsMJ = false,
     this.mjNightsCount = 0,
     this.needsToChooseTeam = false,
@@ -131,55 +131,44 @@ class Player {
     this.scapegoatUses = 1,
     this.hasScapegoatPower = false,
     this.archivisteActionsUsed = const [],
-
     this.phylTargets = const [],
-
     this.votes = 0,
     this.isVoteCancelled = false,
     this.targetVote,
     this.totalVotesReceivedDuringGame = 0,
-
     this.isFanOfRonAldo = false,
     this.fanJoinOrder = 0,
     this.hasBetrayedRonAldo = false,
-
     this.pantinCurseTimer,
     this.isCursed = false,
-
     this.dingoStrikeCount = 0,
     this.dingoShotsFired = 0,
     this.dingoShotsHit = 0,
     this.dingoSelfVotedOnly = true,
-
+    this.parkingShotUnlocked = false,
     this.pokemonWillResurrect = false,
     this.wasRevivedInThisGame = false,
     this.hasUsedRevive = false,
     this.lastDresseurAction,
-
     this.concentrationNights = 0,
     this.concentrationTargetName,
     this.lastRevealedPlayerName,
     this.devinRevealsCount = 0,
-
     this.tardosTarget,
     this.hasPlacedBomb = false,
     this.bombTimer = 0,
-
     this.houstonTargets = const [],
-
     this.somnifereUses = 2,
-
     this.lastQuicheTurn = -1,
     this.isVillageProtected = false,
     this.hasBakedQuiche = false,
-
+    this.hasSavedSelfWithQuiche = false,
     this.roleChangesCount = 0,
     this.killsThisGame = 0,
     this.mutedPlayersCount = 0,
     this.hasHeardWolfSecrets = false,
     this.maxSimultaneousCurses = 0,
     this.canacleanPresent = false,
-
     this.isSelected = false,
   }) : name = formatName(name);
 
@@ -196,12 +185,88 @@ class Player {
 
   bool get isWolf => team == "loups";
 
+  // --- LOGICIELS DE CAPTEURS ---
+  void changeRole(String newRole, String newTeam) {
+    debugPrint("🎭 LOG [RoleChange] : $name ($role) devient $newRole ($newTeam)");
+    role = newRole;
+    team = newTeam;
+    roleChangesCount++;
+  }
+
+  void die(String reason) {
+    if (isAlive) {
+      isAlive = false;
+      debugPrint("💀 LOG [Death] : $name est mort. Raison : $reason");
+    }
+  }
+
   void resetTemporaryStates() {
+    // IMPORTANT : On ne reset NI dingoStrikeCount, NI travelerBullets, NI bombTimer
     isMutedDay = false;
     isProtectedByPokemon = false;
     isVoteCancelled = false;
     powerActiveThisTurn = false;
+    targetVote = null;
+    isSelected = false;
     // Note: isEffectivelyAsleep est géré par NightActionsLogic
+  }
+
+  // --- GÉNÉRATEUR D'ICÔNES POUR LE MENU ---
+  Widget buildStatusIcons() {
+    if (!isAlive) return const SizedBox.shrink();
+
+    List<Widget> icons = [];
+
+    if (isVillageChief) icons.add(const Icon(Icons.workspace_premium, size: 16, color: Colors.amber));
+    if (isInHouse) icons.add(const Icon(Icons.home, size: 16, color: Colors.orangeAccent));
+    if (isProtectedByPokemon) icons.add(const Icon(Icons.bolt, size: 16, color: Colors.yellow));
+    if (isEffectivelyAsleep) icons.add(const Icon(Icons.bedtime, size: 16, color: Colors.blueAccent));
+    if (hasBeenHitByDart) icons.add(const Icon(Icons.colorize, size: 16, color: Colors.deepPurpleAccent));
+    if (pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
+
+    // ICÔNE BOMBE TARDOS (Visible sur le poseur s'il a posé une bombe active)
+    if (hasPlacedBomb) {
+      icons.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2.0),
+        child: Icon(Icons.settings_input_component, size: 16, color: Colors.redAccent),
+      ));
+    }
+
+    // ICÔNE DINGO (Munitions)
+    if (role?.toLowerCase() == "dingo" && dingoStrikeCount > 0) {
+      icons.add(Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.gps_fixed, size: 14, color: Colors.red),
+            Text(
+              "$dingoStrikeCount",
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+      ));
+    }
+
+    // ICÔNE VOYAGEUR (Balles)
+    if (role?.toLowerCase() == "voyageur" && travelerBullets > 0) {
+      icons.add(Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent), // Triangle comme balle
+            Text(
+              "$travelerBullets",
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+      ));
+    }
+
+    return Row(mainAxisSize: MainAxisSize.min, children: icons);
   }
 
   // --- JSON SERIALIZATION ---
@@ -246,6 +311,7 @@ class Player {
       'dingoShotsFired': dingoShotsFired,
       'dingoShotsHit': dingoShotsHit,
       'dingoSelfVotedOnly': dingoSelfVotedOnly,
+      'parkingShotUnlocked': parkingShotUnlocked,
       'pokemonWillResurrect': pokemonWillResurrect,
       'wasRevivedInThisGame': wasRevivedInThisGame,
       'hasUsedRevive': hasUsedRevive,
@@ -260,6 +326,7 @@ class Player {
       'lastQuicheTurn': lastQuicheTurn,
       'isVillageProtected': isVillageProtected,
       'hasBakedQuiche': hasBakedQuiche,
+      'hasSavedSelfWithQuiche': hasSavedSelfWithQuiche,
       'roleChangesCount': roleChangesCount,
       'killsThisGame': killsThisGame,
       'mutedPlayersCount': mutedPlayersCount,
@@ -309,6 +376,7 @@ class Player {
       ..dingoShotsFired = map['dingoShotsFired'] ?? 0
       ..dingoShotsHit = map['dingoShotsHit'] ?? 0
       ..dingoSelfVotedOnly = map['dingoSelfVotedOnly'] ?? true
+      ..parkingShotUnlocked = map['parkingShotUnlocked'] ?? false
       ..pokemonWillResurrect = map['pokemonWillResurrect'] ?? false
       ..wasRevivedInThisGame = map['wasRevivedInThisGame'] ?? false
       ..hasUsedRevive = map['hasUsedRevive'] ?? false
@@ -323,6 +391,7 @@ class Player {
       ..lastQuicheTurn = map['lastQuicheTurn'] ?? -1
       ..isVillageProtected = map['isVillageProtected'] ?? false
       ..hasBakedQuiche = map['hasBakedQuiche'] ?? false
+      ..hasSavedSelfWithQuiche = map['hasSavedSelfWithQuiche'] ?? false
       ..roleChangesCount = map['roleChangesCount'] ?? 0
       ..killsThisGame = map['killsThisGame'] ?? 0
       ..mutedPlayersCount = map['mutedPlayersCount'] ?? 0
