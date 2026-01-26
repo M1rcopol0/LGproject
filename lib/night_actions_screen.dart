@@ -26,9 +26,11 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   void initState() {
     super.initState();
 
-    // PHASE 0 : Mise à jour des états au crépuscule (Zookeeper / Quiche)
-    // On passe une map vide car on ne résout pas encore les morts.
-    NightActionsLogic.resolveNight(context, widget.players, {});
+    // =========================================================
+    // PHASE 0 : PRÉ-RÉSOLUTION (STABILISATION ZOOKEEPER)
+    // On utilise la nouvelle fonction de préparation uniquement.
+    // =========================================================
+    NightActionsLogic.prepareNightStates(widget.players);
 
     for (var p in widget.players) {
       p.isSelected = false;
@@ -68,7 +70,8 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
         final a = action.role.toLowerCase();
 
         if (r != a) return false;
-        if (!p.isAlive || p.isEffectivelyAsleep) return false;
+        // Ici, on autorise le réveil même si endormi pour l'anonymat (le dispatcher gérera l'écran bleu)
+        if (!p.isAlive) return false;
 
         if (a == "somnifère") return p.somnifereUses > 0;
         if (a == "houston") return (globalTurnNumber % 2 != 0);
@@ -101,12 +104,13 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     nightOnePassed = true;
     stopMusic();
 
-    // CALCUL FINAL : Résolution des morts et des raisons de décès
+    // =========================================================
+    // PHASE FINALE : RÉSOLUTION DES MORTS ET DES EFFETS
+    // =========================================================
     final result = NightActionsLogic.resolveNight(
       context,
       widget.players,
       pendingDeaths,
-      exorcistChoice: _exorcismeResult,
       somnifereActive: _somnifereUsed,
     );
 
@@ -232,15 +236,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 )),
               ],
 
-              if (result.revealedRoleMessage != null || result.houstonMessage != null) ...[
+              if (result.revealedRoleMessage != null) ...[
                 const Divider(color: Colors.white24, height: 30),
-                if (result.revealedRoleMessage != null)
-                  Text(result.revealedRoleMessage!, style: const TextStyle(color: Colors.cyanAccent)),
-                if (result.houstonMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text(result.houstonMessage!, style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-                  ),
+                Text(result.revealedRoleMessage!, style: const TextStyle(color: Colors.cyanAccent)),
               ],
             ],
           ),
@@ -249,9 +247,8 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
-              // CORRECTIF BUG INCRÉMENTATION :
-              // Le passage de Nuit N -> Jour N ne change PAS le globalTurnNumber.
-              // Le tour ne changera qu'après le VOTE du Jour N via GameLogic.nextTurn().
+              // On passe officiellement au Jour.
+              // Le globalTurnNumber n'augmente que lors du vote du village.
               setState(() {
                 isDayTime = true;
               });

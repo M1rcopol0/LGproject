@@ -3,150 +3,107 @@ import 'package:flutter/material.dart';
 import 'models/player.dart';
 import 'logic.dart';
 import 'globals.dart';
-import 'trophy_service.dart';
 
 class NightResult {
   final List<Player> deadPlayers;
   final Map<String, String> deathReasons;
   final bool villageWasProtected;
   final String? revealedRoleMessage;
-  final bool exorcismeSuccess;
   final bool villageIsNarcoleptic;
-  final String? houstonMessage;
-  final String? archivistMessage;
 
   NightResult({
     required this.deadPlayers,
     required this.deathReasons,
     required this.villageWasProtected,
     this.revealedRoleMessage,
-    this.exorcismeSuccess = false,
     this.villageIsNarcoleptic = false,
-    this.houstonMessage,
-    this.archivistMessage,
   });
 }
 
 class NightActionsLogic {
+  // =========================================================
+  // 1. PRÉ-RÉSOLUTION (Appelée dans initState du NightActionsScreen)
+  // Gère les réveils et couchers programmés (Zookeeper, Timers)
+  // =========================================================
+  static void prepareNightStates(List<Player> players) {
+    debugPrint("🌙 Préparation de la Nuit $globalTurnNumber");
+
+    for (var p in players) {
+      if (!p.isAlive) continue;
+
+      // --- LOGIQUE ZOOKEEPER (CIBLE) ---
+      // --- LOGIQUE ZOOKEEPER (CYCLE DIFFÉRÉ) ---
+      if (p.hasBeenHitByDart) {
+        if (p.zookeeperEffectReady) {
+          // Le venin est prêt (tiré la nuit précédente) : on l'endort
+          p.isEffectivelyAsleep = true;
+          p.zookeeperEffectReady = false; // Effet consommé
+          p.powerActiveThisTurn = true;   // Verrou pour qu'il dorme TOUTE la nuit
+          debugPrint("💉 ${p.name} : Le venin du Zookeeper agit enfin. Dodo.");
+        }
+        else if (p.isEffectivelyAsleep && !p.powerActiveThisTurn) {
+          // Il a dormi toute la nuit, il se réveille au matin
+          p.isEffectivelyAsleep = false;
+          p.hasBeenHitByDart = false;
+          debugPrint("🌅 ${p.name} : Réveil après une nuit de sommeil Zookeeper.");
+        }
+      }
+
+
+
+      // --- LOGIQUE PANTIN (Timer) ---
+      if (p.pantinCurseTimer != null) {
+        p.pantinCurseTimer = p.pantinCurseTimer! - 1;
+      }
+    }
+  }
+
+  // =========================================================
+  // 2. RÉSOLUTION FINALE (Appelée au bouton "VOIR LE VILLAGE")
+  // Calcule les morts et prépare les effets du lendemain
+  // =========================================================
   static NightResult resolveNight(
       BuildContext context,
       List<Player> players,
       Map<Player, String> pendingDeathsMap,
-      {String? exorcistChoice,
-        bool somnifereActive = false}) {
+      {bool somnifereActive = false}) {
 
     Map<String, String> finalDeathReasons = {};
     String? revealedInfo;
-    String? houstonResult;
-    String? archivistInfo;
 
-    bool exoSuccess = (exorcistChoice == "success");
-    bool voyageurReturnedThisNight = false;
-
-    // =========================================================
-    // 0. PRÉ-RÉSOLUTION : ÉTATS DIFFÉRÉS & TIMERS (DÉBUT DE NUIT)
-    // =========================================================
-    for (var p in players) {
-      if (!p.isAlive) continue;
-
-      // --- LOGIQUE QUICHE (GRAND-MÈRE) ---
-      if (p.role?.toLowerCase() == "grand-mère") {
-        // Si elle a cliqué sur cuisiner cette nuit
-        if (p.hasBakedQuiche) {
-          p.hasBakedQuiche = false; // Sort du four
-          p.isVillageProtected = true; // Devient actif pour CETTE nuit (N+1)
-          p.powerActiveThisTurn = true; // Empêche le reset au matin
-          debugPrint("🥧 LOGIC: Quiche servie pour la Nuit $globalTurnNumber");
-        }
-        // Si elle protégeait déjà (venant de la nuit d'avant), on reset seulement au matin
-        else if (p.isVillageProtected && !p.powerActiveThisTurn) {
-          // Ce reset se fera en section 4
-        }
-      }
-
-      // --- LOGIQUE CIBLE DU ZOOKEEPER (STABILISÉE) ---
-      if (p.hasBeenHitByDart) {
-        // Si le joueur est déjà endormi (tiré hier), il se RÉVEILLE au début de cette nuit
-        if (p.isEffectivelyAsleep && !p.powerActiveThisTurn) {
-          p.isEffectivelyAsleep = false;
-          p.hasBeenHitByDart = false;
-          debugPrint("🌅 LOGIC: ${p.name} se réveille du Zookeeper.");
-        }
-        // Si il vient d'être touché cette nuit
-        else if (!p.isEffectivelyAsleep) {
-          p.isEffectivelyAsleep = true;
-          p.powerActiveThisTurn = true; // Garde l'état pour demain
-          debugPrint("💉 LOGIC: ${p.name} s'endort via Zookeeper.");
-        }
-      }
-
-      // --- LOGIQUE PANTIN ---
-      if (p.pantinCurseTimer != null) {
-        p.pantinCurseTimer = p.pantinCurseTimer! - 1;
-        if (p.pantinCurseTimer! <= 0) {
-          pendingDeathsMap[p] = "Malédiction du Pantin";
-          p.pantinCurseTimer = null;
-        }
-      }
+    // --- ÉVALUATION DE LA PROTECTION QUICHE ---
+    // La quiche active (isVillageProtected) protège contre les attaques de CETTE nuit.
+    // Elle ne fonctionne pas en Nuit 1 (car pas de Nuit 0).
+    bool quicheIsActive = false;
+    if (globalTurnNumber > 1) {
+      quicheIsActive = players.any((p) =>
+      p.role?.toLowerCase() == "grand-mère" &&
+          p.isAlive &&
+          p.isVillageProtected &&
+          !p.isEffectivelyAsleep);
     }
-
-    // =========================================================
-    // 1. ÉVALUATION DE LA PROTECTION GLOBALE
-    // =========================================================
-    bool quicheIsActive = players.any((p) =>
-    p.role?.toLowerCase() == "grand-mère" &&
-        p.isAlive &&
-        p.isVillageProtected &&
-        !p.isEffectivelyAsleep);
 
     final List<Player> aliveBefore = players.where((p) => p.isAlive).toList();
 
-    // =========================================================
-    // 2. LOGIQUES INTERNES (BOMBES, ETC.)
-    // =========================================================
-    for (var tardos in players.where((p) => p.hasPlacedBomb)) {
-      if (tardos.tardosTarget != null) {
-        if (tardos.bombTimer > 0) tardos.bombTimer--;
-        if (tardos.bombTimer == 0) {
-          Player target = tardos.tardosTarget!;
-          if (target == tardos) {
-            pendingDeathsMap[tardos] = "Explosion accidentelle";
-          } else if (target.isInHouse) {
-            try {
-              Player maison = players.firstWhere((p) => p.role?.toLowerCase() == "maison" && p.isAlive);
-              pendingDeathsMap[maison] = "Maison soufflée (Bombe)";
-            } catch (e) {}
-            for (var h in players.where((p) => p.isInHouse)) {
-              pendingDeathsMap[h] = "Maison soufflée (Bombe)";
-              h.isInHouse = false;
-            }
-          } else {
-            pendingDeathsMap[target] = "Explosion du Tardos";
-          }
-          tardos.hasPlacedBomb = false;
-          tardos.tardosTarget = null;
-        }
-      }
-    }
-
-    // =========================================================
-    // 3. RÉSOLUTION FINALE DES MORTS
-    // =========================================================
+    // --- RÉSOLUTION DES MORTS ---
     pendingDeathsMap.forEach((target, reason) {
       if (!target.isAlive) return;
 
-      if (quicheIsActive && !reason.contains("accidentelle")) {
+      // Protection Quiche (sauf accidents/bombes)
+      if (quicheIsActive && !reason.contains("accidentelle") && !reason.contains("Bombe")) {
         quicheSavedThisNight++;
+        debugPrint("🥧 ${target.name} sauvé par la quiche.");
         return;
       }
 
+      // Protection Pokémon (Individuelle)
       if (target.isProtectedByPokemon) return;
 
       bool targetWasInHouse = target.isInHouse;
       Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
       if (!finalVictim.isAlive) {
-        // --- RAISON DE MORT MAISON ---
+        // Enregistrement de la raison spécifique pour la Maison
         if (targetWasInHouse && finalVictim.role?.toLowerCase() == "maison" && finalVictim != target) {
           finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
         } else {
@@ -154,42 +111,46 @@ class NightActionsLogic {
         }
 
         if (reason.contains("Morsure")) wolvesNightKills++;
-        if (finalVictim.role?.toLowerCase() == "voyageur" && target.isInTravel) voyageurReturnedThisNight = true;
       }
     });
 
-    if (nightWolvesTarget != null) nightWolvesTargetSurvived = nightWolvesTarget!.isAlive;
-    List<Player> newlyDead = aliveBefore.where((p) => !p.isAlive).toList();
-
-    // =========================================================
-    // 4. CLEANUP MATINAL (PRÉ-RÉVEIL)
-    // =========================================================
-    if (voyageurReturnedThisNight) {
-      revealedInfo = (revealedInfo == null) ? "✈️ Le Voyageur est mort." : "$revealedInfo\n✈️ Le Voyageur est mort.";
-    }
-
+    // --- CLEANUP ET PRÉPARATION DU LENDEMAIN ---
     for (var p in players) {
+      // Logique Grand-mère : Activation différée
+      if (p.role?.toLowerCase() == "grand-mère") {
+        if (p.hasBakedQuiche) {
+          // La quiche mise au four cette nuit (N) sera active pour la nuit suivante (N+1)
+          p.isVillageProtected = true;
+          p.hasBakedQuiche = false;
+          p.powerActiveThisTurn = true;
+        } else if (p.isVillageProtected && !p.powerActiveThisTurn) {
+          // La protection expire après avoir duré tout le cycle
+          p.isVillageProtected = false;
+        }
+      }
+
+      // On relâche les verrous au matin
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
 
-      // --- RÉVEIL GÉNÉRAL ---
-      // On ne réveille PAS les cibles du Zookeeper (hasBeenHitByDart)
-      // On ne réveille PAS le Zookeeper lui-même s'il a été victime d'un autre Zookeeper
-      // MAIS le Zookeeper peut toujours AGIR (logic gérée dans NightActionsScreen)
+      // Réveil forcé (sauf pour les cibles du Zookeeper qui dorment encore demain)
       if (!p.hasBeenHitByDart) {
         p.isEffectivelyAsleep = false;
+      }
+
+      // Mort différée Pantin
+      if (p.isAlive && p.pantinCurseTimer == 0) {
+        p.isAlive = false;
+        finalDeathReasons[p.name] = "Malédiction du Pantin";
       }
     }
 
     return NightResult(
-      deadPlayers: newlyDead,
+      deadPlayers: aliveBefore.where((p) => !p.isAlive).toList(),
       deathReasons: finalDeathReasons,
       villageWasProtected: quicheIsActive,
       revealedRoleMessage: revealedInfo,
-      exorcismeSuccess: exoSuccess,
       villageIsNarcoleptic: somnifereActive,
-      houstonMessage: houstonResult,
-      archivistMessage: archivistInfo,
     );
   }
 }

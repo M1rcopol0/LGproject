@@ -16,8 +16,11 @@ class Player {
   bool isImmunizedFromVote;
   bool isProtectedByPokemon;
   bool isEffectivelyAsleep;
-  bool hasBeenHitByDart; // Marqueur cible Zookeeper
-  bool powerActiveThisTurn; // Verrou de cycle (anti-réveil immédiat)
+
+  // --- ZOOKEEPER ---
+  bool hasBeenHitByDart;      // Cible touchée par le Zookeeper
+  bool zookeeperEffectReady;  // Le venin s'activera à la prochaine préparation nocturne
+  bool powerActiveThisTurn;   // Verrou de cycle (anti-réveil immédiat)
 
   // --- VOYAGEUR ---
   bool isInTravel;
@@ -60,8 +63,8 @@ class Player {
   // Dresseur / Pokémon (Duo Solo)
   bool pokemonWillResurrect;
   bool wasRevivedInThisGame;
-  bool hasUsedRevive; // UNIQUE UTILISATION PAR PARTIE
-  String? lastDresseurAction; // "IMMOBILISER", "PROTEGER" ou "ATTAQUE"
+  bool hasUsedRevive; // UNIQUE UTILISATION PAR PARTIE (Dresseur)
+  String? lastDresseurAction; // "IMMOBILISER", "PROTEGER", "ATTAQUE", "REVIVE"
 
   // Devin
   int concentrationNights;
@@ -83,7 +86,7 @@ class Player {
   // Grand-mère
   int lastQuicheTurn;
   bool isVillageProtected; // Protection active ce tour
-  bool hasBakedQuiche;     // Quiche en préparation pour le tour suivant
+  bool hasBakedQuiche;     // Quiche en préparation pour le tour suivant (N+1)
 
   // --- STATS GLOBALES ET SUCCÈS ---
   int roleChangesCount;
@@ -111,7 +114,9 @@ class Player {
     this.isImmunizedFromVote = false,
     this.isProtectedByPokemon = false,
     this.isEffectivelyAsleep = false,
+
     this.hasBeenHitByDart = false,
+    this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
 
     this.isInTravel = false,
@@ -196,7 +201,7 @@ class Player {
     isProtectedByPokemon = false;
     isVoteCancelled = false;
     powerActiveThisTurn = false;
-    // Note: On ne touche pas à isEffectivelyAsleep ici (géré par resolveNight)
+    // Note: isEffectivelyAsleep est géré par prepareNightStates / resolveNight
   }
 
   // --- JSON SERIALIZATION ---
@@ -216,6 +221,7 @@ class Player {
       'isProtectedByPokemon': isProtectedByPokemon,
       'isEffectivelyAsleep': isEffectivelyAsleep,
       'hasBeenHitByDart': hasBeenHitByDart,
+      'zookeeperEffectReady': zookeeperEffectReady,
       'powerActiveThisTurn': powerActiveThisTurn,
       'isInTravel': isInTravel,
       'canTravelAgain': canTravelAgain,
@@ -278,6 +284,7 @@ class Player {
       ..isProtectedByPokemon = map['isProtectedByPokemon'] ?? false
       ..isEffectivelyAsleep = map['isEffectivelyAsleep'] ?? false
       ..hasBeenHitByDart = map['hasBeenHitByDart'] ?? false
+      ..zookeeperEffectReady = map['zookeeperEffectReady'] ?? false
       ..powerActiveThisTurn = map['powerActiveThisTurn'] ?? false
       ..isInTravel = map['isInTravel'] ?? false
       ..canTravelAgain = map['canTravelAgain'] ?? true
