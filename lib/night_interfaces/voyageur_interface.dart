@@ -1,74 +1,150 @@
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
+import 'target_selector_interface.dart';
 
-class VoyageurInterface extends StatelessWidget {
+class VoyageurInterface extends StatefulWidget {
   final Player actor;
-  final VoidCallback onStayAtVillage; // Rester au village (ou tirer si munitions)
-  final VoidCallback onDepart;        // Partir en voyage
-  final VoidCallback onReturn;        // Rentrer du voyage
-  final VoidCallback onStayTraveling; // Rester en voyage
+  final List<Player> allPlayers; // Nécessaire pour choisir une cible
+  final VoidCallback onStayAtVillage;
+  final VoidCallback onDepart;
+  final VoidCallback onReturnWithoutShooting; // Rentrer sans tirer (ou pas de balles)
+  final VoidCallback onStayTraveling;
+  final Function(Player target) onShoot; // Nouveau callback pour le tir
 
   const VoyageurInterface({
     super.key,
     required this.actor,
+    required this.allPlayers,
     required this.onStayAtVillage,
     required this.onDepart,
-    required this.onReturn,
+    required this.onReturnWithoutShooting,
     required this.onStayTraveling,
+    required this.onShoot,
   });
 
   @override
-  Widget build(BuildContext context) {
-    // --- LOGS DE CONSOLE ---
-    debugPrint("✈️ LOG [Voyageur] : ${actor.name} accède à l'interface.");
-    debugPrint("✈️ État : ${actor.isInTravel ? 'EN VOYAGE' : 'AU VILLAGE'} | Munitions : ${actor.travelerBullets}");
+  State<VoyageurInterface> createState() => _VoyageurInterfaceState();
+}
 
+class _VoyageurInterfaceState extends State<VoyageurInterface> {
+  bool _isAiming = false; // État local : est-on en train de choisir une cible ?
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint("✈️ LOG [Voyageur] : ${widget.actor.name} accède à l'interface.");
+    debugPrint("✈️ État : ${widget.actor.isInTravel ? 'EN VOYAGE' : 'AU VILLAGE'} | Munitions : ${widget.actor.travelerBullets}");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Si le joueur a cliqué sur "Tirer", on affiche le sélecteur
+    if (_isAiming) {
+      return Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(10.0),
+            child: Text(
+              "CHOISISSEZ VOTRE CIBLE",
+              style: TextStyle(color: Colors.redAccent, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10.0),
+            child: Text(
+              "Une balle sera consommée.",
+              style: TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
+            ),
+          ),
+          Expanded(
+            child: TargetSelectorInterface(
+              players: widget.allPlayers.where((p) => p.isAlive && p != widget.actor).toList(),
+              maxTargets: 1,
+              onTargetsSelected: (selected) {
+                if (selected.isNotEmpty) {
+                  debugPrint("✈️🔫 LOG [Voyageur] : Tir confirmé sur ${selected.first.name}");
+                  widget.onShoot(selected.first);
+                }
+              },
+            ),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            label: const Text("RETOUR AU MENU", style: TextStyle(color: Colors.white)),
+            onPressed: () => setState(() => _isAiming = false),
+          )
+        ],
+      );
+    }
+
+    // Sinon, on affiche le menu classique
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            actor.isInTravel ? Icons.flight_takeoff : Icons.home,
+            widget.actor.isInTravel ? Icons.flight_takeoff : Icons.home,
             size: 80,
-            color: actor.isInTravel ? Colors.cyanAccent : Colors.greenAccent,
+            color: widget.actor.isInTravel ? Colors.cyanAccent : Colors.greenAccent,
           ),
           const SizedBox(height: 20),
           Text(
-            actor.isInTravel ? "VOUS ÊTES EN VOYAGE" : "VOUS ÊTES AU VILLAGE",
+            widget.actor.isInTravel ? "VOUS ÊTES EN VOYAGE" : "VOUS ÊTES AU VILLAGE",
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 10),
           Text(
-            actor.isInTravel
-                ? "Voulez-vous rentrer ce soir ?"
-                : "Voulez-vous partir en voyage ?",
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
+            "Munitions disponibles : ${widget.actor.travelerBullets}",
+            style: TextStyle(
+                color: widget.actor.travelerBullets > 0 ? Colors.redAccent : Colors.grey,
+                fontSize: 16,
+                fontWeight: FontWeight.bold
+            ),
           ),
           const SizedBox(height: 40),
 
-          // --- LOGIQUE DES BOUTONS SELON L'ÉTAT ---
-          if (!actor.isInTravel) ...[
+          // --- BOUTONS SELON L'ÉTAT ---
+          if (!widget.actor.isInTravel) ...[
             // CAS 1 : AU VILLAGE
             _buildChoiceBtn("PARTIR EN VOYAGE", Colors.deepPurple, () {
               debugPrint("✈️ LOG [Voyageur] : Départ vers l'inconnu.");
-              onDepart();
+              widget.onDepart();
             }),
-            const SizedBox(height: 20),
-            _buildChoiceBtn("RESTER AU VILLAGE", Colors.blueGrey, () {
-              debugPrint("🏠 LOG [Voyageur] : Reste au village (Prêt à faire feu).");
-              onStayAtVillage();
+            const SizedBox(height: 15),
+
+            // Si on a des balles au village, on peut tirer
+            if (widget.actor.travelerBullets > 0)
+              _buildChoiceBtn("TIRER UNE BALLE", Colors.red.shade800, () {
+                setState(() => _isAiming = true);
+              }),
+
+            const SizedBox(height: 15),
+            _buildChoiceBtn("RESTER CALME", Colors.blueGrey, () {
+              debugPrint("🏠 LOG [Voyageur] : Reste au village sans rien faire.");
+              widget.onStayAtVillage();
             }),
           ] else ...[
             // CAS 2 : EN VOYAGE
-            _buildChoiceBtn("RENTRER AU VILLAGE", Colors.green, () {
-              debugPrint("🏠 LOG [Voyageur] : Retour au bercail.");
-              onReturn();
-            }),
-            const SizedBox(height: 20),
+            if (widget.actor.travelerBullets > 0)
+              _buildChoiceBtn("RENTRER ET TIRER", Colors.redAccent, () {
+                // Rentrer et tirer : on ouvre le viseur
+                // L'action de retour se fera implicitement après le tir dans le Dispatcher
+                setState(() => _isAiming = true);
+              }),
+
+            const SizedBox(height: 15),
+            _buildChoiceBtn(
+                widget.actor.travelerBullets > 0 ? "RENTRER SANS TIRER" : "RENTRER AU VILLAGE",
+                Colors.green,
+                    () {
+                  debugPrint("🏠 LOG [Voyageur] : Retour simple au bercail.");
+                  widget.onReturnWithoutShooting();
+                }
+            ),
+            const SizedBox(height: 15),
             _buildChoiceBtn("RESTER EN VOYAGE", Colors.cyan.withOpacity(0.5), () {
               debugPrint("✈️ LOG [Voyageur] : Poursuite du voyage.");
-              onStayTraveling();
+              widget.onStayTraveling();
             }),
           ],
         ],
@@ -78,8 +154,8 @@ class VoyageurInterface extends StatelessWidget {
 
   Widget _buildChoiceBtn(String label, Color color, VoidCallback onTap) {
     return SizedBox(
-      width: 250,
-      height: 60,
+      width: 260,
+      height: 55,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
@@ -89,7 +165,7 @@ class VoyageurInterface extends StatelessWidget {
         onPressed: onTap,
         child: Text(
           label,
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
         ),
       ),
     );

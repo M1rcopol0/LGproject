@@ -60,6 +60,12 @@ class PassScreen extends StatelessWidget {
                 onPressed: () {
                   if (isLastVoter) {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
+
+                    // --- CORRECTIF CRUCIAL ---
+                    // On valide les statistiques (Dingo, Trahisons) avant d'afficher les résultats
+                    GameLogic.validateVoteStats(allPlayers);
+                    // -------------------------
+
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -127,6 +133,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   Widget build(BuildContext context) {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
+    // TRI ALPHABÉTIQUE DES CIBLES
     final eligibleTargets = widget.allPlayers.where((p) => p.isAlive).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -265,6 +272,7 @@ class MJResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sortedPlayers = allPlayers.where((p) => p.isAlive).toList();
+    // Tri par votes décroissants, puis alphabétique
     sortedPlayers.sort((a, b) {
       if (b.votes != a.votes) {
         return b.votes.compareTo(a.votes);
@@ -296,6 +304,7 @@ class MJResultScreen extends StatelessWidget {
                 final p = sortedPlayers[i];
 
                 bool isImmunized = p.isImmunizedFromVote || p.isInHouse;
+                // Ron-Aldo est immunisé s'il a des fans vivants
                 if (p.role?.toLowerCase() == "ron-aldo") {
                   bool hasFans = allPlayers.any((f) => f.isFanOfRonAldo && f.isAlive);
                   if (hasFans) isImmunized = true;
@@ -355,37 +364,47 @@ class MJResultScreen extends StatelessWidget {
     debugPrint("⚖️ LOG [Sentence] : Le MJ a choisi d'éliminer ${target.name}.");
     playSfx("cloche.mp3");
 
-    if (target.role?.toLowerCase() == "voyageur" && target.isInTravel) {
-      debugPrint("✈️ LOG [Sentence] : Cible invulnérable (Voyageur en vol).");
-      target.isInTravel = false;
-      _showSpecialPopUp(context, "✈️ RETOUR FORCÉ", "${formatPlayerName(target.name)} était en voyage ! Il survit mais rentre au village.");
-      return;
-    }
-
+    // Protection Immunité Vote (Bouc émissaire, Bled)
     if (target.isImmunizedFromVote) {
-      debugPrint("🛡️ LOG [Sentence] : Cible protégée par le Bouc Émissaire.");
-      _showSpecialPopUp(context, "🛡️ PROTECTION DU BLED", "${formatPlayerName(target.name)} est protégé(e) ! Personne ne meurt.");
+      debugPrint("🛡️ LOG [Sentence] : Cible protégée par immunité.");
+      _showSpecialPopUp(context, "🛡️ PROTECTION", "${formatPlayerName(target.name)} est protégé(e) ! Personne ne meurt.");
       return;
     }
 
+    // Appel au GameLogic pour gérer l'élimination et les cas spéciaux (Pantin, Voyageur, etc.)
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
-    debugPrint("💀 LOG [Mort] : Confirmation du décès de ${deceased.name}.");
 
     String message;
-    if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
-      message = "🛡️ SACRIFICE : ${formatPlayerName(deceased.name)} s'est sacrifié pour Ron-Aldo !";
-    }
-    else if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) {
-      message = "Le Pantin est maudit ! Il mourra dans 2 jours.";
-    }
-    else if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
-      message = "La Maison s'effondre ! ${formatPlayerName(deceased.name)} est éliminé.";
-    }
-    else {
-      message = "Le village a tranché ! ${formatPlayerName(deceased.name)} est éliminé.";
+    bool nobodyDied = false;
+
+    if (deceased.isAlive) {
+      // CAS DE SURVIE (Pantin 1er vote, Voyageur, Bouc émissaire interne)
+      nobodyDied = true;
+      if (deceased.role?.toLowerCase() == "pantin") {
+        message = "🃏 Le Pantin a survécu au vote ! (Immunité unique consommée).";
+      } else if (deceased.role?.toLowerCase() == "voyageur") {
+        message = "✈️ Le Voyageur a été ramené de force au village ! (Il survit mais ne voyage plus).";
+      } else {
+        message = "La cible a survécu miraculeusement !";
+      }
+    } else {
+      // CAS DE MORT EFFECTIVE
+      debugPrint("💀 LOG [Mort] : Confirmation du décès de ${deceased.name}.");
+      if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
+        message = "🛡️ SACRIFICE : ${formatPlayerName(deceased.name)} s'est sacrifié pour Ron-Aldo !";
+      }
+      else if (deceased.role?.toLowerCase() == "pantin") {
+        message = "🎭 Le Pantin est mort ! Sa malédiction s'abat sur le village (Mort dans 2 jours).";
+      }
+      else if (target.role?.toLowerCase() == "maison" || (target.isInHouse && target != deceased)) {
+        message = "🏠 La Maison s'effondre et emporte ${formatPlayerName(deceased.name)} !";
+      }
+      else {
+        message = "Le village a tranché ! ${formatPlayerName(deceased.name)} est éliminé.";
+      }
     }
 
-    _finalize(context, message, false);
+    _finalize(context, message, nobodyDied);
   }
 
   void _showSpecialPopUp(BuildContext context, String title, String content) {
@@ -416,7 +435,9 @@ class MJResultScreen extends StatelessWidget {
   }
 
   void _finalize(BuildContext context, String message, bool noOne) {
+    // Passage au tour suivant
     GameLogic.nextTurn(allPlayers);
+
     if (!context.mounted) return;
 
     showDialog(
@@ -424,7 +445,7 @@ class MJResultScreen extends StatelessWidget {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: Text(noOne ? "⚖️ Verdict" : "💀 Sentence", style: const TextStyle(color: Colors.white)),
+        title: Text(noOne ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT", style: const TextStyle(color: Colors.white)),
         content: Text(message, style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(

@@ -5,10 +5,10 @@ import 'target_selector_interface.dart';
 
 class DingoInterface extends StatelessWidget {
   final Player actor; // Le joueur qui agit (Dingo)
-  final VoidCallback onHit;
-  final VoidCallback onMiss;
+  final VoidCallback onHit; // Callback de navigation (Succès)
+  final VoidCallback onMiss; // Callback de navigation (Échec)
   final List<Player> players;
-  final Function(Player) onKillTargetSelected;
+  final Function(Player) onKillTargetSelected; // Callback pour tuer (Série terminée)
 
   const DingoInterface({
     super.key,
@@ -24,7 +24,9 @@ class DingoInterface extends StatelessWidget {
     // --- LOGS DE CONSOLE ---
     debugPrint("🎯 LOG [Dingo] : ${actor.name} accède à son arme. Série actuelle : ${actor.dingoStrikeCount}/4");
 
-    // CAS 1 : TIR MORTEL (Après 4 réussites)
+    // =========================================================
+    // CAS 1 : TIR MORTEL (Série complétée : 4/4)
+    // =========================================================
     if (actor.dingoStrikeCount >= 4) {
       return Column(
         children: [
@@ -38,15 +40,21 @@ class DingoInterface extends StatelessWidget {
           ),
           Expanded(
             child: TargetSelectorInterface(
+              // On exclut le Dingo lui-même et les morts
               players: players.where((p) => p.isAlive && p != actor).toList(),
               maxTargets: 1,
-              isProtective: false,
+              isProtective: false, // C'est un tir offensif
               onTargetsSelected: (selected) {
                 if (selected.isNotEmpty) {
-                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${selected.first.name}.");
-                  // On enregistre le tir mortel pour les stats
+                  // MISE À JOUR DES STATS
                   actor.dingoShotsFired++;
-                  actor.dingoShotsHit++;
+                  actor.dingoShotsHit++; // Un tir mortel compte comme un tir réussi
+
+                  // LOGS
+                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${selected.first.name}.");
+                  debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired} | Touchés: ${actor.dingoShotsHit}");
+
+                  // ACTION
                   onKillTargetSelected(selected.first);
                 }
               },
@@ -56,7 +64,9 @@ class DingoInterface extends StatelessWidget {
       );
     }
 
-    // CAS 2 : ENTRAÎNEMENT
+    // =========================================================
+    // CAS 2 : ENTRAÎNEMENT (Série < 4)
+    // =========================================================
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -74,26 +84,42 @@ class DingoInterface extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              // BOUTON ÉCHEC
               _buildBigButton(
                 context,
                 "TIR RATÉ",
                 Icons.close,
                 Colors.red.withOpacity(0.8),
                     () {
-                  debugPrint("💨 LOG [Dingo] : Tir raté. Série réinitialisée.");
-                  actor.dingoShotsFired++; // Stats pour succès "Mauvais tireur"
+                  // MISE À JOUR ÉTAT
+                  actor.dingoShotsFired++;
+                  actor.dingoStrikeCount = 0; // RESET DE LA SÉRIE
+
+                  // LOGS
+                  debugPrint("💨 LOG [Dingo] : Tir raté. Série réinitialisée à 0.");
+                  debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired}");
+
+                  // NAVIGATION
                   onMiss();
                 },
               ),
+              // BOUTON SUCCÈS
               _buildBigButton(
                 context,
                 "TIR RÉUSSI",
                 Icons.check,
                 Colors.green.withOpacity(0.8),
                     () {
-                  debugPrint("🎯 LOG [Dingo] : Tir réussi ! Progression : ${actor.dingoStrikeCount + 1}/4");
+                  // MISE À JOUR ÉTAT
                   actor.dingoShotsFired++;
                   actor.dingoShotsHit++;
+                  actor.dingoStrikeCount++; // INCRÉMENTATION DE LA SÉRIE
+
+                  // LOGS
+                  debugPrint("🎯 LOG [Dingo] : Tir réussi ! Progression : ${actor.dingoStrikeCount}/4");
+                  debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired} | Touchés: ${actor.dingoShotsHit}");
+
+                  // NAVIGATION
                   onHit();
                 },
               ),

@@ -28,7 +28,7 @@ class Player {
   bool isInTravel;
   bool canTravelAgain;
   int travelNightsCount;
-  int travelerBullets; // Munitions accumulées (1 tous les 2 tours)
+  int travelerBullets; // Munitions accumulées
 
   // --- ARCHIVISTE ---
   bool isAwayAsMJ;
@@ -55,13 +55,14 @@ class Player {
 
   int? pantinCurseTimer;
   bool isCursed;
+  bool hasSurvivedVote; // Immunité unique au premier vote
 
   // Dingo
   int dingoStrikeCount; // NE PAS RESET
   int dingoShotsFired;
   int dingoShotsHit;
   bool dingoSelfVotedOnly;
-  bool parkingShotUnlocked; // Pour le succès spécifique
+  bool parkingShotUnlocked;
 
   // Dresseur / Pokémon
   bool pokemonWillResurrect;
@@ -90,7 +91,7 @@ class Player {
   int lastQuicheTurn;
   bool isVillageProtected;
   bool hasBakedQuiche;
-  bool hasSavedSelfWithQuiche; // Pour le succès
+  bool hasSavedSelfWithQuiche;
 
   // --- STATS GLOBALES ET SUCCÈS ---
   int roleChangesCount;
@@ -141,6 +142,7 @@ class Player {
     this.hasBetrayedRonAldo = false,
     this.pantinCurseTimer,
     this.isCursed = false,
+    this.hasSurvivedVote = false,
     this.dingoStrikeCount = 0,
     this.dingoShotsFired = 0,
     this.dingoShotsHit = 0,
@@ -202,13 +204,13 @@ class Player {
 
   void resetTemporaryStates() {
     // IMPORTANT : On ne reset NI dingoStrikeCount, NI travelerBullets, NI bombTimer
+    // NI hasSurvivedVote (Pantin)
     isMutedDay = false;
     isProtectedByPokemon = false;
     isVoteCancelled = false;
     powerActiveThisTurn = false;
     targetVote = null;
     isSelected = false;
-    // Note: isEffectivelyAsleep est géré par NightActionsLogic
   }
 
   // --- GÉNÉRATEUR D'ICÔNES POUR LE MENU ---
@@ -224,7 +226,7 @@ class Player {
     if (hasBeenHitByDart) icons.add(const Icon(Icons.colorize, size: 16, color: Colors.deepPurpleAccent));
     if (pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
 
-    // ICÔNE BOMBE TARDOS (Visible sur le poseur s'il a posé une bombe active)
+    // ICÔNE BOMBE TARDOS
     if (hasPlacedBomb) {
       icons.add(const Padding(
         padding: EdgeInsets.symmetric(horizontal: 2.0),
@@ -240,10 +242,7 @@ class Player {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.gps_fixed, size: 14, color: Colors.red),
-            Text(
-              "$dingoStrikeCount",
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
+            Text("$dingoStrikeCount", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
           ],
         ),
       ));
@@ -256,11 +255,8 @@ class Player {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent), // Triangle comme balle
-            Text(
-              "$travelerBullets",
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
+            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent), // Triangle
+            Text("$travelerBullets", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
           ],
         ),
       ));
@@ -307,6 +303,7 @@ class Player {
       'hasBetrayedRonAldo': hasBetrayedRonAldo,
       'pantinCurseTimer': pantinCurseTimer,
       'isCursed': isCursed,
+      'hasSurvivedVote': hasSurvivedVote,
       'dingoStrikeCount': dingoStrikeCount,
       'dingoShotsFired': dingoShotsFired,
       'dingoShotsHit': dingoShotsHit,
@@ -320,6 +317,7 @@ class Player {
       'concentrationTargetName': concentrationTargetName,
       'lastRevealedPlayerName': lastRevealedPlayerName,
       'devinRevealsCount': devinRevealsCount,
+      // On sauvegarde si la bombe est posée et le timer, pas la cible entière pour éviter les soucis de réhydratation
       'hasPlacedBomb': hasPlacedBomb,
       'bombTimer': bombTimer,
       'somnifereUses': somnifereUses,
@@ -372,6 +370,7 @@ class Player {
       ..hasBetrayedRonAldo = map['hasBetrayedRonAldo'] ?? false
       ..pantinCurseTimer = map['pantinCurseTimer']
       ..isCursed = map['isCursed'] ?? false
+      ..hasSurvivedVote = map['hasSurvivedVote'] ?? false
       ..dingoStrikeCount = map['dingoStrikeCount'] ?? 0
       ..dingoShotsFired = map['dingoShotsFired'] ?? 0
       ..dingoShotsHit = map['dingoShotsHit'] ?? 0

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/player.dart';
 import 'logic.dart';
 import 'globals.dart';
+import 'achievement_logic.dart'; // Import nécessaire pour le Voyageur
 
 class NightResult {
   final List<Player> deadPlayers;
@@ -31,10 +32,15 @@ class NightActionsLogic {
 
     for (var p in players) {
       // --- LOGIQUE BOMBE TARDOS (PROJECTILE AUTONOME) ---
-      // On décompte même si le poseur 'p' est mort.
       if (p.hasPlacedBomb && p.bombTimer > 0) {
         p.bombTimer--;
         debugPrint("💣 LOG [Tardos] : La bombe posée par ${p.name} tic-tac... (T-Minus: ${p.bombTimer})");
+      }
+
+      // --- LOGIQUE VOYAGEUR (Munitions & Stats) ---
+      // Le voyageur gagne des balles s'il est en voyage (1 balle toutes les 2 nuits)
+      if (p.role?.toLowerCase() == "voyageur" && p.isInTravel) {
+        AchievementLogic.updateVoyageur(p);
       }
 
       if (!p.isAlive) continue;
@@ -87,36 +93,38 @@ class NightActionsLogic {
       );
     }
 
-    // --- LOGIQUE EXPLOSION BOMBE TARDOS (AVANT TOUT LE RESTE) ---
-    // On doit ajouter ces morts à la map pendingDeathsMap pour qu'elles soient traitées
+    // --- LOGIQUE EXPLOSION BOMBE TARDOS (PRIORITAIRE) ---
+    // On ajoute les morts à la map pendingDeathsMap AVANT de traiter les protections
     for (var p in players) {
       if (p.hasPlacedBomb && p.bombTimer == 0 && p.tardosTarget != null) {
         Player target = p.tardosTarget!;
         debugPrint("💥 LOG [Explosion] : La bombe de ${p.name} EXPLOSE sur ${target.name} !");
 
         // Cas Spécial : La bombe est DANS la maison ou SUR la Maison
+        // Règle : Tout le monde meurt, pas de protection quiche.
         if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
           debugPrint("🏠💥 LOG [Tardos] : La bombe détruit la Maison et ses occupants !");
 
-          // 1. Trouver le proprio
+          // 1. Tuer le propriétaire (Maison)
           try {
             Player houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
+            // On utilise une raison contenant "Tardos" pour bypass la Quiche
             pendingDeathsMap[houseOwner] = "Explosion Maison (Tardos)";
           } catch(e) { /* Pas de maison en vie */ }
 
-          // 2. Trouver tous les occupants
+          // 2. Tuer tous les occupants
           for (var occupant in players.where((o) => o.isInHouse)) {
             pendingDeathsMap[occupant] = "Effondrement Maison (Tardos)";
           }
         }
-        // Cas Standard
+        // Cas Standard (Cible unique)
         else if (target.isAlive) {
           pendingDeathsMap[target] = "Explosion Bombe (Tardos)";
         } else {
           debugPrint("🌬️ LOG [Tardos] : La bombe explose sur un cadavre.");
         }
 
-        // Désactivation de la bombe
+        // Désactivation définitive de la bombe
         p.hasPlacedBomb = false;
         p.tardosTarget = null;
       }
@@ -141,7 +149,7 @@ class NightActionsLogic {
       if (!target.isAlive) return;
 
       // Protection Quiche
-      // Elle ne protège PAS si la raison contient "Tardos", "Explosion", "Maison" (effondrement) ou "accidentelle"
+      // Elle ne protège PAS si la raison contient "Tardos", "Maison" (dans le contexte explosion), "accidentelle" ou "Bombe"
       bool isUnstoppable = reason.contains("accidentelle") ||
           reason.contains("Bombe") ||
           reason.contains("Tardos") ||
@@ -153,6 +161,7 @@ class NightActionsLogic {
         // Logique Succès Grand-Mère (S'est sauvée elle-même)
         if (target.role?.toLowerCase() == "grand-mère") {
           target.hasSavedSelfWithQuiche = true;
+          debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
         }
 
         debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
@@ -171,14 +180,13 @@ class NightActionsLogic {
       Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
       if (!finalVictim.isAlive) {
-        // Logique Maison Standard (Ricochet) vs Explosion Tardos
-        // Si c'est le Tardos, tout le monde meurt (géré par l'ajout multiple dans pendingDeathsMap plus haut)
-        // Si c'est une morsure normale sur un occupant, la maison prend le coup.
-
+        // Logique Maison Standard (Ricochet)
+        // Si la victime finale est la maison (parce qu'elle a protégé un occupant)
+        // ET que la raison n'est pas une explosion Tardos (car là, tout le monde meurt)
         if (targetWasInHouse &&
             finalVictim.role?.toLowerCase() == "maison" &&
             finalVictim != target &&
-            !reason.contains("Tardos")) { // La maison ne tanke pas pour le Tardos, elle meurt AVEC lui
+            !reason.contains("Tardos")) {
 
           debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
           finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
@@ -194,6 +202,7 @@ class NightActionsLogic {
 
     // --- MORTS DIFFÉRÉES ET CLEANUP ---
     for (var p in players) {
+      // Malédiction Pantin
       if (p.isAlive && p.pantinCurseTimer == 0) {
         debugPrint("🎭 LOG [Pantin] : Mort de la malédiction : ${p.name}");
         p.isAlive = false;
@@ -201,6 +210,7 @@ class NightActionsLogic {
         finalDeathReasons[p.name] = "Malédiction du Pantin";
       }
 
+      // Cleanup Grand-mère
       if (p.role?.toLowerCase() == "grand-mère" && p.isAlive) {
         if (p.hasBakedQuiche) {
           p.isVillageProtected = true;
@@ -216,6 +226,8 @@ class NightActionsLogic {
 
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
+
+      // Réveil sauf si venin en cours
       if (!p.hasBeenHitByDart) p.isEffectivelyAsleep = false;
     }
 

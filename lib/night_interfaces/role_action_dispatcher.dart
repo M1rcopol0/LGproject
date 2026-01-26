@@ -98,23 +98,29 @@ class RoleActionDispatcher extends StatelessWidget {
       case "Voyageur":
         return VoyageurInterface(
           actor: actor,
+          allPlayers: allPlayers, // Ajouté
           onDepart: () {
-            debugPrint("✈️ LOG : Le Voyageur part en voyage.");
             actor.isInTravel = true;
             onNext();
           },
-          onStayAtVillage: () {
-            if (actor.travelerBullets > 0) {
-              _showKillSelector(context, actor, "Balle du Voyageur", (t) {
-                debugPrint("🔫 LOG : Le Voyageur a abattu ${t.name}");
-                actor.travelerBullets--;
-                pendingDeaths[t] = "Abattu par le Voyageur";
-                onNext();
-              });
-            } else { onNext(); }
+          onReturnWithoutShooting: () {
+            actor.isInTravel = false;
+            actor.canTravelAgain = false; // Il ne peut plus repartir après être rentré ? (Règle à vérifier)
+            // Si la règle est qu'il peut repartir, retire la ligne ci-dessus.
+            onNext();
           },
-          onReturn: () { actor.isInTravel = false; onNext(); },
-          onStayTraveling: () { onNext(); },
+          onStayTraveling: () {
+            // Logique déjà gérée par NightActionsLogic pour le gain de balles
+            onNext();
+          },
+          onStayAtVillage: onNext,
+          onShoot: (target) {
+            // Logique de tir
+            actor.isInTravel = false; // Il rentre forcément pour tirer (ou était déjà là)
+            actor.travelerBullets--;
+            pendingDeaths[target] = "Tir du Voyageur (${actor.name})";
+            onNext();
+          },
         );
 
       case "Pantin":
