@@ -2,10 +2,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'models/player.dart';
-import 'models/achievement.dart'; // Assurez-vous d'avoir accès à la liste des succès
+import 'models/achievement.dart';
 import 'widgets/achievement_toast.dart';
 
-/// Structure simple pour la file d'attente
+/// Structure simple pour la file d'attente des notifications
 class _AchievementTask {
   final String title;
   final String icon;
@@ -21,31 +21,26 @@ class TrophyService {
   static final List<_AchievementTask> _achievementQueue = [];
   static bool _isDisplaying = false;
 
-  // --- SÉCURITÉ ANTI-DOUBLON (BUG +2) ---
+  // --- SÉCURITÉ ANTI-DOUBLON ---
   static DateTime? _lastWinRecordTime;
 
   // ==========================================================
   // 1. DÉVERROUILLAGE IMMÉDIAT (PENDANT LE JEU)
   // ==========================================================
-  /// Vérifie et débloque un succès en temps réel.
-  /// Utile pour les actions comme le sacrifice d'un fan précis.
   static Future<void> checkAndUnlockImmediate({
     required BuildContext context,
     required String playerName,
     required String achievementId,
     required Map<String, dynamic> checkData,
   }) async {
-    // On récupère la définition du succès
     final ach = AchievementData.allAchievements.firstWhere(
           (a) => a.id == achievementId,
       orElse: () => throw Exception("Succès $achievementId introuvable"),
     );
 
-    // Si la condition est remplie par CE joueur précisément
     if (ach.checkCondition(checkData)) {
       bool newlyUnlocked = await unlockAchievement(playerName, achievementId);
 
-      // Si c'est la première fois qu'il l'obtient, on lance le pop-up
       if (newlyUnlocked && context.mounted) {
         showAchievementPopup(context, ach.title, ach.icon, playerName);
       }
@@ -55,25 +50,26 @@ class TrophyService {
   // ==========================================================
   // 2. DÉVERROUILLAGE SUCCÈS (DATE FIGÉE)
   // ==========================================================
-  /// Retourne [true] seulement si c'est la toute première fois qu'il est obtenu.
   static Future<bool> unlockAchievement(String playerName, String achievementId) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();
 
-    // On s'assure que le joueur existe dans les stats, sinon on l'initialise
     if (!stats.containsKey(playerName)) {
-      stats[playerName] = { 'totalWins': 0, 'roles': {}, 'roleWins': {}, 'achievements': {} };
+      stats[playerName] = {
+        'totalWins': 0,
+        'roles': {},
+        'roleWins': {},
+        'achievements': {}
+      };
     }
 
     var pData = Map<String, dynamic>.from(stats[playerName]);
     var achievements = Map<String, dynamic>.from(pData['achievements'] ?? {});
 
-    // SÉCURITÉ : Si le succès existe déjà, on refuse la mise à jour (Date figée)
     if (achievements.containsKey(achievementId)) {
       return false;
     }
 
-    // Capture de la date unique
     final now = DateTime.now();
     String timestamp = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} à ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
@@ -88,13 +84,11 @@ class TrophyService {
   // ==========================================================
   // 3. SYSTÈME DE POP-UP EN CASCADE (QUEUE)
   // ==========================================================
-  /// Ajoute un succès à la file d'attente d'affichage.
   static void showAchievementPopup(BuildContext context, String title, String icon, String playerName) {
     _achievementQueue.add(_AchievementTask(title, icon, playerName));
     _processQueue(context);
   }
 
-  /// Traite la file d'attente pour afficher les succès les uns après les autres
   static Future<void> _processQueue(BuildContext context) async {
     if (_isDisplaying || _achievementQueue.isEmpty) return;
     _isDisplaying = true;
@@ -126,13 +120,11 @@ class TrophyService {
     final overlay = Overlay.of(context);
     overlay.insert(entry);
 
-    // Temps d'affichage (3s) + petite marge pour l'animation de sortie
     await Future.delayed(const Duration(milliseconds: 3500));
 
     entry.remove();
     _isDisplaying = false;
 
-    // Relance le traitement pour le succès suivant s'il y en a un
     if (context.mounted) {
       _processQueue(context);
     }
@@ -184,15 +176,19 @@ class TrophyService {
   }
 
   // ==========================================================
-  // 5. RÉCUPÉRATION ET UTILITAIRES
+  // 5. RÉCUPÉRATION ET SUPPRESSION (FIX BUGS STATS)
   // ==========================================================
 
+  /// Supprime définitivement l'entrée JSON d'un joueur.
+  /// Garantit qu'un nouveau joueur avec le même nom commence à zéro.
   static Future<void> deletePlayerStats(String playerName) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();
+
     if (stats.containsKey(playerName)) {
       stats.remove(playerName);
       await prefs.setString(_keyPlayers, jsonEncode(stats));
+      debugPrint("🗑️ Données JSON effacées pour : $playerName");
     }
   }
 

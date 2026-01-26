@@ -265,21 +265,28 @@ class AchievementData {
       title: "Mauvais tireur",
       description: "Ne réussissez aucun de vos tirs dans une partie (min. 3).",
       icon: "🎯", rarity: 1,
-      checkCondition: (data) => data['dingo_shots_fired'] >= 3 && data['dingo_shots_hit'] == 0,
+      checkCondition: (data) =>
+      data['player_role']?.toString().toLowerCase() == "dingo" && // Ajout sécurité rôle
+          data['dingo_shots_fired'] >= 3 &&
+          data['dingo_shots_hit'] == 0,
     ),
     Achievement(
       id: "parking_shot",
       title: "Un tir du parking !",
       description: "En tant que dingo, tuez le dernier ennemi du village.",
       icon: "🏀", rarity: 3,
-      checkCondition: (data) => data['dingo_killed_last_enemy'] == true,
+      // Géré en temps réel par AchievementLogic.checkParkingShot
+      checkCondition: (data) => data['parking_shot_achieved'] == true,
     ),
     Achievement(
       id: "crazy_dingo_vote",
       title: "Le plus taré des dingos",
       description: "Votez contre vous-même à chaque vote et survivez.",
       icon: "🤪", rarity: 3,
-      checkCondition: (data) => data['dingo_self_voted_all_game'] == true && data['is_player_alive'] == true,
+      checkCondition: (data) =>
+      data['player_role']?.toString().toLowerCase() == "dingo" && // Correction : Uniquement pour le Dingo
+          data['dingo_self_voted_all_game'] == true &&
+          data['is_player_alive'] == true,
     ),
 
 // --- HOUSTON ---
@@ -320,8 +327,9 @@ class AchievementData {
     Achievement(
       id: "canaclean",
       title: "Le Canaclean",
-      description: "Jouez avec Clara, Gabriel, Jean et Marc.",
+      description: "Clara, Gabriel, Jean, Marc et vous devez être dans la même équipe et vivants.",
       icon: "🧼", rarity: 2,
+      // La logique est calculée par AchievementLogic.checkCanacleanCondition
       checkCondition: (data) => data['canaclean_present'] == true,
     ),
 

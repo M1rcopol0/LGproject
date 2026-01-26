@@ -21,17 +21,32 @@ class AchievementLogic {
     }
   }
 
+  /// CORRECTION DINGO : Un tir du parking
+  /// Vérifie si le tir élimine le dernier ennemi du village.
+  static void checkParkingShot(Player dingo, Player victim, List<Player> allPlayers) {
+    if (dingo.role?.toLowerCase() != "dingo") return;
+
+    // On vérifie s'il reste des ennemis hostiles au village (Loups ou Solo)
+    // On exclut la victime qui est en train de mourir (pas encore isAlive = false)
+    bool noMoreEnemies = !allPlayers.any((p) =>
+    p.isAlive &&
+        p.name != victim.name &&
+        (p.team == "loups" || p.team == "solo")
+    );
+
+    // Si la cible était hostile et que c'était le dernier rempart ennemi
+    if (noMoreEnemies && (victim.team == "loups" || victim.team == "solo")) {
+      parkingShotUnlocked = true; // Flag global utilisé dans fin.dart
+      TrophyService.unlockAchievement(dingo.name, "parking_shot");
+    }
+  }
+
   /// Gère le sacrifice d'un Fan (mort à la place de Ron-Aldo)
   static void checkFanSacrifice(Player deadFan, Player ronAldo) {
-    // SEUL un fan peut débloquer ces succès, pas Ron-Aldo lui-même
     if (deadFan.isFanOfRonAldo) {
-      // Succès : Garde du Corps (Simple sacrifice)
       fanSacrificeAchieved = true;
       TrophyService.unlockAchievement(deadFan.name, "fan_sacrifice");
 
-      // Succès : Fan Ultime
-      // Conditions : Le fan a voté contre Ron-Aldo ce tour-ci
-      // ET Ron-Aldo a voté contre lui-même.
       if (_traitorsThisTurn.contains(deadFan.name) && ronAldo.targetVote == ronAldo) {
         ultimateFanAchieved = true;
         TrophyService.unlockAchievement(deadFan.name, "ultimate_fan");
@@ -41,12 +56,10 @@ class AchievementLogic {
 
   /// Vérifie le succès Fringale Nocturne lors du vote du village
   static void checkEvolvedHunger(Player votedPlayer) {
-    // Si la cible des loups de cette nuit (qui a survécu) est celle qui meurt au vote
     if (nightWolvesTarget != null &&
         votedPlayer.name == nightWolvesTarget!.name &&
         nightWolvesTargetSurvived) {
       evolvedHungerAchieved = true;
-      // Le succès sera attribué aux loups dans l'écran de fin
     }
   }
 
@@ -66,6 +79,27 @@ class AchievementLogic {
   // 2. ACTIONS DE JEU ET POUVOIRS
   // ==========================================================
 
+  /// CORRECTION CANACLEAN : Même équipe et vivants
+  /// Vérifie si Clara, Gabriel, Jean, Marc et le joueur sont vivants et ensemble.
+  static void checkCanacleanCondition(List<Player> players) {
+    const requiredNames = ["Clara", "Gabriel", "Jean", "Marc"];
+
+    for (var p in players.where((p) => p.isAlive)) {
+      // On identifie les 4 compères dans la partie
+      List<Player> mates = players.where((target) =>
+          requiredNames.contains(target.name)
+      ).toList();
+
+      // Si les 4 sont présents, vivants et dans la même équipe que le joueur
+      if (mates.length == 4) {
+        bool allSameTeamAndAlive = mates.every((m) => m.team == p.team && m.isAlive);
+        if (allSameTeamAndAlive) {
+          p.canacleanPresent = true; // Marqueur pour le succès en fin de partie
+        }
+      }
+    }
+  }
+
   /// Vérifie le nombre de personnes maudites pour le succès "Effet Domino"
   static void checkPantinCurses(List<Player> players) {
     int cursedCount = players.where((p) => p.isAlive && p.pantinCurseTimer != null).length;
@@ -81,7 +115,6 @@ class AchievementLogic {
   /// Enregistre une électrocution du Pokémon
   static void recordShock(Player dresseurOuPokemon, Player target) {
     _shockTracker[target.name] = (_shockTracker[target.name] ?? 0) + 1;
-
     if (_shockTracker[target.name]! >= 2) {
       TrophyService.unlockAchievement(dresseurOuPokemon.name, "double_shock");
     }
@@ -115,10 +148,9 @@ class AchievementLogic {
   // 3. LOGIQUE DE TRANSITION ET RESET
   // ==========================================================
 
-  /// Nettoie les données volatiles à chaque fin de tour (après le vote)
+  /// Nettoie les données volatiles à chaque fin de tour
   static void clearTurnData() {
     _traitorsThisTurn.clear();
-    // On reset le tracking de la cible des loups pour le prochain tour
     nightWolvesTarget = null;
     nightWolvesTargetSurvived = false;
   }
@@ -135,6 +167,7 @@ class AchievementLogic {
     paradoxAchieved = false;
     fanSacrificeAchieved = false;
     ultimateFanAchieved = false;
+    parkingShotUnlocked = false; // Reset du flag Dingo
     nightWolvesTarget = null;
     nightWolvesTargetSurvived = false;
   }

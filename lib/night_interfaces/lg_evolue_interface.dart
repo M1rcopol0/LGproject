@@ -14,16 +14,16 @@ class LGEvolueInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Identifier les loups vivants (pour le contexte global)
+    // 1. Identifier les loups vivants
     final aliveWolves = players.where((p) => p.isAlive && p.team == "loups").toList();
 
     // 2. Identifier les loups capables de voter
-    // Un loup vote s'il est vivant ET ne dort pas (Zookeeper/Dresseur)
-    // Le Chaman ne vote que s'il est le DERNIER loup vivant.
+    // Un loup vote s'il ne dort pas (Zookeeper/Somnifère/Pokémon)
+    // Le Chaman ne vote que s'il est le SEUL survivant de la meute
     final votingWolves = aliveWolves.where((p) {
       if (p.isEffectivelyAsleep) return false;
 
-      if (p.role == "Loup-garou chaman") {
+      if (p.role?.toLowerCase() == "loup-garou chaman") {
         bool hasOtherLoup = aliveWolves.any((other) => other != p);
         return !hasOtherLoup;
       }
@@ -31,7 +31,7 @@ class LGEvolueInterface extends StatelessWidget {
     }).toList();
 
     // 3. Déterminer si le groupe est totalement immobilisé
-    // Si aucun loup capable de voter n'est réveillé
+    // Si des loups sont vivants mais qu'aucun ne peut voter
     bool isEntirelyBlocked = aliveWolves.isNotEmpty && votingWolves.isEmpty;
 
     // 4. Filtrer les victimes potentielles (Vivant et pas loup)
@@ -41,7 +41,7 @@ class LGEvolueInterface extends StatelessWidget {
 
     return Stack(
       children: [
-        // COUCHE 1 : L'interface normale (toujours visible pour l'anonymat)
+        // COUCHE 1 : L'interface de vote
         Column(
           children: [
             Padding(
@@ -63,11 +63,11 @@ class LGEvolueInterface extends StatelessWidget {
                     "Puissance de vote : ${votingWolves.length} / ${aliveWolves.length}",
                     style: const TextStyle(color: Colors.white54, fontSize: 14),
                   ),
-                  if (votingWolves.any((w) => w.role == "Loup-garou chaman"))
+                  if (votingWolves.any((w) => w.role?.toLowerCase() == "loup-garou chaman"))
                     const Padding(
                       padding: EdgeInsets.only(top: 4),
                       child: Text(
-                        "⚠️ Chaman seul : Vision perdue, Vote activé.",
+                        "⚠️ Chaman seul : Vote activé.",
                         style: TextStyle(color: Colors.orangeAccent, fontSize: 12, fontStyle: FontStyle.italic),
                       ),
                     ),
@@ -83,6 +83,7 @@ class LGEvolueInterface extends StatelessWidget {
               ),
             ),
             const Divider(color: Colors.redAccent, thickness: 0.5, indent: 50, endIndent: 50),
+
             Expanded(
               child: IgnorePointer(
                 ignoring: isEntirelyBlocked,
@@ -91,7 +92,7 @@ class LGEvolueInterface extends StatelessWidget {
                   child: TargetSelectorInterface(
                     players: potentialVictims.isNotEmpty ? potentialVictims : players.where((p) => p.isAlive).toList(),
                     maxTargets: 1,
-                    isProtective: false,
+                    isProtective: false, // Thème rouge pour attaque
                     onTargetsSelected: (selected) {
                       if (selected.isNotEmpty) {
                         onVictimChosen(selected.first);
@@ -104,11 +105,12 @@ class LGEvolueInterface extends StatelessWidget {
           ],
         ),
 
-        // COUCHE 2 : Le bandeau d'immobilisation (si bloqué)
+        // COUCHE 2 : Le bandeau d'immobilisation (sécurité visuelle)
         if (isEntirelyBlocked)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withOpacity(0.7),
+              padding: const EdgeInsets.symmetric(horizontal: 30),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -116,20 +118,23 @@ class LGEvolueInterface extends StatelessWidget {
                     const Icon(Icons.block, color: Colors.red, size: 80),
                     const SizedBox(height: 20),
                     const Text(
-                      "IMMOBILISÉS",
+                      "MEUTE BLOQUÉE",
                       style: TextStyle(color: Colors.red, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 4),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 15),
                     const Text(
-                      "Le Dresseur ou le Zookeeper\na neutralisé vos capacités d'attaque.",
+                      "Tous les loups capables de chasser ont été endormis ou neutralisés.",
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     const SizedBox(height: 40),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                      onPressed: () => onVictimChosen(Player(name: "Personne")), // Action vide
-                      child: const Text("PASSER LA NUIT"),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15)
+                      ),
+                      onPressed: () => onVictimChosen(Player(name: "Personne")),
+                      child: const Text("PASSER LA NUIT", style: TextStyle(fontWeight: FontWeight.bold)),
                     )
                   ],
                 ),

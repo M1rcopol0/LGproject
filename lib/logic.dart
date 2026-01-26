@@ -29,12 +29,15 @@ class GameLogic {
   // 1. TRANSITION DE TOUR (CENTRALISÉE)
   // ==========================================================
   static void nextTurn(List<Player> allPlayers) {
+    // Vérification des succès d'équipe avant le reset des états
+    AchievementLogic.checkCanacleanCondition(allPlayers);
+
     AchievementLogic.clearTurnData();
     AchievementLogic.checkPantinCurses(allPlayers);
 
     _enforceMaisonFanPolicy(allPlayers);
 
-    // Reset des cibles de nuit
+    // Reset des cibles de nuit et compteurs temporaires
     nightChamanTarget = null;
     nightWolvesTarget = null;
     nightWolvesTargetSurvived = false;
@@ -44,27 +47,21 @@ class GameLogic {
       if (!p.isAlive) {
         p.pantinCurseTimer = null;
         p.hasBeenHitByDart = false;
+        p.zookeeperEffectReady = false;
         p.hasBakedQuiche = false;
         p.isVillageProtected = false;
         continue;
       }
 
-      // Reset des états quotidiens
       p.isImmunizedFromVote = false;
       p.votes = 0;
       p.isVoteCancelled = false;
       p.isMutedDay = false;
       p.powerActiveThisTurn = false;
 
-      // Note: isVillageProtected n'est pas reset ici car il doit durer
-      // tout le jour suivant la nuit de protection (Jour N).
-      // Il est reset dans le cleanup matinal de NightActionsLogic.
-
       p.resetTemporaryStates();
     }
 
-    // UNIQUE ENDROIT OÙ LE TOUR AUGMENTE
-    // Passage de la fin du Jour N à la Nuit N+1
     globalTurnNumber++;
     isDayTime = false;
     debugPrint("🌙 Passage à la Nuit $globalTurnNumber");
@@ -78,7 +75,7 @@ class GameLogic {
           p.isInHouse = false;
         }
       }
-    } catch (e) { /* Pas de maison */ }
+    } catch (e) {}
   }
 
   // ==========================================================
@@ -99,6 +96,7 @@ class GameLogic {
           AchievementLogic.checkTraitorFan(p, p.targetVote!);
         }
       }
+
       if (p.votes > 0) {
         p.totalVotesReceivedDuringGame += p.votes;
       }
@@ -106,7 +104,6 @@ class GameLogic {
 
     if (votablePlayers.isEmpty) return;
 
-    // Tri par nombre de votes (plus grand au plus petit)
     votablePlayers.sort((a, b) {
       if (b.votes != a.votes) return b.votes.compareTo(a.votes);
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
@@ -115,7 +112,6 @@ class GameLogic {
     Player first = votablePlayers[0];
     Player? second = votablePlayers.length > 1 ? votablePlayers[1] : null;
 
-    // Protection spéciale Pantin (Clutch save achievement)
     if (second != null && second.role?.toLowerCase() == "pantin") {
       if ((first.votes - second.votes) < 2 && second.targetVote == first) {
         pantinClutchSave = true;
@@ -142,58 +138,54 @@ class GameLogic {
 
     final String roleLower = target.role?.toLowerCase() ?? "";
 
-    // Invulnérabilité nocturne du Pantin
     if (!isVote && roleLower == "pantin") {
       debugPrint("🛡️ Pantin survit à la nuit.");
       return target;
     }
 
-    // Pouvoir du Bouc Émissaire (Archiviste)
     if (isVote && target.hasScapegoatPower) {
       target.hasScapegoatPower = false;
       debugPrint("🐏 Bouc émissaire utilisé pour ${target.name}");
       return target;
     }
 
-    // Malédiction du Pantin au vote
     if (roleLower == "pantin" && isVote && target.pantinCurseTimer == null) {
       target.pantinCurseTimer = 2;
-      debugPrint("🎭 Pantin maudit le village en mourant au vote.");
+      debugPrint("🎭 Pantin maudit le village en mourant.");
       return target;
     }
 
-    // Protection du Voyageur en déplacement
     if (roleLower == "voyageur" && target.isInTravel) {
       target.isInTravel = false;
       target.canTravelAgain = false;
-      debugPrint("✈️ Voyageur forcé de rentrer prématurément.");
+      debugPrint("✈️ Voyageur forcé au retour.");
       return target;
     }
 
     Player victim = target;
 
-    // --- LOGIQUE MAISON ---
     if (target.isInHouse) {
-      // On cherche le propriétaire (vivant et dont la maison n'est pas déjà cassée)
       Player? houseOwner;
       try {
-        houseOwner = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "maison" && p.isAlive && !p.isHouseDestroyed);
+        houseOwner = allPlayers.firstWhere((p) =>
+        p.role?.toLowerCase() == "maison" &&
+            p.isAlive &&
+            !p.isHouseDestroyed
+        );
       } catch (e) { houseOwner = null; }
 
       if (houseOwner != null) {
         if (houseOwner.isFanOfRonAldo) {
-          victim = target; // Protection désactivée si fan
+          victim = target;
         } else {
-          victim = houseOwner; // La maison prend le coup
-          houseOwner.isHouseDestroyed = true; // Crucial : Marquer comme détruite immédiatement
-          for (var p in allPlayers) { p.isInHouse = false; } // Expulser tout le monde
-          return victim; // On sort immédiatement
+          victim = houseOwner;
+          houseOwner.isHouseDestroyed = true;
+          for (var p in allPlayers) { p.isInHouse = false; }
+          victim.isAlive = false;
+          return victim;
         }
-      } else {
-        victim = target; // Plus de maison ou déjà cassée ce tour
       }
     }
-    // Logique Sacrifice Ron-Aldo
     else if (roleLower == "ron-aldo") {
       List<Player> aliveFans =
       allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
@@ -210,12 +202,13 @@ class GameLogic {
       }
     }
 
-    victim.isAlive = false;
-
-    // Cleanup si la maison meurt
-    if (victim.role?.toLowerCase() == "maison") {
-      for (var p in allPlayers) { p.isInHouse = false; }
+    // --- AJOUT LOGIQUE DINGO (UN TIR DU PARKING) ---
+    // On vérifie si un Dingo vivant a tué le dernier ennemi
+    for (var p in allPlayers.where((p) => p.isAlive && p.role?.toLowerCase() == "dingo")) {
+      AchievementLogic.checkParkingShot(p, victim, allPlayers);
     }
+
+    victim.isAlive = false;
 
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
@@ -231,7 +224,7 @@ class GameLogic {
   }
 
   // ==========================================================
-  // 4. RÉPARTITION DES RÔLES
+  // 4. INITIALISATION DE PARTIE
   // ==========================================================
   static void assignRoles(List<Player> players) {
     RoleDistributionLogic.distribute(players);
@@ -262,6 +255,7 @@ class GameLogic {
     p.mutedPlayersCount = 0;
     p.hasHeardWolfSecrets = false;
     p.wasRevivedInThisGame = false;
+    p.hasUsedRevive = false;
     p.hasBetrayedRonAldo = false;
     p.travelerBullets = 0;
     p.somnifereUses = (p.role?.toLowerCase() == "somnifère") ? 2 : 0;
@@ -276,12 +270,15 @@ class GameLogic {
     p.isVillageChief = false;
     p.maxSimultaneousCurses = 0;
     p.hasBeenHitByDart = false;
+    p.zookeeperEffectReady = false;
     p.isEffectivelyAsleep = false;
     p.powerActiveThisTurn = false;
     p.lastDresseurAction = null;
     p.hasBakedQuiche = false;
     p.isVillageProtected = false;
     p.archivisteActionsUsed = [];
+    p.canacleanPresent = false;
+    p.isHouseDestroyed = false;
 
     if (globalTurnNumber == 1) {
       AchievementLogic.resetFullGameData();
@@ -289,7 +286,7 @@ class GameLogic {
   }
 
   // ==========================================================
-  // 5. VÉRIFICATION DE VICTOIRE
+  // 5. CONDITIONS DE VICTOIRE
   // ==========================================================
   static String? checkWinner(List<Player> players) {
     final alive = players.where((p) => p.isAlive).toList();

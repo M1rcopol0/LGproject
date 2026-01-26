@@ -47,17 +47,12 @@ class RoleActionDispatcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // --- LOGIQUE D'ANONYMAT ET SOMMEIL ---
+    // On vérifie si l'acteur actuel (celui qui a le téléphone) est endormi
     bool isImmuneToSleep = (action.role == "Archiviste" && actor.isAwayAsMJ);
 
-    // CONDITION SPÉCIALE : On ne bloque pas l'écran pour les Loups-Garous Évolués
-    // car c'est une action de groupe (le groupe doit pouvoir voter même si l'un d'eux dort).
-    // On ne bloque pas non plus le Zookeeper (attaquant).
-    bool isGroupAction = (action.role == "Loups-garous évolués");
-
-    if (!isGroupAction &&
-        action.role != "Zookeeper" &&
-        actor.isEffectivelyAsleep &&
-        !isImmuneToSleep) {
+    // On affiche l'écran de sommeil pour TOUS les rôles (y compris LG) s'ils dorment
+    // Exception : Le Zookeeper car il est l'attaquant, et l'Archiviste MJ.
+    if (actor.isEffectivelyAsleep && !isImmuneToSleep && action.role != "Zookeeper") {
       return _buildAsleepScreen();
     }
 
@@ -118,12 +113,13 @@ class RoleActionDispatcher extends StatelessWidget {
         );
 
       case "Loups-garous évolués":
-      // L'interface gérera elle-même l'affichage d'un bandeau "Immobilisé" si besoin
         return LGEvolueInterface(
           players: allPlayers,
           onVictimChosen: (p) {
-            pendingDeaths[p] = "Morsure de Loup";
-            nightWolvesTarget = p;
+            if (p.name != "Personne") {
+              pendingDeaths[p] = "Morsure de Loup";
+              nightWolvesTarget = p;
+            }
             onNext();
           },
         );
@@ -234,7 +230,7 @@ class RoleActionDispatcher extends StatelessWidget {
     }
   }
 
-  // --- ÉCRAN DE SOMMEIL (STRICTE CONFIDENTIALITÉ) ---
+  // --- ÉCRAN DE SOMMEIL (POUR TOUS LES RÔLES BLOQUÉS) ---
 
   Widget _buildAsleepScreen() {
     return Center(
@@ -252,7 +248,7 @@ class RoleActionDispatcher extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
-              "Un événement (Somnifère ou Zookeeper) vous empêche d'agir cette nuit.",
+              "Un événement (Zookeeper ou Pokémon) vous empêche d'agir cette nuit.",
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white60, fontSize: 16),
             ),

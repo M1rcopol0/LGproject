@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
 import '../../globals.dart';
+import '../../achievement_logic.dart';
 
 class DresseurInterface extends StatelessWidget {
   final Player actor; // Le joueur qui agit (Dresseur ou Pokémon)
@@ -16,7 +17,7 @@ class DresseurInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Recherche des deux protagonistes
+    // 1. Identification précise des deux protagonistes
     final trainerPlayer = allPlayers.firstWhere(
           (p) => p.role?.toLowerCase() == "dresseur",
       orElse: () => Player(name: "Inconnu", isAlive: false),
@@ -28,7 +29,9 @@ class DresseurInterface extends StatelessWidget {
 
     bool isTrainerAlive = trainerPlayer.isAlive;
     bool isPokemonAlive = pokemonPlayer.isAlive;
-    String? lastAction = actor.lastDresseurAction;
+
+    // On utilise l'historique du Dresseur (pivot du duo) pour l'alternance
+    String? lastAction = trainerPlayer.lastDresseurAction;
 
     return SingleChildScrollView(
       child: Column(
@@ -62,19 +65,18 @@ class DresseurInterface extends StatelessWidget {
           const SizedBox(height: 30),
 
           // --- OPTION : RÉANIMATION (1x par partie) ---
-          // Apparaît si le Dresseur est en vie, le Pokémon mort, et le pouvoir non utilisé
-          if (isTrainerAlive && !isPokemonAlive && !actor.hasUsedRevive)
+          if (isTrainerAlive && !isPokemonAlive && !trainerPlayer.hasUsedRevive)
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: _btn(Icons.healing, "RÉANIMER POKÉMON", Colors.green, Colors.white, () {
-                _executeRevive(pokemonPlayer);
+                _executeRevive(pokemonPlayer, trainerPlayer);
               }),
             ),
 
-          // --- OPTION 1 : IMMOBILISER (Alternance requise) ---
+          // --- OPTION 1 : IMMOBILISER (INSTANTANÉ) ---
           if (isTrainerAlive && isPokemonAlive && lastAction != "IMMOBILISER")
             _btn(Icons.flash_on, "IMMOBILISER", Colors.orange, Colors.white, () {
-              _showImmobilizeSelector(context);
+              _showImmobilizeSelector(context, trainerPlayer);
             }),
 
           // --- OPTION 2 : PROTÉGER (Alternance requise) ---
@@ -82,18 +84,18 @@ class DresseurInterface extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 20),
               child: _btn(Icons.shield, "PROTÉGER", Colors.blue, Colors.white, () {
-                _showProtectionChoice(context);
+                _showProtectionChoice(context, trainerPlayer);
               }),
             ),
 
           // --- OPTION 3 : ATTAQUE (Dresseur MORT) ---
           if (!isTrainerAlive && isPokemonAlive)
             _btn(Icons.dangerous, "ATTAQUER (MORTEL)", Colors.red[900]!, Colors.white, () {
-              _showKillSelector(context);
+              _showKillSelector(context, trainerPlayer);
             }),
 
-          // Cas où le Pokémon est mort et la réanimation a été utilisée
-          if (!isPokemonAlive && (actor.hasUsedRevive || !isTrainerAlive))
+          // Cas où le duo est hors service
+          if (!isPokemonAlive && (trainerPlayer.hasUsedRevive || !isTrainerAlive))
             const Padding(
               padding: EdgeInsets.all(20.0),
               child: Text(
@@ -112,22 +114,30 @@ class DresseurInterface extends StatelessWidget {
     );
   }
 
-  void _executeRevive(Player pokemon) {
+  void _executeRevive(Player pokemon, Player trainer) {
     pokemon.isAlive = true;
-    actor.hasUsedRevive = true; // Consomme l'unique utilisation
-    actor.lastDresseurAction = "REVIVE";
+    trainer.hasUsedRevive = true;
+    trainer.lastDresseurAction = "REVIVE";
+    // Notification au moteur de succès
+    AchievementLogic.recordRevive(pokemon);
     onComplete(null);
   }
 
-  void _showImmobilizeSelector(BuildContext context) {
-    final targets = allPlayers.where((p) => p.isAlive && p != actor).toList();
+  void _showImmobilizeSelector(BuildContext context, Player trainer) {
+    // Filtrage pour ne pas se stun soi-même ou son partenaire
+    final targets = allPlayers.where((p) =>
+    p.isAlive &&
+        p.role?.toLowerCase() != "dresseur" &&
+        p.role?.toLowerCase() != "pokémon"
+    ).toList();
+
     targets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: const Text("Immobilisation", style: TextStyle(color: Colors.orangeAccent)),
+        title: const Text("Stun Instantané", style: TextStyle(color: Colors.orangeAccent)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -137,10 +147,11 @@ class DresseurInterface extends StatelessWidget {
               title: Text(formatPlayerName(targets[i].name), style: const TextStyle(color: Colors.white)),
               subtitle: Text(targets[i].role ?? "Villageois", style: const TextStyle(color: Colors.white38)),
               onTap: () {
-                // L'immobilisation met le joueur en état de sommeil différé
+                // APPLICATION IMMÉDIATE : Bloque le joueur s'il doit agir plus tard
                 targets[i].isEffectivelyAsleep = true;
                 targets[i].powerActiveThisTurn = true;
-                actor.lastDresseurAction = "IMMOBILISER";
+
+                trainer.lastDresseurAction = "IMMOBILISER";
                 Navigator.pop(ctx);
                 onComplete(null);
               },
@@ -151,7 +162,7 @@ class DresseurInterface extends StatelessWidget {
     );
   }
 
-  void _showProtectionChoice(BuildContext context) {
+  void _showProtectionChoice(BuildContext context, Player trainer) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -166,7 +177,7 @@ class DresseurInterface extends StatelessWidget {
               onTap: () {
                 final d = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "dresseur");
                 d.isProtectedByPokemon = true;
-                actor.lastDresseurAction = "PROTEGER";
+                trainer.lastDresseurAction = "PROTEGER";
                 Navigator.pop(ctx);
                 onComplete(null);
               },
@@ -177,7 +188,7 @@ class DresseurInterface extends StatelessWidget {
               onTap: () {
                 final p = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "pokémon");
                 p.isProtectedByPokemon = true;
-                actor.lastDresseurAction = "PROTEGER";
+                trainer.lastDresseurAction = "PROTEGER";
                 Navigator.pop(ctx);
                 onComplete(null);
               },
@@ -188,15 +199,19 @@ class DresseurInterface extends StatelessWidget {
     );
   }
 
-  void _showKillSelector(BuildContext context) {
-    final targets = allPlayers.where((p) => p.isAlive && p != actor).toList();
+  void _showKillSelector(BuildContext context, Player trainer) {
+    final targets = allPlayers.where((p) =>
+    p.isAlive &&
+        p.role?.toLowerCase() != "pokémon"
+    ).toList();
+
     targets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: const Text("Choisir une proie", style: TextStyle(color: Colors.redAccent)),
+        title: const Text("Cible de la Rage", style: TextStyle(color: Colors.redAccent)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -206,9 +221,9 @@ class DresseurInterface extends StatelessWidget {
               title: Text(formatPlayerName(targets[i].name), style: const TextStyle(color: Colors.white)),
               leading: const Icon(Icons.close, color: Colors.red),
               onTap: () {
-                actor.lastDresseurAction = "ATTAQUE";
+                trainer.lastDresseurAction = "ATTAQUE";
                 Navigator.pop(ctx);
-                onComplete(targets[i]); // Renvoie la victime pour élimination
+                onComplete(targets[i]);
               },
             ),
           ),
@@ -230,11 +245,7 @@ class DresseurInterface extends StatelessWidget {
       icon: Icon(icon, color: txtCol),
       label: Text(
         lbl,
-        style: TextStyle(
-          color: txtCol,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: txtCol, fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
   }

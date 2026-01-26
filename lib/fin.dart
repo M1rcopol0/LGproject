@@ -95,6 +95,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
         'evolved_hunger_achieved': evolvedHungerAchieved,
         'wolves_night_kills': wolvesNightKills,
         'quiche_saved_count': quicheSavedThisNight,
+        // Traqueur spécifique parking shot (mis à jour par achievement_logic en cours de partie)
+        'parking_shot_achieved': parkingShotUnlocked,
       };
 
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
@@ -121,15 +123,16 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'totalVotesReceivedDuringGame': winner.totalVotesReceivedDuringGame,
           'hasBetrayedRonAldo': winner.hasBetrayedRonAldo,
 
-          // Nouveaux traqueurs branchés
+          // --- LOGIQUE DINGO CORRIGÉE ---
           'dingo_shots_fired': winner.dingoShotsFired,
           'dingo_shots_hit': winner.dingoShotsHit,
           'dingo_self_voted_all_game': winner.dingoSelfVotedOnly,
-          'dingo_killed_last_enemy': (widget.winnerType == "VILLAGE" && winner.role?.toLowerCase() == "dingo" && winner.killsThisGame > 0),
-          'devin_reveals_count': winner.devinRevealsCount,
+
+          // --- LOGIQUE CANACLEAN CORRIGÉE ---
+          'canaclean_present': winner.canacleanPresent,
+
           'archiviste_all_powers_used_in_game': winner.archivisteActionsUsed.toSet().length >= 4,
           'archiviste_all_powers_cumulated': (counters['archiviste_actions_all_time']?.length ?? 0) >= 4,
-          'canaclean_present': winner.canacleanPresent,
           'bled_protected_everyone': winner.mutedPlayersCount >= (activePlayers.length - 1),
           'saved_by_own_quiche': winner.isVillageProtected && (winner.role?.toLowerCase() == "grand-mère"),
         };

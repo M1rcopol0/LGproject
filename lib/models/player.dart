@@ -201,7 +201,7 @@ class Player {
     isProtectedByPokemon = false;
     isVoteCancelled = false;
     powerActiveThisTurn = false;
-    // Note: isEffectivelyAsleep est géré par prepareNightStates / resolveNight
+    // Note: isEffectivelyAsleep est géré par NightActionsLogic
   }
 
   // --- JSON SERIALIZATION ---

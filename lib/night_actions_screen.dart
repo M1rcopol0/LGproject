@@ -1,4 +1,4 @@
-import 'dart:math';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'models/player.dart';
 import 'globals.dart';
@@ -28,7 +28,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     // =========================================================
     // PHASE 0 : PRÉ-RÉSOLUTION (STABILISATION ZOOKEEPER)
-    // On utilise la nouvelle fonction de préparation uniquement.
+    // On prépare les états de sommeil/réveil avant de commencer
     // =========================================================
     NightActionsLogic.prepareNightStates(widget.players);
 
@@ -59,19 +59,29 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     bool shouldWakeUp = false;
 
+    // --- CORRECTION LOGIQUE DE RÉVEIL ---
     if (action.role == "Loups-garous évolués") {
-      shouldWakeUp = widget.players.any((p) => p.isAlive && p.isWolf && !p.isEffectivelyAsleep);
-    } else if (action.role == "Dresseur") {
+      // On réveille s'il y a au moins un loup vivant.
+      // LGEvolueInterface gérera elle-même le bandeau "IMMOBILISÉ" si besoin.
+      shouldWakeUp = widget.players.any((p) => p.isAlive && p.isWolf);
+    }
+    else if (action.role == "Dresseur") {
+      // On réveille si le Dresseur ou le Pokémon est en vie.
+      // L'anonymat est préservé via le dispatcher qui affichera l'écran bleu si endormi.
       shouldWakeUp = widget.players.any((p) =>
       (p.role?.toLowerCase() == "dresseur" || p.role?.toLowerCase() == "pokémon") && p.isAlive);
-    } else {
+    }
+    else {
+      // Pour les rôles solo classiques
       shouldWakeUp = widget.players.any((p) {
         final r = p.role?.toLowerCase() ?? "";
         final a = action.role.toLowerCase();
 
-        if (r != a) return false;
-        // Ici, on autorise le réveil même si endormi pour l'anonymat (le dispatcher gérera l'écran bleu)
-        if (!p.isAlive) return false;
+        if (r != a || !p.isAlive) return false;
+
+        // Note : On autorise l'affichage pour les rôles même endormis
+        // pour que personne ne puisse deviner qui a été touché par la fléchette.
+        // C'est le RoleActionDispatcher qui affichera l'écran de sommeil.
 
         if (a == "somnifère") return p.somnifereUses > 0;
         if (a == "houston") return (globalTurnNumber % 2 != 0);
@@ -129,6 +139,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     final action = nightActionsOrder[currentActionIndex];
 
+    // Trouver l'acteur pour l'affichage du nom
     Player actor = widget.players.firstWhere(
           (p) => p.role?.toLowerCase() == action.role.toLowerCase() && p.isAlive,
       orElse: () => widget.players.firstWhere((p) => p.isWolf && p.isAlive,
@@ -183,10 +194,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       ),
     );
   }
-
-  // ==========================================================
-  // HELPERS UI & DIALOGUES
-  // ==========================================================
 
   void _showPop(String title, String msg, {VoidCallback? onDismiss}) {
     showDialog(
@@ -247,8 +254,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
-              // On passe officiellement au Jour.
-              // Le globalTurnNumber n'augmente que lors du vote du village.
               setState(() {
                 isDayTime = true;
               });
