@@ -1,4 +1,4 @@
-# fluffer
+# flutter
 
 A new Flutter project.
 
