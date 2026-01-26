@@ -3,7 +3,7 @@ import '../../models/player.dart';
 
 class VoyageurInterface extends StatelessWidget {
   final Player actor;
-  final VoidCallback onStayAtVillage; // Rester au village
+  final VoidCallback onStayAtVillage; // Rester au village (ou tirer si munitions)
   final VoidCallback onDepart;        // Partir en voyage
   final VoidCallback onReturn;        // Rentrer du voyage
   final VoidCallback onStayTraveling; // Rester en voyage
@@ -19,6 +19,10 @@ class VoyageurInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- LOGS DE CONSOLE ---
+    debugPrint("✈️ LOG [Voyageur] : ${actor.name} accède à l'interface.");
+    debugPrint("✈️ État : ${actor.isInTravel ? 'EN VOYAGE' : 'AU VILLAGE'} | Munitions : ${actor.travelerBullets}");
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -30,9 +34,7 @@ class VoyageurInterface extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            actor.isInTravel
-                ? "VOUS ÊTES EN VOYAGE"
-                : "VOUS ÊTES AU VILLAGE",
+            actor.isInTravel ? "VOUS ÊTES EN VOYAGE" : "VOUS ÊTES AU VILLAGE",
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 10),
@@ -45,16 +47,29 @@ class VoyageurInterface extends StatelessWidget {
           ),
           const SizedBox(height: 40),
 
+          // --- LOGIQUE DES BOUTONS SELON L'ÉTAT ---
           if (!actor.isInTravel) ...[
             // CAS 1 : AU VILLAGE
-            _buildChoiceBtn("PARTIR EN VOYAGE", Colors.deepPurple, onDepart),
+            _buildChoiceBtn("PARTIR EN VOYAGE", Colors.deepPurple, () {
+              debugPrint("✈️ LOG [Voyageur] : Départ vers l'inconnu.");
+              onDepart();
+            }),
             const SizedBox(height: 20),
-            _buildChoiceBtn("RESTER AU VILLAGE", Colors.blueGrey, onStayAtVillage),
+            _buildChoiceBtn("RESTER AU VILLAGE", Colors.blueGrey, () {
+              debugPrint("🏠 LOG [Voyageur] : Reste au village (Prêt à faire feu).");
+              onStayAtVillage();
+            }),
           ] else ...[
             // CAS 2 : EN VOYAGE
-            _buildChoiceBtn("RENTRER AU VILLAGE", Colors.green, onReturn),
+            _buildChoiceBtn("RENTRER AU VILLAGE", Colors.green, () {
+              debugPrint("🏠 LOG [Voyageur] : Retour au bercail.");
+              onReturn();
+            }),
             const SizedBox(height: 20),
-            _buildChoiceBtn("RESTER EN VOYAGE", Colors.cyan.withOpacity(0.5), onStayTraveling),
+            _buildChoiceBtn("RESTER EN VOYAGE", Colors.cyan.withOpacity(0.5), () {
+              debugPrint("✈️ LOG [Voyageur] : Poursuite du voyage.");
+              onStayTraveling();
+            }),
           ],
         ],
       ),
@@ -69,9 +84,13 @@ class VoyageurInterface extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          elevation: 8,
         ),
         onPressed: onTap,
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        child: Text(
+          label,
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
-import '../../globals.dart'; // Import corrigé (pas logic/)
+import '../../globals.dart';
 
 class TargetSelectorInterface extends StatefulWidget {
   final List<Player> players;
@@ -63,9 +63,15 @@ class _TargetSelectorInterfaceState extends State<TargetSelectorInterface> {
               backgroundColor: widget.isProtective ? Colors.green[700] : Colors.red[900],
               minimumSize: const Size(double.infinity, 50),
             ),
-            onPressed: (_selected.isNotEmpty)
-                ? () => widget.onTargetsSelected(_selected)
-                : () => widget.onTargetsSelected([]), // Permet de passer
+            onPressed: () {
+              if (_selected.isEmpty) {
+                debugPrint("🎯 LOG [Selector] : Aucune cible choisie (Action PASSÉE).");
+                widget.onTargetsSelected([]);
+              } else {
+                debugPrint("🎯 LOG [Selector] : Validation de ${_selected.length} cible(s) : ${_selected.map((s) => s.name).join(', ')}");
+                widget.onTargetsSelected(_selected);
+              }
+            },
             child: Text(_selected.isEmpty ? "PASSER" : "VALIDER", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ),
@@ -76,10 +82,15 @@ class _TargetSelectorInterfaceState extends State<TargetSelectorInterface> {
   void _toggleSelection(Player p) {
     setState(() {
       if (_selected.contains(p)) {
+        debugPrint("🎯 LOG [Selector] : Désélection de ${p.name}");
         _selected.remove(p);
       } else {
         if (_selected.length >= widget.maxTargets) {
-          _selected.removeAt(0);
+          // Si on dépasse le max, on retire le premier pour ajouter le nouveau (comportement glissant)
+          final removed = _selected.removeAt(0);
+          debugPrint("🎯 LOG [Selector] : Limite atteinte (${widget.maxTargets}). Remplacement de ${removed.name} par ${p.name}");
+        } else {
+          debugPrint("🎯 LOG [Selector] : Sélection de ${p.name}");
         }
         _selected.add(p);
       }

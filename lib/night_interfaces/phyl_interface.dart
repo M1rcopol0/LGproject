@@ -29,13 +29,14 @@ class _PhylInterfaceState extends State<PhylInterface> {
   }
 
   void _assignRandomTargets() {
-    // Si des cibles sont déjà assignées (cas de re-render), on ne change rien
+    // Si des cibles sont déjà assignées (cas de re-render ou retour sur l'écran), on récupère l'existant
     if (widget.actor.phylTargets.isNotEmpty) {
       _assignedTargets = widget.actor.phylTargets;
+      debugPrint("🎰 LOG [Phyl] : Récupération des cibles existantes : ${_assignedTargets.map((p) => p.name).join(', ')}");
       return;
     }
 
-    // 1. Filtrer les cibles valides (Tout le monde sauf Phyl et les morts, bien que Nuit 1 tout le monde est vivant)
+    // 1. Filtrer les cibles valides (Tout le monde sauf Phyl et les morts)
     List<Player> potentialTargets = widget.players.where((p) =>
     p.name != widget.actor.name && p.isAlive
     ).toList();
@@ -45,12 +46,16 @@ class _PhylInterfaceState extends State<PhylInterface> {
     if (potentialTargets.length >= 2) {
       _assignedTargets = potentialTargets.sublist(0, 2);
     } else {
-      // Cas extrême (ex: test à 2 joueurs), on prend ce qu'il y a
+      // Cas extrême (ex: test à très peu de joueurs)
       _assignedTargets = potentialTargets;
     }
 
     // 3. Sauvegarder dans le joueur
     widget.actor.phylTargets = _assignedTargets;
+
+    // --- LOGS DE CONSOLE ---
+    debugPrint("🎰 LOG [Phyl] : Initialisation des cibles pour ${widget.actor.name}");
+    debugPrint("🎯 Cibles assignées : ${_assignedTargets.map((p) => p.name).join(' et ')}");
   }
 
   @override
@@ -129,7 +134,10 @@ class _PhylInterfaceState extends State<PhylInterface> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 elevation: 5,
               ),
-              onPressed: widget.onComplete,
+              onPressed: () {
+                debugPrint("🎰 LOG [Phyl] : ${widget.actor.name} a validé ses cibles.");
+                widget.onComplete();
+              },
               child: const Text("J'AI RETENU", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
           ),

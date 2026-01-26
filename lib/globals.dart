@@ -150,6 +150,7 @@ class NightAction {
 // L'ordre est stratégique : Protections/Sommeil -> Infos -> Attaques
 List<NightAction> nightActionsOrder = [
   NightAction(role: "Tardos", instruction: "Amorcez votre bombe.", sound: "fuse.mp3"),
+  NightAction(role: "Exorciste", instruction: "Mimez le bon rôle", sound: "mime.mp3"),
   NightAction(role: "Dresseur", instruction: "Immobilisation immédiate, Protection ou Attaque ?", sound: "pokémon.mp3"),
   NightAction(role: "Voyageur", instruction: "Choisissez votre destination.", sound: "footsteps.mp3"),
   NightAction(role: "Archiviste", instruction: "Consultez les archives.", sound: "paper_scroll.mp3"),

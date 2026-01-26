@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import '../../models/player.dart';
+import '../../globals.dart';
 
 class DevinInterface extends StatefulWidget {
   final Player devin;
   final List<Player> allPlayers;
   // Le callback renvoie le joueur choisi pour le focus.
-  // Si c'est le même qu'avant -> increment. Si c'est un autre -> reset à 1.
   final Function(Player selected) onNext;
 
   const DevinInterface({
@@ -25,7 +24,7 @@ class _DevinInterfaceState extends State<DevinInterface> {
 
   @override
   Widget build(BuildContext context) {
-    // Vérifier si une cible est déjà en cours et vivante
+    // 1. Vérifier si une cible est déjà en cours et vivante
     Player? currentTarget;
     try {
       if (widget.devin.concentrationTargetName != null) {
@@ -34,7 +33,6 @@ class _DevinInterfaceState extends State<DevinInterface> {
         );
       }
     } catch (e) {
-      // Si la cible est morte, on reset le focus
       currentTarget = null;
     }
 
@@ -72,11 +70,12 @@ class _DevinInterfaceState extends State<DevinInterface> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
                 onPressed: () {
-                  // On renvoie la MEME cible => Le Logic passera à 2 nuits => Révélation
-                  widget.onNext(currentTarget!);
+                  // LOG : Indique que la concentration arrive à son terme
+                  debugPrint("👁️ LOG [Devin] : Poursuite de l'observation sur ${currentTarget!.name}. Révélation imminente.");
+                  _revealRoleAndFinish(context, currentTarget);
                 },
                 icon: const Icon(Icons.check_circle, color: Colors.white),
-                label: const Text("CONTINUER (RÉVÉLER RÔLE)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                label: const Text("RÉVÉLER LE RÔLE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 20),
@@ -84,6 +83,7 @@ class _DevinInterfaceState extends State<DevinInterface> {
             // BOUTON CHANGER
             TextButton.icon(
               onPressed: () {
+                debugPrint("👁️ LOG [Devin] : Abandon de l'observation sur ${currentTarget!.name}.");
                 setState(() {
                   _isChangingTarget = true;
                 });
@@ -123,7 +123,7 @@ class _DevinInterfaceState extends State<DevinInterface> {
                   leading: const Icon(Icons.person_search, color: Colors.purpleAccent),
                   title: Text(formatPlayerName(p.name), style: const TextStyle(color: Colors.white)),
                   onTap: () {
-                    // Nouvelle cible => Le Logic mettra le compteur à 1
+                    debugPrint("👁️ LOG [Devin] : Nouvelle cible choisie : ${p.name} (Nuit 1/2)");
                     widget.onNext(p);
                   },
                 ),
@@ -132,6 +132,46 @@ class _DevinInterfaceState extends State<DevinInterface> {
           ),
         ),
       ],
+    );
+  }
+
+  // Affiche le rôle découvert avant de passer à l'action suivante
+  void _revealRoleAndFinish(BuildContext context, Player target) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("Vision de la Devin", style: TextStyle(color: Colors.purpleAccent)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              formatPlayerName(target.name).toUpperCase(),
+              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            const Text("est en réalité :", style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 15),
+            Text(
+              target.role?.toUpperCase() ?? "INCONNU",
+              style: const TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2),
+            ),
+          ],
+        ),
+        actions: [
+          Center(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+              onPressed: () {
+                Navigator.pop(ctx);
+                widget.onNext(target);
+              },
+              child: const Text("BIEN REÇU", style: TextStyle(color: Colors.white)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

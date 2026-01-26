@@ -25,9 +25,10 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint("--------------------------------------------------");
+    debugPrint("🌑 LOG [NightScreen] : Ouverture de la Nuit $globalTurnNumber");
 
     // PHASE 0 : PRÉ-RÉSOLUTION
-    // Gère les réveils/couchers programmés par le Zookeeper
     NightActionsLogic.prepareNightStates(widget.players);
 
     for (var p in widget.players) {
@@ -43,14 +44,17 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
   void _checkSkipAction() {
     if (currentActionIndex >= nightActionsOrder.length) {
+      debugPrint("🏁 LOG [NightScreen] : Toutes les actions ont été passées en revue.");
       _finishNight();
       return;
     }
 
     final action = nightActionsOrder[currentActionIndex];
+    debugPrint("🔍 LOG [Flux] : Examen de l'action : ${action.role}");
 
     // Phyl n'agit qu'à la Nuit 1
     if (action.role == "Phyl" && globalTurnNumber > 1) {
+      debugPrint("⏭️ LOG [Skip] : Phyl (Action réservée à la Nuit 1).");
       _nextAction();
       return;
     }
@@ -59,14 +63,13 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     // --- LOGIQUE DE RÉVEIL INTELLIGENTE ---
     if (action.role == "Loups-garous évolués") {
-      // On se réveille s'il reste au moins un loup vivant.
-      // Le Dispatcher/Interface gère si la meute est bloquée (Stun/Dodo).
       shouldWakeUp = widget.players.any((p) => p.isAlive && p.isWolf);
+      if (!shouldWakeUp) debugPrint("⏭️ LOG [Skip] : Meute de loups entièrement décimée.");
     }
     else if (action.role == "Dresseur") {
-      // Le Dresseur se réveille toujours s'il est en vie (ou son Pokémon).
       shouldWakeUp = widget.players.any((p) =>
       (p.role?.toLowerCase() == "dresseur" || p.role?.toLowerCase() == "pokémon") && p.isAlive);
+      if (!shouldWakeUp) debugPrint("⏭️ LOG [Skip] : Duo Dresseur/Pokémon mort.");
     }
     else {
       // Rôles solo et villageois actifs
@@ -77,20 +80,31 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
         if (r != a || !p.isAlive) return false;
 
         // Cas particuliers de réveil
-        if (a == "somnifère") return p.somnifereUses > 0;
-        if (a == "houston") return (globalTurnNumber % 2 != 0);
+        if (a == "somnifère") {
+          bool hasCharges = p.somnifereUses > 0;
+          if (!hasCharges) debugPrint("⏭️ LOG [Skip] : Somnifère n'a plus de charges.");
+          return hasCharges;
+        }
+        if (a == "houston") {
+          bool isOddTurn = (globalTurnNumber % 2 != 0);
+          if (!isOddTurn) debugPrint("⏭️ LOG [Skip] : Houston ne capte rien les nuits paires.");
+          return isOddTurn;
+        }
+        if (a == "exorciste") {
+          bool isNightTwo = (globalTurnNumber == 2);
+          if (!isNightTwo) debugPrint("⏭️ LOG [Skip] : L'Exorciste n'agit qu'en Nuit 2.");
+          return isNightTwo;
+        }
 
-        // CORRECTION : L'exorciste ne se réveille qu'à la Nuit 2
-        if (a == "exorciste") return (globalTurnNumber == 2);
-
-        // Par défaut, si le rôle est vivant, on affiche l'interface.
-        // Si p.isEffectivelyAsleep est vrai, le Dispatcher affichera l'écran bleu.
         return true;
       });
     }
 
     if (!shouldWakeUp) {
+      debugPrint("⏭️ LOG [Skip] : Aucun acteur vivant ou éligible pour ${action.role}.");
       Future.microtask(() => _nextAction());
+    } else {
+      debugPrint("👁️ LOG [Réveil] : L'interface pour ${action.role} va s'afficher.");
     }
   }
 
@@ -112,17 +126,23 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     nightOnePassed = true;
     stopMusic();
 
+    debugPrint("--------------------------------------------------");
+    debugPrint("🧪 LOG [Résolution] : Lancement du calcul final de la nuit.");
+    debugPrint("💀 LOG [Pending] : ${pendingDeaths.length} morts en attente de validation.");
+
     // RÉSOLUTION FINALE DES ACTIONS ET DES MORTS
     final result = NightActionsLogic.resolveNight(
       context,
       widget.players,
       pendingDeaths,
       somnifereActive: _somnifereUsed,
+      exorcistSuccess: (_exorcismeResult == "success"),
     );
 
-    // Bruitage du matin : Oiseaux si calme, Cloche si morts ou KO
+    // Bruitage du matin
     playSfx((result.deadPlayers.isEmpty && !result.villageIsNarcoleptic) ? "oiseau.mp3" : "cloche.mp3");
 
+    debugPrint("🌅 LOG [Matin] : Affichage du résumé au MJ.");
     _showMorningPopup(result);
   }
 
@@ -136,14 +156,12 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     final action = nightActionsOrder[currentActionIndex];
 
-    // Détermination de l'acteur pour le texte d'en-tête
     Player actor;
     try {
       actor = widget.players.firstWhere(
               (p) => p.role?.toLowerCase() == action.role.toLowerCase() && p.isAlive
       );
     } catch (_) {
-      // Fallback pour les actions de groupe (Loups)
       actor = widget.players.firstWhere((p) => p.isWolf && p.isAlive,
           orElse: () => Player(name: "Inconnu"));
     }
@@ -162,8 +180,8 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           const SizedBox(height: 10),
           Text(
               action.role == "Loups-garous évolués"
-                  ? "MEURTRE DES LOUPS"
-                  : "AU TOUR DE : ${formatPlayerName(actor.name)}",
+                  ? "⚖️ CONSEIL DES LOUPS"
+                  : "🎭 AU TOUR DE : ${formatPlayerName(actor.name)}",
               style: const TextStyle(color: Colors.orangeAccent, fontSize: 18, fontWeight: FontWeight.bold)
           ),
           Padding(
@@ -183,14 +201,19 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
               allPlayers: widget.players,
               pendingDeaths: pendingDeaths,
               onExorcisme: (res) {
+                debugPrint("✝️ LOG [Action] : Résultat Exorciste reçu -> $res");
                 _exorcismeResult = res;
                 _nextAction();
               },
               onSomnifere: (used) {
+                debugPrint("💤 LOG [Action] : Résultat Somnifère reçu -> $used");
                 if (used) _somnifereUsed = true;
                 _nextAction();
               },
-              onNext: _nextAction,
+              onNext: () {
+                debugPrint("➡️ LOG [Navigation] : Action terminée pour ${action.role}.");
+                _nextAction();
+              },
               showPopUp: (title, msg) => _showPop(title, msg, onDismiss: _nextAction),
             ),
           ),
@@ -237,27 +260,35 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (result.villageIsNarcoleptic)
+              if (result.exorcistVictory)
+                const Column(
+                  children: [
+                    Icon(Icons.emoji_events, color: Colors.amber, size: 50),
+                    SizedBox(height: 10),
+                    Text("L'EXORCISME A RÉUSSI !\nLe village est purifié et gagne immédiatement !",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 18)),
+                  ],
+                ),
+
+              if (!result.exorcistVictory && result.villageIsNarcoleptic)
                 const Text("💤 Village KO (Somnifère) !\n",
                     style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
 
-              if (result.deadPlayers.isEmpty)
-                const Text("🕊️ Personne n'est mort cette nuit.",
-                    style: TextStyle(color: Colors.greenAccent))
-              else ...[
-                const Text("💀 DÉCÈS :",
-                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                ...result.deadPlayers.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Text("- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}",
-                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                )),
-              ],
-
-              if (result.revealedRoleMessage != null) ...[
-                const Divider(color: Colors.white24, height: 30),
-                Text(result.revealedRoleMessage!, style: const TextStyle(color: Colors.cyanAccent)),
+              if (!result.exorcistVictory) ...[
+                if (result.deadPlayers.isEmpty)
+                  const Text("🕊️ Personne n'est mort cette nuit.",
+                      style: TextStyle(color: Colors.greenAccent))
+                else ...[
+                  const Text("💀 DÉCÈS :",
+                      style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  ...result.deadPlayers.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text("- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}",
+                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  )),
+                ],
               ],
             ],
           ),
@@ -266,11 +297,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
-              setState(() {
-                isDayTime = true;
-              });
-
+              setState(() { isDayTime = true; });
               await GameSaveService.saveGame();
+              debugPrint("💾 LOG [Save] : Partie sauvegardée au matin.");
               if (ctx.mounted) Navigator.pop(ctx);
               if (mounted) Navigator.pop(context);
             },

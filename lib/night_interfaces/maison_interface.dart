@@ -24,6 +24,9 @@ class MaisonInterface extends StatelessWidget {
     // 2. Vérifier si la maison est pleine (Max 2)
     bool isFull = residents.length >= 2;
 
+    // --- LOGS DE CONSOLE ---
+    debugPrint("🏠 LOG [Maison] : Statut actuel - Occupants: ${residents.length}/2 (${residents.map((p) => p.name).join(', ')})");
+
     return Column(
       children: [
         // --- HEADER D'INFO ---
@@ -94,7 +97,10 @@ class MaisonInterface extends StatelessWidget {
                   backgroundColor: Colors.blueGrey,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
-                onPressed: () => onComplete([]),
+                onPressed: () {
+                  debugPrint("🏠 LOG [Maison] : Maison complète, passage de l'action.");
+                  onComplete([]);
+                },
                 child: const Text("PASSER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -116,12 +122,14 @@ class MaisonInterface extends StatelessWidget {
                 if (selectedList.isNotEmpty) {
                   final target = selectedList.first;
 
-                  // --- TRACKING SUCCÈS ---
-                  // 1. Compteur pour "Formation hôtelière"
-                  actor.mutedPlayersCount++;
+                  // --- LOGS DE CONSOLE ---
+                  debugPrint("🏠 LOG [Maison] : ${actor.name} accueille ${target.name} (Équipe: ${target.team})");
 
-                  // 2. Check succès "La prochaine fois je n'ouvrirai pas..."
+                  // --- TRACKING SUCCÈS ---
+                  actor.roleChangesCount++; // Utilisation détournée d'un compteur pour succès cumulatif
+
                   if (target.team == "loups") {
+                    debugPrint("🏠 LOG [Maison] : ALERTE ! Un loup vient d'entrer dans la maison.");
                     TrophyService.checkAndUnlockImmediate(
                       context: context,
                       playerName: actor.name,
@@ -131,6 +139,9 @@ class MaisonInterface extends StatelessWidget {
                   }
 
                   onComplete(selectedList);
+                } else {
+                  debugPrint("🏠 LOG [Maison] : Aucune nouvelle personne accueillie ce soir.");
+                  onComplete([]);
                 }
               },
             ),

@@ -18,8 +18,11 @@ class GrandMereInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Log de statut au chargement
+    debugPrint("🥧 LOG [Grand-mère] : Check Cooldown - isProtected: ${actor.isVillageProtected}, hasBaked: ${actor.hasBakedQuiche}");
+
     // Nouvelle logique de Cooldown simplifiée et robuste :
-    // On ne peut pas cuisiner si une quiche est DEUXIÈME EN FOUR (hasBakedQuiche)
+    // On ne peut pas cuisiner si une quiche est DÉJÀ EN FOUR (hasBakedQuiche)
     // OU si le village bénéficie déjà d'une quiche (isVillageProtected).
     bool inCooldown = actor.hasBakedQuiche || actor.isVillageProtected;
 
@@ -46,7 +49,10 @@ class GrandMereInterface extends StatelessWidget {
                 backgroundColor: Colors.blueGrey,
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
               ),
-              onPressed: onSkip,
+              onPressed: () {
+                debugPrint("🥧 LOG [Grand-mère] : Cooldown actif, passage automatique.");
+                onSkip();
+              },
               child: const Text("CONTINUER LA NUIT", style: TextStyle(color: Colors.white)),
             )
           ],
@@ -83,6 +89,8 @@ class GrandMereInterface extends StatelessWidget {
           children: [
             // Bouton de préparation (Effet différé)
             circleBtnBuilder("CUISINER", Colors.green, () {
+              debugPrint("🥧 LOG [Grand-mère] : Mise au four confirmée (Nuit $globalTurnNumber).");
+
               // Action : On met la quiche au four pour la nuit suivante
               actor.hasBakedQuiche = true;
               actor.lastQuicheTurn = globalTurnNumber;
@@ -91,7 +99,10 @@ class GrandMereInterface extends StatelessWidget {
               onBakeComplete(true);
             }),
             const SizedBox(width: 40),
-            circleBtnBuilder("REPOS", Colors.redAccent, onSkip),
+            circleBtnBuilder("REPOS", Colors.redAccent, () {
+              debugPrint("🥧 LOG [Grand-mère] : Mamie a choisi de se reposer.");
+              onSkip();
+            }),
           ],
         ),
         const SizedBox(height: 40),

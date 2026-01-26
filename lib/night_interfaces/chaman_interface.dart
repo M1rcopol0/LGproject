@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import '../../models/player.dart';
+import '../../globals.dart';
 
 class ChamanInterface extends StatelessWidget {
   final List<Player> players;
-  final Function(Player?) onTargetSelected; // Changé en Player? pour permettre le skip
+  final Function(Player?) onTargetSelected;
 
   const ChamanInterface({
     super.key,
@@ -18,13 +18,14 @@ class ChamanInterface extends StatelessWidget {
     final otherWolvesAlive = players.where((p) =>
     p.isAlive &&
         p.team == "loups" &&
-        p.role != "Loup-garou chaman"
+        p.role?.toLowerCase() != "loup-garou chaman"
     ).toList();
 
     bool isLastWolf = otherWolvesAlive.isEmpty;
 
     // 2. Si c'est le dernier loup, son pouvoir de vision est désactivé
     if (isLastWolf) {
+      debugPrint("🔮 LOG [Chaman] : Le Chaman est le dernier loup. Vision désactivée.");
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -46,7 +47,10 @@ class ChamanInterface extends StatelessWidget {
               const SizedBox(height: 30),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.purple[700]),
-                onPressed: () => onTargetSelected(null), // On passe l'action
+                onPressed: () {
+                  debugPrint("🔮 LOG [Chaman] : Passage forcé au meurtre des loups.");
+                  onTargetSelected(null);
+                },
                 child: const Text("PASSER AU VOTE DES LOUPS", style: TextStyle(color: Colors.white)),
               ),
             ],
@@ -91,6 +95,10 @@ class ChamanInterface extends StatelessWidget {
   }
 
   void _showRolePopup(BuildContext context, Player target) {
+    // Enregistrement de la cible pour le succès "Chaman Sniper"
+    nightChamanTarget = target;
+    debugPrint("🔮 LOG [Chaman] : A utilisé son pouvoir sur ${target.name} (${target.role}).");
+
     showDialog(
       context: context,
       barrierDismissible: false,

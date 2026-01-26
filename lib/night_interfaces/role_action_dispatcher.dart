@@ -46,13 +46,14 @@ class RoleActionDispatcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- LOGS DE CONSOLE ---
+    debugPrint("🎬 LOG : Action en cours : ${action.role} (Joueur : ${actor.name})");
+
     // --- LOGIQUE D'ANONYMAT ET SOMMEIL ---
-    // On vérifie si l'acteur actuel (celui qui a le téléphone) est endormi
     bool isImmuneToSleep = (action.role == "Archiviste" && actor.isAwayAsMJ);
 
-    // On affiche l'écran de sommeil pour TOUS les rôles (y compris LG) s'ils dorment
-    // Exception : Le Zookeeper car il est l'attaquant, et l'Archiviste MJ.
     if (actor.isEffectivelyAsleep && !isImmuneToSleep && action.role != "Zookeeper") {
+      debugPrint("💤 LOG : ${actor.name} est endormi (Zookeeper/Pokémon). Affichage écran sommeil.");
       return _buildAsleepScreen();
     }
 
@@ -61,7 +62,10 @@ class RoleActionDispatcher extends StatelessWidget {
       case "Zookeeper":
         return ZookeeperInterface(
             players: allPlayers,
-            onTargetSelected: (t) => onNext()
+            onTargetSelected: (t) {
+              debugPrint("💉 LOG : Zookeeper (${actor.name}) a visé ${t.name}");
+              onNext();
+            }
         );
 
       case "Phyl":
@@ -70,7 +74,10 @@ class RoleActionDispatcher extends StatelessWidget {
       case "Grand-mère":
         return GrandMereInterface(
             actor: actor,
-            onBakeComplete: (success) => onNext(),
+            onBakeComplete: (success) {
+              if (success) debugPrint("🥧 LOG : La Grand-mère a mis une quiche au four.");
+              onNext();
+            },
             onSkip: onNext,
             circleBtnBuilder: _circleBtn
         );
@@ -80,7 +87,10 @@ class RoleActionDispatcher extends StatelessWidget {
             actor: actor,
             allPlayers: allPlayers,
             onComplete: (target) {
-              if (target != null) pendingDeaths[target] = "Rage du Pokémon";
+              if (target != null) {
+                debugPrint("⚡ LOG : Pokémon Rage sur ${target.name}");
+                pendingDeaths[target] = "Rage du Pokémon";
+              }
               onNext();
             }
         );
@@ -88,10 +98,15 @@ class RoleActionDispatcher extends StatelessWidget {
       case "Voyageur":
         return VoyageurInterface(
           actor: actor,
-          onDepart: () { actor.isInTravel = true; onNext(); },
+          onDepart: () {
+            debugPrint("✈️ LOG : Le Voyageur part en voyage.");
+            actor.isInTravel = true;
+            onNext();
+          },
           onStayAtVillage: () {
             if (actor.travelerBullets > 0) {
               _showKillSelector(context, actor, "Balle du Voyageur", (t) {
+                debugPrint("🔫 LOG : Le Voyageur a abattu ${t.name}");
                 actor.travelerBullets--;
                 pendingDeaths[t] = "Abattu par le Voyageur";
                 onNext();
@@ -107,7 +122,10 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers.where((p) => p.isAlive && p != actor).toList(),
           maxTargets: 2,
           onTargetsSelected: (selected) {
-            for (var p in selected) { p.pantinCurseTimer = 2; }
+            for (var p in selected) {
+              debugPrint("🎭 LOG : Le Pantin maudit ${p.name}");
+              p.pantinCurseTimer = 2;
+            }
             onNext();
           },
         );
@@ -117,8 +135,11 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers,
           onVictimChosen: (p) {
             if (p.name != "Personne") {
+              debugPrint("🐺 LOG : Les Loups ont choisi de mordre ${p.name}");
               pendingDeaths[p] = "Morsure de Loup";
               nightWolvesTarget = p;
+            } else {
+              debugPrint("🐺 LOG : Les Loups ne mangent personne (Meute bloquée).");
             }
             onNext();
           },
@@ -132,6 +153,7 @@ class RoleActionDispatcher extends StatelessWidget {
           devin: actor,
           allPlayers: allPlayers,
           onNext: (selected) {
+            debugPrint("👁️ LOG : La Devin se concentre sur ${selected.name}");
             if (actor.concentrationTargetName == selected.name) {
               actor.concentrationNights++;
             } else {
@@ -158,7 +180,9 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers,
           onComplete: (targets) {
             for (var t in targets) {
-              t.isMutedDay = true; // Il réduit au silence
+              debugPrint("🤫 LOG : Le Bled a immunisé ${t.name} (et le fait taire)");
+              t.isMutedDay = true;
+              t.isImmunizedFromVote = true;
             }
             onNext();
           },
@@ -179,7 +203,10 @@ class RoleActionDispatcher extends StatelessWidget {
           actor: actor,
           players: allPlayers,
           onComplete: (selectedList) {
-            for (var p in selectedList) { p.isInHouse = true; }
+            for (var p in selectedList) {
+              debugPrint("🏠 LOG : La Maison accueille ${p.name}");
+              p.isInHouse = true;
+            }
             onNext();
           },
         );
@@ -190,7 +217,10 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers.where((p) => p.isAlive).toList(),
           maxTargets: maxMutes,
           onTargetsSelected: (selected) {
-            for (var p in selected) p.isMutedDay = true;
+            for (var p in selected) {
+              debugPrint("🔇 LOG : Le Chuchoteur fait taire ${p.name}");
+              p.isMutedDay = true;
+            }
             showPopUp("CHUCHOTEUR", "Cibles réduites au silence.");
           },
         );
@@ -200,7 +230,10 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers.where((p) => p.isAlive).toList(),
           maxTargets: 2,
           onTargetsSelected: (selected) {
-            for (var p in selected) pendingDeaths[p] = "Effacé par le Temps";
+            for (var p in selected) {
+              debugPrint("⏳ LOG : Le Maître du Temps efface ${p.name}");
+              pendingDeaths[p] = "Effacé par le Temps";
+            }
             onNext();
           },
         );
@@ -212,9 +245,16 @@ class RoleActionDispatcher extends StatelessWidget {
         return DingoInterface(
           actor: actor,
           players: allPlayers,
-          onHit: onNext,
-          onMiss: onNext,
+          onHit: () {
+            debugPrint("🎯 LOG : Le Dingo a réussi son tir.");
+            onNext();
+          },
+          onMiss: () {
+            debugPrint("❌ LOG : Le Dingo a raté son tir.");
+            onNext();
+          },
           onKillTargetSelected: (target) {
+            debugPrint("💀 LOG : Tir MORTEL du Dingo sur ${target.name}");
             pendingDeaths[target] = "Tir du Dingo";
             onNext();
           },
@@ -228,11 +268,15 @@ class RoleActionDispatcher extends StatelessWidget {
 
       case "Exorciste":
         return ExorcistInterface(
-          onActionComplete: onExorcisme,
+          onActionComplete: (res) {
+            debugPrint("✝️ LOG : L'Exorciste a agi. Résultat : $res");
+            onExorcisme(res);
+          },
           circleBtnBuilder: _circleBtn,
         );
 
       default:
+        debugPrint("⚠️ LOG : Action non gérée pour ${action.role}");
         return Center(
           child: ElevatedButton(
             onPressed: onNext,

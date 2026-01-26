@@ -69,6 +69,7 @@ class DresseurInterface extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: _btn(Icons.healing, "RÉANIMER POKÉMON", Colors.green, Colors.white, () {
+                debugPrint("⚡ LOG [Dresseur] : Réanimation du Pokémon lancée.");
                 _executeRevive(pokemonPlayer, trainerPlayer);
               }),
             ),
@@ -106,7 +107,10 @@ class DresseurInterface extends StatelessWidget {
 
           const SizedBox(height: 20),
           TextButton(
-            onPressed: () => onComplete(null),
+            onPressed: () {
+              debugPrint("⚡ LOG [Dresseur] : Le duo passe son tour.");
+              onComplete(null);
+            },
             child: const Text("PASSER SON TOUR", style: TextStyle(color: Colors.white24)),
           )
         ],
@@ -118,13 +122,11 @@ class DresseurInterface extends StatelessWidget {
     pokemon.isAlive = true;
     trainer.hasUsedRevive = true;
     trainer.lastDresseurAction = "REVIVE";
-    // Notification au moteur de succès
     AchievementLogic.recordRevive(pokemon);
     onComplete(null);
   }
 
   void _showImmobilizeSelector(BuildContext context, Player trainer) {
-    // Filtrage pour ne pas se stun soi-même ou son partenaire
     final targets = allPlayers.where((p) =>
     p.isAlive &&
         p.role?.toLowerCase() != "dresseur" &&
@@ -147,7 +149,7 @@ class DresseurInterface extends StatelessWidget {
               title: Text(formatPlayerName(targets[i].name), style: const TextStyle(color: Colors.white)),
               subtitle: Text(targets[i].role ?? "Villageois", style: const TextStyle(color: Colors.white38)),
               onTap: () {
-                // APPLICATION IMMÉDIATE : Bloque le joueur s'il doit agir plus tard
+                debugPrint("⚡ LOG [Dresseur] : Immobilisation instantanée sur ${targets[i].name}.");
                 targets[i].isEffectivelyAsleep = true;
                 targets[i].powerActiveThisTurn = true;
 
@@ -175,6 +177,7 @@ class DresseurInterface extends StatelessWidget {
               title: const Text("Le Dresseur", style: TextStyle(color: Colors.white)),
               leading: const Icon(Icons.person, color: Colors.blueAccent),
               onTap: () {
+                debugPrint("⚡ LOG [Dresseur] : Protection activée sur le Dresseur.");
                 final d = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "dresseur");
                 d.isProtectedByPokemon = true;
                 trainer.lastDresseurAction = "PROTEGER";
@@ -186,6 +189,7 @@ class DresseurInterface extends StatelessWidget {
               title: const Text("Le Pokémon", style: TextStyle(color: Colors.white)),
               leading: const Icon(Icons.catching_pokemon, color: Colors.amber),
               onTap: () {
+                debugPrint("⚡ LOG [Dresseur] : Protection activée sur le Pokémon.");
                 final p = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "pokémon");
                 p.isProtectedByPokemon = true;
                 trainer.lastDresseurAction = "PROTEGER";
@@ -221,6 +225,7 @@ class DresseurInterface extends StatelessWidget {
               title: Text(formatPlayerName(targets[i].name), style: const TextStyle(color: Colors.white)),
               leading: const Icon(Icons.close, color: Colors.red),
               onTap: () {
+                debugPrint("⚡ LOG [Dresseur] : Rage du Pokémon lancée contre ${targets[i].name}.");
                 trainer.lastDresseurAction = "ATTAQUE";
                 Navigator.pop(ctx);
                 onComplete(targets[i]);

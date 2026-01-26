@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
+import '../../globals.dart';
 import 'target_selector_interface.dart';
 
 class LGEvolueInterface extends StatelessWidget {
@@ -18,8 +19,6 @@ class LGEvolueInterface extends StatelessWidget {
     final aliveWolves = players.where((p) => p.isAlive && p.team == "loups").toList();
 
     // 2. Identifier les loups capables de voter
-    // Un loup vote s'il ne dort pas (Zookeeper/Somnifère/Pokémon)
-    // Le Chaman ne vote que s'il est le SEUL survivant de la meute
     final votingWolves = aliveWolves.where((p) {
       if (p.isEffectivelyAsleep) return false;
 
@@ -31,17 +30,18 @@ class LGEvolueInterface extends StatelessWidget {
     }).toList();
 
     // 3. Déterminer si le groupe est totalement immobilisé
-    // Si des loups sont vivants mais qu'aucun ne peut voter
     bool isEntirelyBlocked = aliveWolves.isNotEmpty && votingWolves.isEmpty;
 
-    // 4. Filtrer les victimes potentielles (Vivant et pas loup)
+    // Log de l'état de la meute au chargement
+    debugPrint("🐺 LOG [Loups] : Meute chargée. Vivants: ${aliveWolves.length}, Votants: ${votingWolves.length}. Bloquée: $isEntirelyBlocked");
+
+    // 4. Filtrer les victimes potentielles
     final potentialVictims = players.where((p) =>
     p.isAlive && p.team != "loups"
     ).toList();
 
     return Stack(
       children: [
-        // COUCHE 1 : L'interface de vote
         Column(
           children: [
             Padding(
@@ -92,9 +92,10 @@ class LGEvolueInterface extends StatelessWidget {
                   child: TargetSelectorInterface(
                     players: potentialVictims.isNotEmpty ? potentialVictims : players.where((p) => p.isAlive).toList(),
                     maxTargets: 1,
-                    isProtective: false, // Thème rouge pour attaque
+                    isProtective: false,
                     onTargetsSelected: (selected) {
                       if (selected.isNotEmpty) {
+                        debugPrint("🐺 LOG [Loups] : Victime désignée par le conseil : ${selected.first.name}");
                         onVictimChosen(selected.first);
                       }
                     },
@@ -105,7 +106,6 @@ class LGEvolueInterface extends StatelessWidget {
           ],
         ),
 
-        // COUCHE 2 : Le bandeau d'immobilisation (sécurité visuelle)
         if (isEntirelyBlocked)
           Positioned.fill(
             child: Container(
@@ -133,7 +133,10 @@ class LGEvolueInterface extends StatelessWidget {
                           backgroundColor: Colors.redAccent,
                           padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15)
                       ),
-                      onPressed: () => onVictimChosen(Player(name: "Personne")),
+                      onPressed: () {
+                        debugPrint("🐺 LOG [Loups] : Meute bloquée confirmée par l'utilisateur.");
+                        onVictimChosen(Player(name: "Personne"));
+                      },
                       child: const Text("PASSER LA NUIT", style: TextStyle(fontWeight: FontWeight.bold)),
                     )
                   ],

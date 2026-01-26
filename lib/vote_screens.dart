@@ -34,7 +34,7 @@ class PassScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              isLastVoter ? "VOTE TERMINÉ !" : "PASSEZ LE TÉLÉPHONE À :",
+              isLastVoter ? "🗳️ VOTE TERMINÉ !" : "📲 PASSEZ LE TÉLÉPHONE À :",
               style: const TextStyle(fontSize: 18, letterSpacing: 2, color: Colors.white70),
             ),
             const SizedBox(height: 20),
@@ -59,6 +59,7 @@ class PassScreen extends StatelessWidget {
                 ),
                 onPressed: () {
                   if (isLastVoter) {
+                    debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -124,7 +125,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool voterIsTraveling = (widget.voter.role == "Voyageur" && widget.voter.isInTravel);
+    bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
     final eligibleTargets = widget.allPlayers.where((p) => p.isAlive).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -160,16 +161,24 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   void _submitVote() {
     if (selectedTarget != null) {
       widget.voter.targetVote = selectedTarget;
+
+      // LOG DE VOTE INDIVIDUEL
+      int weight = (widget.voter.role?.toLowerCase() == "pantin") ? 2 : 1;
+      debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} (${widget.voter.role}) vote pour ${selectedTarget!.name} (Poids: $weight)");
+
       AchievementLogic.checkTraitorFan(widget.voter, selectedTarget!);
 
       if (!widget.voter.isVoteCancelled) {
-        int weight = (widget.voter.role == "Pantin") ? 2 : 1;
         selectedTarget!.votes += weight;
-
         if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
+          debugPrint("🐺 LOG [Trahison] : Un Loup vote contre un autre Loup !");
           wolfVotedWolf = true;
         }
+      } else {
+        debugPrint("🔇 LOG [Vote] : Le vote de ${widget.voter.name} est annulé (Mute/Effet).");
       }
+    } else {
+      debugPrint("✈️ LOG [Vote] : ${widget.voter.name} ne vote pas (En voyage).");
     }
 
     Navigator.pushReplacement(
@@ -266,7 +275,7 @@ class MJResultScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-          title: const Text("DÉCISION DU MJ"),
+          title: const Text("⚖️ DÉCISION DU MJ"),
           automaticallyImplyLeading: false,
           backgroundColor: Colors.transparent
       ),
@@ -275,7 +284,7 @@ class MJResultScreen extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.all(20.0),
             child: Text(
-              "Voici les votes. MJ, choisissez la sentence.\nLes joueurs avec 🛡️ sont protégés.",
+              "Voici le récapitulatif des voix.\nMJ, désignez celui qui doit mourir.",
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
@@ -286,9 +295,7 @@ class MJResultScreen extends StatelessWidget {
               itemBuilder: (context, i) {
                 final p = sortedPlayers[i];
 
-                // --- CALCUL DE L'IMMUNITÉ VISUELLE ---
                 bool isImmunized = p.isImmunizedFromVote || p.isInHouse;
-                // Ron-Aldo est immunisé s'il lui reste au moins un fan en vie
                 if (p.role?.toLowerCase() == "ron-aldo") {
                   bool hasFans = allPlayers.any((f) => f.isFanOfRonAldo && f.isAlive);
                   if (hasFans) isImmunized = true;
@@ -336,7 +343,7 @@ class MJResultScreen extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
               ),
               onPressed: () => _handleNoOneDies(context),
-              child: const Text("GRÂCE DU VILLAGE (PERSONNE NE MEURT)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+              child: const Text("🕊️ GRÂCE DU VILLAGE", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ),
         ],
@@ -345,29 +352,33 @@ class MJResultScreen extends StatelessWidget {
   }
 
   void _confirmDeath(BuildContext context, Player target) {
+    debugPrint("⚖️ LOG [Sentence] : Le MJ a choisi d'éliminer ${target.name}.");
     playSfx("cloche.mp3");
 
-    if (target.role == "Voyageur" && target.isInTravel) {
+    if (target.role?.toLowerCase() == "voyageur" && target.isInTravel) {
+      debugPrint("✈️ LOG [Sentence] : Cible invulnérable (Voyageur en vol).");
       target.isInTravel = false;
       _showSpecialPopUp(context, "✈️ RETOUR FORCÉ", "${formatPlayerName(target.name)} était en voyage ! Il survit mais rentre au village.");
       return;
     }
 
     if (target.isImmunizedFromVote) {
-      _showSpecialPopUp(context, "🛡️ PROTECTION DU BLED", "${formatPlayerName(target.name)} est protégé(e) par l'Enculateur du Bled ! Personne ne meurt.");
+      debugPrint("🛡️ LOG [Sentence] : Cible protégée par le Bouc Émissaire.");
+      _showSpecialPopUp(context, "🛡️ PROTECTION DU BLED", "${formatPlayerName(target.name)} est protégé(e) ! Personne ne meurt.");
       return;
     }
 
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
+    debugPrint("💀 LOG [Mort] : Confirmation du décès de ${deceased.name}.");
 
     String message;
-    if (target.role == "Ron-Aldo" && deceased.role == "Fan de Ron-Aldo") {
+    if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
       message = "🛡️ SACRIFICE : ${formatPlayerName(deceased.name)} s'est sacrifié pour Ron-Aldo !";
     }
-    else if (deceased.role == "Pantin" && deceased.isAlive) {
+    else if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) {
       message = "Le Pantin est maudit ! Il mourra dans 2 jours.";
     }
-    else if (target.role == "Maison" || target.isInHouse) {
+    else if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
       message = "La Maison s'effondre ! ${formatPlayerName(deceased.name)} est éliminé.";
     }
     else {
@@ -389,7 +400,7 @@ class MJResultScreen extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _finalize(context, "L'exécution a été annulée.", true);
+              _finalize(context, "L'exécution a été annulée par protection.", true);
             },
             child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)),
           ),
@@ -399,6 +410,7 @@ class MJResultScreen extends StatelessWidget {
   }
 
   void _handleNoOneDies(BuildContext context) {
+    debugPrint("⚖️ LOG [Sentence] : Le MJ a gracié le village.");
     playSfx("cloche.mp3");
     _finalize(context, "Personne ne meurt ce soir.", true);
   }

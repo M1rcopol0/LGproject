@@ -4,7 +4,7 @@ import '../../globals.dart';
 import 'target_selector_interface.dart';
 
 class DingoInterface extends StatelessWidget {
-  final Player actor; // On passe le joueur entier pour tracker les stats
+  final Player actor; // Le joueur qui agit (Dingo)
   final VoidCallback onHit;
   final VoidCallback onMiss;
   final List<Player> players;
@@ -21,6 +21,9 @@ class DingoInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- LOGS DE CONSOLE ---
+    debugPrint("🎯 LOG [Dingo] : ${actor.name} accède à son arme. Série actuelle : ${actor.dingoStrikeCount}/4");
+
     // CAS 1 : TIR MORTEL (Après 4 réussites)
     if (actor.dingoStrikeCount >= 4) {
       return Column(
@@ -35,11 +38,12 @@ class DingoInterface extends StatelessWidget {
           ),
           Expanded(
             child: TargetSelectorInterface(
-              players: players,
+              players: players.where((p) => p.isAlive && p != actor).toList(),
               maxTargets: 1,
               isProtective: false,
               onTargetsSelected: (selected) {
                 if (selected.isNotEmpty) {
+                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${selected.first.name}.");
                   // On enregistre le tir mortel pour les stats
                   actor.dingoShotsFired++;
                   actor.dingoShotsHit++;
@@ -76,6 +80,7 @@ class DingoInterface extends StatelessWidget {
                 Icons.close,
                 Colors.red.withOpacity(0.8),
                     () {
+                  debugPrint("💨 LOG [Dingo] : Tir raté. Série réinitialisée.");
                   actor.dingoShotsFired++; // Stats pour succès "Mauvais tireur"
                   onMiss();
                 },
@@ -86,6 +91,7 @@ class DingoInterface extends StatelessWidget {
                 Icons.check,
                 Colors.green.withOpacity(0.8),
                     () {
+                  debugPrint("🎯 LOG [Dingo] : Tir réussi ! Progression : ${actor.dingoStrikeCount + 1}/4");
                   actor.dingoShotsFired++;
                   actor.dingoShotsHit++;
                   onHit();
@@ -108,7 +114,13 @@ class DingoInterface extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 5))],
+          boxShadow: [
+            BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 5)
+            )
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import '../../models/player.dart';
+import '../../globals.dart';
 
 class ArchivisteInterface extends StatefulWidget {
   final List<Player> players;
@@ -22,8 +22,9 @@ class ArchivisteInterface extends StatefulWidget {
 class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   String? _currentView;
 
-  // Enregistre l'action pour les succès
-  void _recordAction(String actionName) {
+  // Enregistre l'action pour les succès et LOGS
+  void _recordAction(String actionName, String details) {
+    debugPrint("📖 LOG [Archiviste] : $details");
     if (!widget.actor.archivisteActionsUsed.contains(actionName)) {
       widget.actor.archivisteActionsUsed.add(actionName);
     }
@@ -32,23 +33,25 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   // --- LOGIQUE DU DÉPÔT DU DESTIN ---
   void _consultDestiny() {
     widget.actor.mjNightsCount++;
-    _recordAction("transcendance_return");
-
     int chance = (widget.actor.mjNightsCount == 1) ? 15
         : (widget.actor.mjNightsCount == 2) ? 7 : 3;
 
     int roll = Random().nextInt(chance) + 1;
+    debugPrint("🎲 LOG [Archiviste] : Consultation du destin (Nuit ${widget.actor.mjNightsCount} en exil). Roll: $roll/$chance");
 
     if (roll == 1) {
+      _recordAction("transcendance_return", "Réussite du jet de retour ! Choix de l'équipe requis.");
       setState(() {
         widget.actor.needsToChooseTeam = true;
       });
     } else {
+      debugPrint("📖 LOG [Archiviste] : Échec du retour. L'exil continue.");
       widget.onComplete("Le destin vous maintient dans l'ombre (Roll: $roll/$chance). L'exil continue.");
     }
   }
 
   void _applyTeamChoice(String team) {
+    _recordAction("team_choice", "Retour au village dans l'équipe : ${team.toUpperCase()}");
     setState(() {
       widget.actor.team = team;
       widget.actor.isAwayAsMJ = false;
@@ -58,7 +61,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   }
 
   void _startTranscendance() {
-    _recordAction("transcendance_start");
+    _recordAction("transcendance_start", "Activation de la Transcendance. Départ vers l'exil MJ.");
     setState(() {
       widget.actor.isAwayAsMJ = true;
       widget.actor.hasUsedSwapMJ = true;
@@ -87,7 +90,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
 
         if (widget.actor.scapegoatUses > 0)
           _powerBtn("BOUC ÉMISSAIRE (${widget.actor.scapegoatUses})", Icons.keyboard_return, () {
-            _recordAction("scapegoat");
+            _recordAction("scapegoat", "Arme le pouvoir Bouc Émissaire pour le prochain vote.");
             widget.actor.hasScapegoatPower = true;
             widget.actor.scapegoatUses--;
             widget.onComplete("Pouvoir Bouc Émissaire activé pour le prochain vote.");
@@ -98,7 +101,10 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
 
         const SizedBox(height: 20),
         TextButton(
-            onPressed: () => widget.onComplete(null),
+            onPressed: () {
+              debugPrint("📖 LOG [Archiviste] : Aucun pouvoir utilisé ce tour.");
+              widget.onComplete(null);
+            },
             child: const Text("PASSER MON TOUR", style: TextStyle(color: Colors.white54))
         )
       ],
@@ -135,6 +141,8 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
           const Icon(Icons.check_circle, color: Colors.greenAccent, size: 60),
           const SizedBox(height: 10),
           const Text("DICE ROLL RÉUSSI !", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          const Text("Choisissez votre camp de retour :", style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 20),
           _teamBtn("VILLAGE", Colors.green, () => _applyTeamChoice("village")),
           _teamBtn("LOUPS-GAROUS", Colors.red, () => _applyTeamChoice("loups")),
           _teamBtn("SOLO", Colors.deepPurpleAccent, () => _applyTeamChoice("solo")),
@@ -162,23 +170,26 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
               onTap: () {
                 if (_currentView == 'cancelVote') {
                   list[i].isVoteCancelled = true;
-                  _recordAction("cancel_vote");
+                  _recordAction("cancel_vote", "A annulé le vote de ${list[i].name}");
                 }
                 if (_currentView == 'mute') {
                   list[i].isMutedDay = true;
-                  _recordAction("mute");
+                  _recordAction("mute", "A censuré ${list[i].name} pour le prochain jour.");
                 }
                 widget.onComplete(_currentView == 'mute' ? "${list[i].name} est censuré !" : "${list[i].name} ne pourra pas voter.");
               },
             ),
           ),
         ),
-        TextButton(onPressed: () => setState(() => _currentView = null), child: const Text("RETOUR"))
+        TextButton(
+            onPressed: () => setState(() => _currentView = null),
+            child: const Text("RETOUR", style: TextStyle(color: Colors.white38))
+        )
       ],
     );
   }
 
-  // --- WIDGETS REUTILISABLES ---
+  // --- WIDGETS RÉUTILISABLES ---
 
   Widget _powerBtn(String text, IconData icon, VoidCallback onTap) => Card(
     color: Colors.white10,

@@ -24,6 +24,9 @@ class _TardosInterfaceState extends State<TardosInterface> {
 
   @override
   Widget build(BuildContext context) {
+    // LOG de statut au chargement
+    debugPrint("🧨 LOG [Tardos] : ${widget.actor.name} accède à l'interface. Bombe déjà posée : ${widget.actor.hasPlacedBomb}");
+
     // Si la bombe est déjà posée (explosée ou en attente)
     if (widget.actor.hasPlacedBomb) {
       String status = (widget.actor.bombTimer > 0)
@@ -50,7 +53,10 @@ class _TardosInterfaceState extends State<TardosInterface> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
-              onPressed: widget.onNext,
+              onPressed: () {
+                debugPrint("🧨 LOG [Tardos] : Action passée (Bombe déjà active).");
+                widget.onNext();
+              },
               child: const Text("PASSER", style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -64,19 +70,20 @@ class _TardosInterfaceState extends State<TardosInterface> {
         const Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            "Choisissez une cible pour poser votre bombe.\nElle explosera dans 2 nuits.",
+            "TARDOS\nChoisissez une cible pour poser votre bombe.\nElle explosera dans 2 nuits.",
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70),
           ),
         ),
         Expanded(
           child: TargetSelectorInterface(
-            players: widget.players,
+            players: widget.players.where((p) => p.isAlive && p != widget.actor).toList(),
             maxTargets: 1,
             onTargetsSelected: (selected) {
               if (selected.isNotEmpty) {
                 _placeBomb(selected.first);
               } else {
+                debugPrint("🧨 LOG [Tardos] : Aucune cible choisie.");
                 widget.onNext();
               }
             },
@@ -88,22 +95,23 @@ class _TardosInterfaceState extends State<TardosInterface> {
 
   void _placeBomb(Player target) {
     // 1% de chance d'explosion immédiate sur soi-même (Règle Tardos)
-    if (Random().nextInt(100) == 0) {
+    int roll = Random().nextInt(100);
+    debugPrint("🎲 LOG [Tardos] : Jet de dé pour la pose : $roll (Seuil critique : 0)");
+
+    if (roll == 0) {
+      debugPrint("💥 LOG [Tardos] : ÉCHEC CRITIQUE ! La bombe explose sur Tardos (${widget.actor.name}).");
       _showPop("CRITIQUE !", "La bombe vous a explosé dans les mains ! Vous mourrez ce matin.", true);
-      // On marque la mort (sera géré dans le Logic via un flag spécial ou direct death si possible,
-      // mais ici on signale juste à l'UI, le Logic traitera la mort si on le set up bien).
-      // Note: Pour simplifier, on set la bombe sur soi-même avec timer 0 pour explosion immédiate ce tour ci ?
-      // Ou on gère ça via pendingDeaths dans le screen parent ?
-      // Le plus propre ici est de simuler une pose réussie sur soi-même avec timer 0.
+
       setState(() {
         widget.actor.tardosTarget = widget.actor;
-        widget.actor.bombTimer = 0; // Explosion immédiate
+        widget.actor.bombTimer = 0; // Explosion immédiate lors de la résolution
         widget.actor.hasPlacedBomb = true;
       });
     } else {
+      debugPrint("🧨 LOG [Tardos] : Bombe posée sur ${target.name}. Timer réglé sur 2.");
       setState(() {
         widget.actor.tardosTarget = target;
-        widget.actor.bombTimer = 2; // Explose au bout de 2 nuits (résolution incluse)
+        widget.actor.bombTimer = 2; // Explose au bout de 2 nuits
         widget.actor.hasPlacedBomb = true;
       });
       _showPop("BOMBE POSÉE", "La bombe explosera sur ${target.name} dans 2 nuits.", false);

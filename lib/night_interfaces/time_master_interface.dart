@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart'; // Remonte de 2 niveaux si dans lib/night_interfaces
-import '../../globals.dart';      // Idem
-import 'target_selector_interface.dart'; // Même dossier
+import '../../models/player.dart';
+import '../../globals.dart';
+import 'target_selector_interface.dart';
 
 class TimeMasterInterface extends StatefulWidget {
-  // On garde le nom "onTimerAdjust" pour matcher l'appel dans NightActionsScreen
-  // même si fonctionnellement c'est une sélection de cibles.
   final Function(dynamic) onTimerAdjust;
 
   const TimeMasterInterface({super.key, required this.onTimerAdjust});
@@ -17,34 +15,63 @@ class TimeMasterInterface extends StatefulWidget {
 class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
   @override
   Widget build(BuildContext context) {
-    // On récupère la liste globale des joueurs via globals.dart puisque non passée en paramètre
-    // (Dans votre NightActionsScreen, vous ne passiez pas 'players' au constructeur TimeMaster)
+    // LOG de statut au chargement
+    debugPrint("⏳ LOG [Maître du Temps] : Accès à l'interface du flux temporel.");
 
     return Column(
       children: [
         const Padding(
-          padding: EdgeInsets.all(10.0),
-          child: Text(
-            "Maître du Temps : Choisissez 2 joueurs à éliminer du flux temporel.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.cyanAccent),
+          padding: EdgeInsets.all(15.0),
+          child: Column(
+            children: [
+              Text(
+                "MAÎTRE DU TEMPS",
+                style: TextStyle(
+                    color: Colors.cyanAccent,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2
+                ),
+              ),
+              SizedBox(height: 5),
+              Text(
+                "Choisissez 2 joueurs à éliminer du flux temporel.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
           ),
         ),
+        const Divider(color: Colors.cyanAccent, thickness: 0.5, indent: 40, endIndent: 40),
         Expanded(
           child: TargetSelectorInterface(
-            players: globalPlayers, // Utilise la variable globale
+            players: globalPlayers.where((p) => p.isAlive).toList(),
             maxTargets: 2,
-            isProtective: false,
+            isProtective: false, // Thème rouge/attaque
             onTargetsSelected: (selected) {
               if (selected.length == 2) {
-                // On tue directement ici ou on renvoie la liste
+                debugPrint("⏳ LOG [Maître du Temps] : EFFACEMENT TEMPOREL lancé.");
+
+                // On boucle pour appliquer la mort et loguer chaque victime
                 for (var p in selected) {
-                  p.isAlive = false; // Mort immédiate (ou différée selon logique)
+                  debugPrint("💀 LOG [Maître du Temps] : ${p.name} est effacé du flux.");
+                  p.isAlive = false;
                 }
-                // On appelle le callback pour finir
+
+                // Finalisation de l'action
+                widget.onTimerAdjust(null);
+              } else if (selected.isEmpty) {
+                debugPrint("⏳ LOG [Maître du Temps] : Le flux temporel reste inchangé (Action passée).");
                 widget.onTimerAdjust(null);
               }
             },
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 10),
+          child: Text(
+            "⚠️ Attention : Ces joueurs ne se réveilleront pas demain.",
+            style: TextStyle(color: Colors.white24, fontSize: 11, fontStyle: FontStyle.italic),
           ),
         ),
       ],

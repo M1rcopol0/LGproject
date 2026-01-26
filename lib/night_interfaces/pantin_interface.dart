@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
+import '../../models/player.dart';
 
 class PantinInterface extends StatefulWidget {
   final List<Player> players;
@@ -30,22 +30,26 @@ class _PantinInterfaceState extends State<PantinInterface> {
 
   void _confirmSelection() {
     if (_selectedTargets.length == 2) {
-      // Application de la logique de malédiction
+      debugPrint("🎭 LOG [Pantin] : Début de l'application des malédictions.");
+
       for (var target in _selectedTargets) {
         // --- LOGIQUE DE RICOCHET : LA MAISON ---
         if (target.isInHouse) {
           try {
             // Si la cible est dans la maison, c'est le propriétaire qui reçoit la malédiction
             Player houseOwner = widget.players.firstWhere(
-                    (p) => p.role == "Maison" && p.isAlive
+                    (p) => p.role?.toLowerCase() == "maison" && p.isAlive
             );
+            debugPrint("🏠 LOG [Pantin] : La cible ${target.name} est à l'abri. Ricochet sur le propriétaire : ${houseOwner.name}");
             houseOwner.pantinCurseTimer = 2;
           } catch (e) {
             // Si la maison est déjà détruite ou introuvable, on maudit la cible normalement
+            debugPrint("🎭 LOG [Pantin] : Cible ${target.name} en maison, mais propriétaire introuvable. Malédiction directe.");
             target.pantinCurseTimer = 2;
           }
         } else {
           // Cible normale
+          debugPrint("🎭 LOG [Pantin] : Malédiction appliquée sur ${target.name}.");
           target.pantinCurseTimer = 2;
         }
       }
@@ -57,7 +61,7 @@ class _PantinInterfaceState extends State<PantinInterface> {
   Widget build(BuildContext context) {
     // Le Pantin ne peut pas se maudire lui-même
     final List<Player> availableTargets = widget.players
-        .where((p) => p.isAlive && p.role != "Pantin")
+        .where((p) => p.isAlive && p.role?.toLowerCase() != "pantin")
         .toList();
 
     return Column(
@@ -80,7 +84,7 @@ class _PantinInterfaceState extends State<PantinInterface> {
               return ListTile(
                 title: Text(p.name, style: const TextStyle(color: Colors.white)),
                 // Information MJ : On voit si le joueur est protégé par la maison
-                subtitle: Text(p.isInHouse ? "Est dans la Maison (Protection active)" : "Au village",
+                subtitle: Text(p.isInHouse ? "Est dans la Maison (Ricochet possible)" : "Au village",
                     style: TextStyle(
                         color: p.isInHouse ? Colors.blueAccent : Colors.white54,
                         fontSize: 12,

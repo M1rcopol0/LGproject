@@ -30,6 +30,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint("📱 LOG [Menu] : Initialisation de l'écran principal.");
     _currentSeconds = (globalTimerMinutes * 60).toInt();
     _recoverActivePlayers();
 
@@ -40,6 +41,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
   void _recoverActivePlayers() {
     if (globalRolesDistributed) {
+      debugPrint("🔄 LOG [Menu] : Rôles déjà distribués. Récupération des joueurs actifs...");
       for (var p in widget.players) {
         if (p.role != null && p.role!.isNotEmpty) {
           p.isPlaying = true;
@@ -51,12 +53,11 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   List<Player> get _activePlayers => widget.players.where((p) => p.isPlaying).toList();
 
   // ==========================================================
-  // LOGIQUES DE VÉRIFICATION (STABILISÉES)
+  // LOGIQUES DE VÉRIFICATION
   // ==========================================================
 
   void _checkGameStateIntegrity() {
     _checkGameOver();
-    // Le chef n'est requis que de Jour (Cycle: Nuit -> Jour)
     if (!_isGameOverProcessing && isDayTime && nightOnePassed) {
       _checkChiefAlive();
     }
@@ -68,9 +69,9 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     String? winner = GameLogic.checkWinner(_activePlayers);
     if (winner == null) return;
 
-    // Sécurité : pas de fin avant le réveil de la première nuit
     if (globalTurnNumber <= 1 && !nightOnePassed) return;
 
+    debugPrint("🏁 LOG [Game Over] : Victoire détectée -> $winner");
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
     GameSaveService.clearSave();
@@ -86,6 +87,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     if (_isGameOverProcessing) return;
     bool chiefExists = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
     if (!chiefExists) {
+      debugPrint("👑 LOG [Chef] : Poste vacant. Ouverture de l'élection.");
       _showChiefElectionDialog();
     }
   }
@@ -115,6 +117,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   leading: const Icon(Icons.person, color: Colors.white),
                   title: Text(formatPlayerName(p.name), style: const TextStyle(color: Colors.white)),
                   onTap: () {
+                    debugPrint("👑 LOG [Chef] : Nouveau leader désigné -> ${p.name}");
                     setState(() {
                       for (var pl in widget.players) pl.isVillageChief = false;
                       p.isVillageChief = true;
@@ -131,11 +134,12 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   // ==========================================================
-  // ACTIONS MJ ET NAVIGATION (CORRIGÉES POUR LE CYCLE)
+  // ACTIONS MJ ET NAVIGATION
   // ==========================================================
 
   void _handlePlayerTap(Player p) {
     if (!globalRolesDistributed) {
+      debugPrint("👤 LOG [Préparation] : ${p.name} est maintenant ${!p.isPlaying ? 'ACTIF' : 'INACTIF'}");
       setState(() => p.isPlaying = !p.isPlaying);
       return;
     }
@@ -148,13 +152,13 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _goToNight() {
+    debugPrint("🌙 LOG [Navigation] : Passage en phase de Nuit.");
     _resetTimer();
-    // Le tour ne change pas ici, on passe simplement en phase Nuit
     isDayTime = false;
     playMusic("ambiance_nuit.mp3");
     Navigator.push(context, MaterialPageRoute(builder: (_) => NightActionsScreen(players: _activePlayers))).then((_) {
+      debugPrint("☀️ LOG [Navigation] : Retour de la Nuit. Début du Jour.");
       setState(() {
-        // Au retour de la nuit, on est de Jour (toujours le même numéro de tour)
         isDayTime = true;
         _resetTimer();
         _checkGameStateIntegrity();
@@ -163,6 +167,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _goToVote() async {
+    debugPrint("🗳️ LOG [Navigation] : Ouverture de la phase de vote.");
     _resetTimer();
     await playSfx("vote_music.mp3");
     List<Player> voters = _activePlayers.where((p) => p.isAlive).toList();
@@ -172,18 +177,27 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         allPlayers: _activePlayers,
         index: 0,
         onComplete: () {
+          debugPrint("⚖️ LOG [Vote] : Clôture du vote. Vérification de la survie du Chef...");
           setState(() {
-            isDayTime = false; // On passe juste en nuit
-            // SUPPRESSION de GameLogic.nextTurn ici !
+            _checkGameOver(); // Vérifier si le village a gagné avant tout
+
+            if (!_isGameOverProcessing) {
+              bool chiefAlive = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
+              if (!chiefAlive) {
+                debugPrint("👑 LOG [Chef] : Le Chef a succombé au vote ! Succession immédiate.");
+                _showChiefElectionDialog();
+              }
+            }
+
+            isDayTime = false; // Transition cycle
             _resetTimer();
-            _checkGameOver();
           });
         }
     )));
   }
 
   // ==========================================================
-  // GESTION DES JOUEURS ET DOUBLONS
+  // GESTION DES JOUEURS
   // ==========================================================
 
   void _addPlayerDialog(BuildContext context) async {
@@ -225,8 +239,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
           ElevatedButton(onPressed: () async {
             String cleanName = currentNameInput.trim();
             if (cleanName.isNotEmpty) {
+              debugPrint("➕ LOG [Menu] : Ajout du joueur $cleanName");
               setState(() {
-                // Gestion Doublons
                 int idx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
                 if (idx != -1) {
                   widget.players[idx].isPlaying = true;
@@ -262,6 +276,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
   void _startTimer() {
     if (_isTimerRunning) return;
+    debugPrint("⏲️ LOG [Chrono] : Démarrage.");
     setState(() => _isTimerRunning = true);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_currentSeconds > 0) {
@@ -269,6 +284,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       } else {
         _timer?.cancel();
         setState(() => _isTimerRunning = false);
+        debugPrint("⏰ LOG [Chrono] : Temps écoulé !");
         playSfx("alarm.mp3");
       }
     });
@@ -276,6 +292,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
   void _resetTimer() {
     _timer?.cancel();
+    debugPrint("⏲️ LOG [Chrono] : Réinitialisation.");
     setState(() {
       _isTimerRunning = false;
       _currentSeconds = (globalTimerMinutes * 60).toInt();
@@ -307,6 +324,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("NON")),
         ElevatedButton(onPressed: () async {
+          debugPrint("💀 LOG [MJ] : Élimination manuelle de ${p.name}");
           Navigator.pop(ctx);
           Player v = GameLogic.eliminatePlayer(context, _activePlayers, p);
           setState(() {});
@@ -325,6 +343,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("NON")),
         ElevatedButton(onPressed: () {
+          debugPrint("✨ LOG [MJ] : Résurrection de ${p.name}");
           setState(() {
             p.isAlive = true;
             p.isEffectivelyAsleep = false;
@@ -436,13 +455,15 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                     onPressed: () async {
                       if (_activePlayers.length < 3) return;
+                      debugPrint("🎮 LOG [Menu] : Démarrage du tirage des rôles.");
                       await Navigator.push(context, MaterialPageRoute(builder: (_) => const RouletteScreen()));
                       setState(() {
                         GameLogic.assignRoles(_activePlayers);
                         globalRolesDistributed = true;
-                        isDayTime = false; // Le jeu commence par la Nuit 1
+                        isDayTime = false;
                       });
                       await GameSaveService.saveGame();
+                      debugPrint("💾 LOG [Menu] : Partie lancée et sauvegardée.");
                     },
                     child: const Text("LANCER LA PARTIE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                   ),
