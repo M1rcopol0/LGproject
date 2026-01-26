@@ -26,10 +26,8 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   void initState() {
     super.initState();
 
-    // =========================================================
-    // PHASE 0 : PRÉ-RÉSOLUTION (STABILISATION ZOOKEEPER)
-    // On prépare les états de sommeil/réveil avant de commencer
-    // =========================================================
+    // PHASE 0 : PRÉ-RÉSOLUTION
+    // Gère les réveils/couchers programmés par le Zookeeper
     NightActionsLogic.prepareNightStates(widget.players);
 
     for (var p in widget.players) {
@@ -40,7 +38,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   }
 
   // ==========================================================
-  // LOGIQUE DE NAVIGATION
+  // LOGIQUE DE NAVIGATION ET FILTRAGE
   // ==========================================================
 
   void _checkSkipAction() {
@@ -51,7 +49,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     final action = nightActionsOrder[currentActionIndex];
 
-    // Phyl n'agit qu'au tour 1
+    // Phyl n'agit qu'à la Nuit 1
     if (action.role == "Phyl" && globalTurnNumber > 1) {
       _nextAction();
       return;
@@ -59,34 +57,34 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     bool shouldWakeUp = false;
 
-    // --- CORRECTION LOGIQUE DE RÉVEIL ---
+    // --- LOGIQUE DE RÉVEIL INTELLIGENTE ---
     if (action.role == "Loups-garous évolués") {
-      // On réveille s'il y a au moins un loup vivant.
-      // LGEvolueInterface gérera elle-même le bandeau "IMMOBILISÉ" si besoin.
+      // On se réveille s'il reste au moins un loup vivant.
+      // Le Dispatcher/Interface gère si la meute est bloquée (Stun/Dodo).
       shouldWakeUp = widget.players.any((p) => p.isAlive && p.isWolf);
     }
     else if (action.role == "Dresseur") {
-      // On réveille si le Dresseur ou le Pokémon est en vie.
-      // L'anonymat est préservé via le dispatcher qui affichera l'écran bleu si endormi.
+      // Le Dresseur se réveille toujours s'il est en vie (ou son Pokémon).
       shouldWakeUp = widget.players.any((p) =>
       (p.role?.toLowerCase() == "dresseur" || p.role?.toLowerCase() == "pokémon") && p.isAlive);
     }
     else {
-      // Pour les rôles solo classiques
+      // Rôles solo et villageois actifs
       shouldWakeUp = widget.players.any((p) {
         final r = p.role?.toLowerCase() ?? "";
         final a = action.role.toLowerCase();
 
         if (r != a || !p.isAlive) return false;
 
-        // Note : On autorise l'affichage pour les rôles même endormis
-        // pour que personne ne puisse deviner qui a été touché par la fléchette.
-        // C'est le RoleActionDispatcher qui affichera l'écran de sommeil.
-
+        // Cas particuliers de réveil
         if (a == "somnifère") return p.somnifereUses > 0;
         if (a == "houston") return (globalTurnNumber % 2 != 0);
+
+        // CORRECTION : L'exorciste ne se réveille qu'à la Nuit 2
         if (a == "exorciste") return (globalTurnNumber == 2);
 
+        // Par défaut, si le rôle est vivant, on affiche l'interface.
+        // Si p.isEffectivelyAsleep est vrai, le Dispatcher affichera l'écran bleu.
         return true;
       });
     }
@@ -114,9 +112,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     nightOnePassed = true;
     stopMusic();
 
-    // =========================================================
-    // PHASE FINALE : RÉSOLUTION DES MORTS ET DES EFFETS
-    // =========================================================
+    // RÉSOLUTION FINALE DES ACTIONS ET DES MORTS
     final result = NightActionsLogic.resolveNight(
       context,
       widget.players,
@@ -124,6 +120,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       somnifereActive: _somnifereUsed,
     );
 
+    // Bruitage du matin : Oiseaux si calme, Cloche si morts ou KO
     playSfx((result.deadPlayers.isEmpty && !result.villageIsNarcoleptic) ? "oiseau.mp3" : "cloche.mp3");
 
     _showMorningPopup(result);
@@ -139,12 +136,17 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     final action = nightActionsOrder[currentActionIndex];
 
-    // Trouver l'acteur pour l'affichage du nom
-    Player actor = widget.players.firstWhere(
-          (p) => p.role?.toLowerCase() == action.role.toLowerCase() && p.isAlive,
-      orElse: () => widget.players.firstWhere((p) => p.isWolf && p.isAlive,
-          orElse: () => Player(name: "Inconnu")),
-    );
+    // Détermination de l'acteur pour le texte d'en-tête
+    Player actor;
+    try {
+      actor = widget.players.firstWhere(
+              (p) => p.role?.toLowerCase() == action.role.toLowerCase() && p.isAlive
+      );
+    } catch (_) {
+      // Fallback pour les actions de groupe (Loups)
+      actor = widget.players.firstWhere((p) => p.isWolf && p.isAlive,
+          orElse: () => Player(name: "Inconnu"));
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
@@ -159,7 +161,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
         children: [
           const SizedBox(height: 10),
           Text(
-              action.role == "Loups-garous évolués" ? "MEURTRE DES LOUPS" : "AU TOUR DE : ${formatPlayerName(actor.name)}",
+              action.role == "Loups-garous évolués"
+                  ? "MEURTRE DES LOUPS"
+                  : "AU TOUR DE : ${formatPlayerName(actor.name)}",
               style: const TextStyle(color: Colors.orangeAccent, fontSize: 18, fontWeight: FontWeight.bold)
           ),
           Padding(
@@ -195,6 +199,10 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     );
   }
 
+  // ==========================================================
+  // POPUPS DE RÉSULTATS
+  // ==========================================================
+
   void _showPop(String title, String msg, {VoidCallback? onDismiss}) {
     showDialog(
       context: context,
@@ -222,19 +230,23 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: const Text("🌅 RÉVEIL DU VILLAGE", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+        title: const Text("🌅 RÉVEIL DU VILLAGE",
+            style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (result.villageIsNarcoleptic)
-                const Text("💤 Village KO (Somnifère) !\n", style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+                const Text("💤 Village KO (Somnifère) !\n",
+                    style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
 
               if (result.deadPlayers.isEmpty)
-                const Text("🕊️ Personne n'est mort cette nuit.", style: TextStyle(color: Colors.greenAccent))
+                const Text("🕊️ Personne n'est mort cette nuit.",
+                    style: TextStyle(color: Colors.greenAccent))
               else ...[
-                const Text("💀 DÉCÈS :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                const Text("💀 DÉCÈS :",
+                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 ...result.deadPlayers.map((p) => Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -262,7 +274,8 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
               if (ctx.mounted) Navigator.pop(ctx);
               if (mounted) Navigator.pop(context);
             },
-            child: const Text("VOIR LE VILLAGE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text("VOIR LE VILLAGE",
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           )
         ],
       ),

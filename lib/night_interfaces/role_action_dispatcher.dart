@@ -152,6 +152,18 @@ class RoleActionDispatcher extends StatelessWidget {
           },
         );
 
+      case "Enculateur du bled":
+        return BledInterface(
+          actor: actor,
+          players: allPlayers,
+          onComplete: (targets) {
+            for (var t in targets) {
+              t.isMutedDay = true; // Il réduit au silence
+            }
+            onNext();
+          },
+        );
+
       case "Archiviste":
         return ArchivisteInterface(
           players: allPlayers,

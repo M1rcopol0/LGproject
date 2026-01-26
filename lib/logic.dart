@@ -143,10 +143,14 @@ class GameLogic {
       return target;
     }
 
+    // PROTECTION ARCHIVISTE : Uniquement s'il a le pouvoir actif ET qu'il ne triche pas
+    // Si c'est un vote, on vérifie le bouc émissaire
     if (isVote && target.hasScapegoatPower) {
+      // CONDITION : Le pouvoir ne fonctionne qu'une fois.
+      // S'il est MJ (isAwayAsMJ), il ne devrait même pas être votable.
       target.hasScapegoatPower = false;
       debugPrint("🐏 Bouc émissaire utilisé pour ${target.name}");
-      return target;
+      return target; // On annule l'élimination
     }
 
     if (roleLower == "pantin" && isVote && target.pantinCurseTimer == null) {
