@@ -29,7 +29,8 @@ class _TardosInterfaceState extends State<TardosInterface> {
     // =========================================================
     // ÉTAT 1 : BOMBE EN COURS (Tic-Tac)
     // =========================================================
-    // Prioritaire : Si la bombe est posée, on affiche le timer, même si hasUsedBombPower est true.
+    // Prioritaire : Si la bombe est posée (hasPlacedBomb = true), on affiche le timer.
+    // Cela reste vrai tant que la bombe n'a pas explosé.
     if (widget.actor.hasPlacedBomb) {
       String status = (widget.actor.bombTimer > 0)
           ? "La bombe explosera dans ${widget.actor.bombTimer} nuit(s)."
@@ -90,6 +91,7 @@ class _TardosInterfaceState extends State<TardosInterface> {
                 style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
             ),
+            const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
               onPressed: () {
@@ -120,7 +122,7 @@ class _TardosInterfaceState extends State<TardosInterface> {
           child: TargetSelectorInterface(
             players: widget.players.where((p) => p.isAlive && p != widget.actor).toList(),
             maxTargets: 1,
-            isProtective: false,
+            isProtective: false, // Rouge car agressif
             onTargetsSelected: (selected) {
               if (selected.isNotEmpty) {
                 _placeBomb(selected.first);
@@ -129,6 +131,14 @@ class _TardosInterfaceState extends State<TardosInterface> {
               }
             },
           ),
+        ),
+        // Bouton pour ne pas poser la bombe ce tour-ci
+        TextButton(
+          onPressed: () {
+            debugPrint("🧨 LOG [Tardos] : Le joueur conserve sa bombe.");
+            widget.onNext();
+          },
+          child: const Text("PASSER (Garder la bombe)", style: TextStyle(color: Colors.white54)),
         ),
       ],
     );
@@ -143,12 +153,15 @@ class _TardosInterfaceState extends State<TardosInterface> {
     debugPrint("🎲 LOG [Tardos] : Jet de dé pour la pose : $roll (Seuil critique : 0)");
 
     if (roll == 0) {
-      // ÉCHEC CRITIQUE (1%)
+      // ÉCHEC CRITIQUE (1%) : Explosion sur soi-même
       debugPrint("💥 LOG [Tardos] : ÉCHEC CRITIQUE ! La bombe explose sur Tardos.");
       setState(() {
         widget.actor.tardosTarget = widget.actor;
-        widget.actor.bombTimer = 0; // Explosion immédiate
-        widget.actor.hasPlacedBomb = true; // Active l'état "Bombe en cours" pour ce tour
+        widget.actor.bombTimer = 0; // Explosion immédiate (fin de nuit)
+        widget.actor.hasPlacedBomb = true; // Active l'état "Bombe en cours"
+
+        // --- VISUEL : C'est le Tardos qui porte la bombe ---
+        widget.actor.isBombed = true;
       });
       _showPop("CRITIQUE !", "La bombe vous a explosé dans les mains !\nVous mourrez ce matin.", true);
     } else {
@@ -156,8 +169,11 @@ class _TardosInterfaceState extends State<TardosInterface> {
       debugPrint("🧨 LOG [Tardos] : Bombe posée sur ${target.name}.");
       setState(() {
         widget.actor.tardosTarget = target;
-        widget.actor.bombTimer = 2; // Timer standard
+        widget.actor.bombTimer = 2; // Explosion dans 2 nuits (J+2)
         widget.actor.hasPlacedBomb = true;
+
+        // --- VISUEL : La cible porte la bombe ---
+        target.isBombed = true;
       });
       _showPop("BOMBE POSÉE", "La bombe est armée sur ${target.name}.\nExplosion dans 2 nuits.", false);
     }

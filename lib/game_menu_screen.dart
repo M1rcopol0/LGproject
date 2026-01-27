@@ -10,7 +10,6 @@ import 'wiki_page.dart';
 import 'roulette_screen.dart';
 import 'globals.dart';
 import 'fin.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'game_save_service.dart';
 
 class GameMenuScreen extends StatefulWidget {
@@ -69,6 +68,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     String? winner = GameLogic.checkWinner(_activePlayers);
     if (winner == null) return;
 
+    // Pas de victoire jour 1 si la nuit n'est pas passée (sauf cas exceptionnels)
     if (globalTurnNumber <= 1 && !nightOnePassed) return;
 
     debugPrint("🏁 LOG [Game Over] : Victoire détectée -> $winner");
@@ -139,10 +139,13 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
   void _handlePlayerTap(Player p) {
     if (!globalRolesDistributed) {
+      // Phase de préparation : Activer/Désactiver le joueur
       debugPrint("👤 LOG [Préparation] : ${p.name} est maintenant ${!p.isPlaying ? 'ACTIF' : 'INACTIF'}");
       setState(() => p.isPlaying = !p.isPlaying);
       return;
     }
+
+    // Phase de Jeu : Tuer / Ressusciter
     if (!p.isPlaying) return;
     if (!p.isAlive) {
       _showResurrectionConfirmation(p);
@@ -170,16 +173,19 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     debugPrint("🗳️ LOG [Navigation] : Ouverture de la phase de vote.");
     _resetTimer();
     await playSfx("vote_music.mp3");
+
+    // On passe les joueurs déjà triés alphabétiquement
     List<Player> voters = _activePlayers.where((p) => p.isAlive).toList();
+    voters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => PassScreen(
         voters: voters,
-        allPlayers: _activePlayers,
+        allPlayers: _activePlayers, // PassScreen et IndividualVoteScreen feront leur propre tri des cibles
         index: 0,
         onComplete: () {
           debugPrint("⚖️ LOG [Vote] : Clôture du vote. Vérification de la survie du Chef...");
           setState(() {
-            _checkGameOver(); // Vérifier si le village a gagné avant tout
+            _checkGameOver();
 
             if (!_isGameOverProcessing) {
               bool chiefAlive = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
@@ -247,13 +253,13 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   widget.players[idx].isAlive = true;
                   if (currentRoleInput.isNotEmpty) {
                     widget.players[idx].role = currentRoleInput.trim();
-                    widget.players[idx].isRoleLocked = true;
+                    widget.players[idx].isRoleLocked = true; // Verrouillage manuel
                   }
                 } else {
                   Player newP = Player(name: cleanName, isPlaying: true);
                   if (currentRoleInput.isNotEmpty) {
                     newP.role = currentRoleInput.trim();
-                    newP.isRoleLocked = true;
+                    newP.isRoleLocked = true; // Verrouillage manuel
                   }
                   widget.players.add(newP);
                 }
@@ -303,18 +309,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     int m = seconds ~/ 60;
     int s = seconds % 60;
     return "$m:${s.toString().padLeft(2, '0')}";
-  }
-
-  Widget _buildStatusIcons(Player p) {
-    if (!p.isAlive) return const SizedBox.shrink();
-    List<Widget> icons = [];
-    if (p.isVillageChief) icons.add(const Icon(Icons.workspace_premium, size: 16, color: Colors.amber));
-    if (p.isInHouse) icons.add(const Icon(Icons.home, size: 16, color: Colors.orangeAccent));
-    if (p.isProtectedByPokemon) icons.add(const Icon(Icons.bolt, size: 16, color: Colors.yellow));
-    if (p.isEffectivelyAsleep) icons.add(const Icon(Icons.bedtime, size: 16, color: Colors.blueAccent));
-    if (p.hasBeenHitByDart) icons.add(const Icon(Icons.colorize, size: 16, color: Colors.deepPurpleAccent));
-    if (p.pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
-    return Row(mainAxisSize: MainAxisSize.min, children: icons);
   }
 
   void _showEliminationConfirmation(Player p) {
@@ -418,6 +412,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               itemBuilder: (context, index) {
                 final p = displayList[index];
                 bool isDead = globalRolesDistributed && !p.isAlive;
+
                 return Card(
                   color: isDead ? Colors.red.withOpacity(0.1) : Colors.white10,
                   margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
@@ -427,10 +422,15 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                     title: Row(
                       children: [
                         Flexible(child: Text(p.name, style: TextStyle(color: Colors.white, decoration: isDead ? TextDecoration.lineThrough : null), overflow: TextOverflow.ellipsis)),
-                        _buildStatusIcons(p),
+                        const SizedBox(width: 5),
+                        // --- CORRECTION : Affichage des icônes (Bombe, Œil, etc.) ---
+                        p.buildStatusIcons(),
                       ],
                     ),
-                    subtitle: globalRolesDistributed ? Text(p.role?.toUpperCase() ?? "INCONNU", style: const TextStyle(color: Colors.white38, fontSize: 10)) : null,
+                    // --- CORRECTION : Affichage du rôle manuel avec cadenas ---
+                    subtitle: globalRolesDistributed
+                        ? Text(p.role?.toUpperCase() ?? "INCONNU", style: const TextStyle(color: Colors.white38, fontSize: 10))
+                        : (p.isRoleLocked ? Text("🔒 ${p.role?.toUpperCase()}", style: const TextStyle(color: Colors.amberAccent, fontSize: 10)) : null),
                     trailing: !globalRolesDistributed ? Checkbox(value: p.isPlaying, activeColor: Colors.orangeAccent, onChanged: (v) => setState(() => p.isPlaying = v!)) : null,
                   ),
                 );

@@ -3,7 +3,6 @@ import 'models/player.dart';
 import 'globals.dart';
 import 'logic.dart';
 import 'achievement_logic.dart';
-import 'trophy_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 // =============================================================================
@@ -25,7 +24,11 @@ class PassScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isLastVoter = index >= voters.length;
+    // SÉCURITÉ : On s'assure que l'ordre est alphabétique pour l'appel
+    final List<Player> sortedVoters = List.from(voters);
+    sortedVoters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    bool isLastVoter = index >= sortedVoters.length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
@@ -39,7 +42,7 @@ class PassScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              isLastVoter ? "MAÎTRE DU JEU" : formatPlayerName(voters[index].name),
+              isLastVoter ? "MAÎTRE DU JEU" : formatPlayerName(sortedVoters[index].name),
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 38,
@@ -60,11 +63,8 @@ class PassScreen extends StatelessWidget {
                 onPressed: () {
                   if (isLastVoter) {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
-
-                    // --- CORRECTIF CRUCIAL ---
-                    // On valide les statistiques (Dingo, Trahisons, Chaman) AVANT d'afficher les résultats
+                    // Validation des stats (Dingo, Trahisons...)
                     GameLogic.validateVoteStats(allPlayers);
-                    // -------------------------
 
                     Navigator.pushReplacement(
                       context,
@@ -80,8 +80,8 @@ class PassScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) => IndividualVoteScreen(
-                          voter: voters[index],
-                          voters: voters,
+                          voter: sortedVoters[index],
+                          voters: sortedVoters,
                           allPlayers: allPlayers,
                           index: index,
                           onComplete: onComplete,
@@ -133,7 +133,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   Widget build(BuildContext context) {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
-    // --- TRI ALPHABÉTIQUE DES CIBLES ---
+    // TRI ALPHABÉTIQUE DES CIBLES
     final eligibleTargets = widget.allPlayers.where((p) => p.isAlive).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -169,23 +169,17 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     if (selectedTarget != null) {
       widget.voter.targetVote = selectedTarget;
 
-      // LOG DE VOTE INDIVIDUEL
       int weight = (widget.voter.role?.toLowerCase() == "pantin") ? 2 : 1;
-      debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} (${widget.voter.role}) vote pour ${selectedTarget!.name} (Poids: $weight)");
+      debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
 
       AchievementLogic.checkTraitorFan(widget.voter, selectedTarget!);
 
       if (!widget.voter.isVoteCancelled) {
         selectedTarget!.votes += weight;
         if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
-          debugPrint("🐺 LOG [Trahison] : Un Loup vote contre un autre Loup !");
           wolfVotedWolf = true;
         }
-      } else {
-        debugPrint("🔇 LOG [Vote] : Le vote de ${widget.voter.name} est annulé (Mute/Effet).");
       }
-    } else {
-      debugPrint("✈️ LOG [Vote] : ${widget.voter.name} ne vote pas (En voyage).");
     }
 
     Navigator.pushReplacement(
@@ -241,11 +235,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
             leading: Icon(Icons.person, color: isSelected ? Colors.orangeAccent : Colors.white24),
             title: Text(
                 formatPlayerName(target.name),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: Colors.white
-                )
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)
             ),
             trailing: Radio<Player>(
               activeColor: Colors.orangeAccent,
@@ -272,11 +262,11 @@ class MJResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sortedPlayers = allPlayers.where((p) => p.isAlive).toList();
-    // Tri par votes décroissants, puis alphabétique pour les égalités
+
+    // TRI : Par votes décroissant, puis Alphabétique
     sortedPlayers.sort((a, b) {
-      if (b.votes != a.votes) {
-        return b.votes.compareTo(a.votes);
-      }
+      int voteComp = b.votes.compareTo(a.votes);
+      if (voteComp != 0) return voteComp;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
@@ -302,12 +292,10 @@ class MJResultScreen extends StatelessWidget {
               itemCount: sortedPlayers.length,
               itemBuilder: (context, i) {
                 final p = sortedPlayers[i];
-
                 bool isImmunized = p.isImmunizedFromVote || p.isInHouse;
-                // Ron-Aldo est immunisé s'il a des fans vivants
+                // Immunité Ron-Aldo (si fans vivants)
                 if (p.role?.toLowerCase() == "ron-aldo") {
-                  bool hasFans = allPlayers.any((f) => f.isFanOfRonAldo && f.isAlive);
-                  if (hasFans) isImmunized = true;
+                  if (allPlayers.any((f) => f.isFanOfRonAldo && f.isAlive)) isImmunized = true;
                 }
 
                 return Card(
@@ -317,24 +305,11 @@ class MJResultScreen extends StatelessWidget {
                     leading: isImmunized
                         ? const Icon(Icons.shield, color: Colors.cyanAccent, size: 28)
                         : const Icon(Icons.person_outline, color: Colors.white24),
-                    title: Text(
-                        formatPlayerName(p.name),
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: isImmunized ? Colors.cyanAccent : Colors.white
-                        )
-                    ),
-                    subtitle: Text(
-                        p.role?.toUpperCase() ?? "INCONNU",
-                        style: TextStyle(color: isImmunized ? Colors.cyanAccent.withOpacity(0.6) : Colors.orangeAccent, fontSize: 12)
-                    ),
+                    title: Text(formatPlayerName(p.name), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isImmunized ? Colors.cyanAccent : Colors.white)),
+                    subtitle: Text(p.role?.toUpperCase() ?? "INCONNU", style: TextStyle(color: isImmunized ? Colors.cyanAccent.withOpacity(0.6) : Colors.orangeAccent, fontSize: 12)),
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                      decoration: BoxDecoration(
-                          color: isImmunized ? Colors.cyan[900] : Colors.red[900],
-                          borderRadius: BorderRadius.circular(20)
-                      ),
+                      decoration: BoxDecoration(color: isImmunized ? Colors.cyan[900] : Colors.red[900], borderRadius: BorderRadius.circular(20)),
                       child: Text("${p.votes} VOIX", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                     onTap: () => _confirmDeath(context, p),
@@ -346,11 +321,7 @@ class MJResultScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[800],
-                  minimumSize: const Size(double.infinity, 60),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green[800], minimumSize: const Size(double.infinity, 60), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
               onPressed: () => _handleNoOneDies(context),
               child: const Text("🕊️ GRÂCE DU VILLAGE", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
@@ -364,47 +335,23 @@ class MJResultScreen extends StatelessWidget {
     debugPrint("⚖️ LOG [Sentence] : Le MJ a choisi d'éliminer ${target.name}.");
     playSfx("cloche.mp3");
 
-    // Protection Immunité Vote (Bouc émissaire, Bled)
     if (target.isImmunizedFromVote) {
-      debugPrint("🛡️ LOG [Sentence] : Cible protégée par immunité.");
-      _showSpecialPopUp(context, "🛡️ PROTECTION", "${formatPlayerName(target.name)} est protégé(e) ! Personne ne meurt.");
+      _showSpecialPopUp(context, "🛡️ PROTECTION", "${formatPlayerName(target.name)} est protégé(e) !");
       return;
     }
 
-    // Appel au GameLogic pour gérer l'élimination et les cas spéciaux (Pantin, Voyageur, etc.)
+    // Toute la logique complexe (Pantin, Maison, etc.) est gérée ici
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
 
-    String message;
-    bool nobodyDied = false;
+    String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${formatPlayerName(deceased.name)} est éliminé.";
 
-    if (deceased.isAlive) {
-      // CAS DE SURVIE (Pantin 1er vote, Voyageur, Bouc émissaire interne)
-      nobodyDied = true;
-      if (deceased.role?.toLowerCase() == "pantin") {
-        message = "🃏 Le Pantin a survécu au vote ! (Immunité unique consommée).";
-      } else if (deceased.role?.toLowerCase() == "voyageur") {
-        message = "✈️ Le Voyageur a été ramené de force au village ! (Il survit mais ne voyage plus).";
-      } else {
-        message = "La cible a survécu miraculeusement !";
-      }
-    } else {
-      // CAS DE MORT EFFECTIVE
-      debugPrint("💀 LOG [Mort] : Confirmation du décès de ${deceased.name}.");
-      if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
-        message = "🛡️ SACRIFICE : ${formatPlayerName(deceased.name)} s'est sacrifié pour Ron-Aldo !";
-      }
-      else if (deceased.role?.toLowerCase() == "pantin") {
-        message = "🎭 Le Pantin est mort ! Sa malédiction s'abat sur le village (Mort dans 2 jours).";
-      }
-      else if (target.role?.toLowerCase() == "maison" || (target.isInHouse && target != deceased)) {
-        message = "🏠 La Maison s'effondre et emporte ${formatPlayerName(deceased.name)} !";
-      }
-      else {
-        message = "Le village a tranché ! ${formatPlayerName(deceased.name)} est éliminé.";
-      }
-    }
+    // Messages contextuels importants
+    if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) message = "🃏 Le Pantin a survécu (Immunité unique).";
+    if (deceased.role?.toLowerCase() == "voyageur" && deceased.isAlive) message = "✈️ Le Voyageur revient au village (Survit).";
+    if (!deceased.isAlive && target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") message = "🛡️ SACRIFICE : ${formatPlayerName(deceased.name)} s'est sacrifié !";
+    if (target.role?.toLowerCase() == "maison" && !deceased.isAlive && deceased != target) message = "🏠 La Maison s'est effondrée sur ${formatPlayerName(deceased.name)} !";
 
-    _finalize(context, message, nobodyDied);
+    _finalize(context, message, deceased.isAlive);
   }
 
   void _showSpecialPopUp(BuildContext context, String title, String content) {
@@ -415,31 +362,19 @@ class MJResultScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF1D1E33),
         title: Text(title, style: const TextStyle(color: Colors.orangeAccent)),
         content: Text(content, style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _finalize(context, "L'exécution a été annulée par protection.", true);
-            },
-            child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)),
-          ),
-        ],
+        actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); _finalize(context, "Annulé par protection.", true); }, child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))],
       ),
     );
   }
 
   void _handleNoOneDies(BuildContext context) {
-    debugPrint("⚖️ LOG [Sentence] : Le MJ a gracié le village.");
     playSfx("cloche.mp3");
     _finalize(context, "Personne ne meurt ce soir.", true);
   }
 
   void _finalize(BuildContext context, String message, bool noOne) {
-    // Passage au tour suivant
     GameLogic.nextTurn(allPlayers);
-
     if (!context.mounted) return;
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -447,16 +382,7 @@ class MJResultScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF1D1E33),
         title: Text(noOne ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT", style: const TextStyle(color: Colors.white)),
         content: Text(message, style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              Navigator.pop(context);
-              onComplete();
-            },
-            child: const Text("OK", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
-          ),
-        ],
+        actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); Navigator.pop(context); onComplete(); }, child: const Text("OK", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)))],
       ),
     );
   }

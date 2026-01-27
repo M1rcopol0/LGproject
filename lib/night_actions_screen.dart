@@ -75,7 +75,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
         if (r != a || !p.isAlive) return false;
 
         if (a == "somnifère") return p.somnifereUses > 0;
-        if (a == "houston") return (globalTurnNumber % 2 != 0);
+        if (a == "houston") return (globalTurnNumber % 2 != 0); // Impair
         if (a == "exorciste") return (globalTurnNumber == 2);
 
         return true;
@@ -230,7 +230,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           children: [
             Icon(Icons.wb_sunny, color: Colors.orangeAccent),
             SizedBox(width: 10),
-            Text("LE VILLAGE SE RÉVEILLE", style: TextStyle(color: Colors.white)),
+            Expanded(
+              child: Text("LE VILLAGE SE RÉVEILLE", style: TextStyle(color: Colors.white)),
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -310,14 +312,25 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 return;
               }
 
+              // --- MISE À JOUR ÉTATS DEVIN (ICÔNE) ---
+              if (result.revealedPlayerNames.isNotEmpty) {
+                debugPrint("👁️ LOG [Devin] : Mise à jour des icônes pour ${result.revealedPlayerNames}");
+                for (String name in result.revealedPlayerNames) {
+                  try {
+                    var p = widget.players.firstWhere((pl) => pl.name == name);
+                    p.isRevealedByDevin = true; // L'icône apparaîtra au menu
+                  } catch (_) {}
+                }
+              }
+
               setState(() {
                 isDayTime = true;
               });
               await GameSaveService.saveGame();
 
               if (mounted) {
-                Navigator.pop(ctx); // Ferme le popup
-                Navigator.pop(context); // Retourne au menu
+                Navigator.pop(ctx);
+                Navigator.pop(context);
               }
             },
             child: const Text("VOIR LE VILLAGE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),

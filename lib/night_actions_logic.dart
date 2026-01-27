@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'models/player.dart';
 import 'logic.dart';
 import 'globals.dart';
-import 'achievement_logic.dart'; // Import nécessaire pour le Voyageur
+import 'achievement_logic.dart';
 
 class NightResult {
   final List<Player> deadPlayers;
   final Map<String, String> deathReasons;
   final bool villageWasProtected;
-  final List<String> announcements; // NOUVEAU : Messages pour le MJ (Houston, Devin)
+  final List<String> announcements;
   final bool villageIsNarcoleptic;
   final bool exorcistVictory;
+
+  // NOUVEAU : Liste des joueurs dont le rôle est officiellement révélé ce matin
+  final List<String> revealedPlayerNames;
 
   NightResult({
     required this.deadPlayers,
@@ -19,6 +22,7 @@ class NightResult {
     this.announcements = const [],
     this.villageIsNarcoleptic = false,
     this.exorcistVictory = false,
+    this.revealedPlayerNames = const [], // Initialisation par défaut
   });
 }
 
@@ -32,13 +36,12 @@ class NightActionsLogic {
 
     for (var p in players) {
       // --- LOGIQUE BOMBE TARDOS (PROJECTILE AUTONOME) ---
-      if (p.hasPlacedBomb && p.bombTimer > 0) {
+      if (p.hasPlacedBomb && p.tardosTarget != null && p.bombTimer > 0) {
         p.bombTimer--;
         debugPrint("💣 LOG [Tardos] : La bombe posée par ${p.name} tic-tac... (T-Minus: ${p.bombTimer})");
       }
 
       // --- LOGIQUE VOYAGEUR (Munitions & Stats) ---
-      // Le voyageur gagne des balles s'il est en voyage (1 balle toutes les 2 nuits)
       if (p.role?.toLowerCase() == "voyageur" && p.isInTravel) {
         AchievementLogic.updateVoyageur(p);
       }
@@ -81,7 +84,10 @@ class NightActionsLogic {
 
     debugPrint("🏁 LOG [Logic] : Début de la résolution finale.");
     Map<String, String> finalDeathReasons = {};
-    List<String> morningAnnouncements = []; // Liste des messages MJ
+    List<String> morningAnnouncements = [];
+
+    // Liste temporaire pour stocker les révélations du Devin avant de les passer à l'UI
+    List<String> playersToReveal = [];
 
     // --- VICTOIRE IMMÉDIATE EXORCISTE ---
     if (exorcistSuccess) {
@@ -107,7 +113,14 @@ class NightActionsLogic {
         String phrase = sameTeam ? "QUI VOILÀ-JE !" : "HOUSTON, ON A UN PROBLÈME !";
         morningAnnouncements.add("🛰️ HOUSTON : $phrase\n(Analyse de ${p1.name} & ${p2.name})");
 
-        // Reset pour le prochain tour
+        // --- DÉTECTION SUCCÈS APOLLO 13 ---
+        bool oneWolf = (p1.team == "loups" || p2.team == "loups");
+        bool oneSolo = (p1.team == "solo" || p2.team == "solo");
+        if (oneWolf && oneSolo) {
+          houston.houstonApollo13Triggered = true;
+          debugPrint("🛰️ LOG [Succès] : Apollo 13 détecté !");
+        }
+
         houston.houstonTargets = [];
       }
     } catch (e) {}
@@ -115,22 +128,23 @@ class NightActionsLogic {
     // DEVIN
     try {
       Player devin = players.firstWhere((p) => p.role?.toLowerCase() == "devin" && p.isAlive);
-      // Si le Devin a une cible et que le compteur indique que la nuit est validée (>= 1)
-      // Note : L'interface incrémente de 0 à 1 lors de la sélection initiale.
-      // La nuit suivante, l'interface affiche "Nuit 2". Si le joueur valide, on doit révéler.
-      if (devin.concentrationTargetName != null && devin.concentrationNights >= 1) {
+      // Si le Devin a une cible et que le compteur indique que la nuit est validée (>= 2)
+      if (devin.concentrationTargetName != null && devin.concentrationNights >= 2) {
         Player? target = players.firstWhere((p) => p.name == devin.concentrationTargetName, orElse: () => Player(name: "Inconnu"));
         if (target.name != "Inconnu") {
+          // 1. On prépare l'annonce
           morningAnnouncements.add("👁️ DEVIN : ${target.name} est ${target.role?.toUpperCase()}");
 
-          // Gestion Stats Devin
+          // 2. On ajoute à la liste des révélations pour l'UI (Icone Œil)
+          playersToReveal.add(target.name);
+
+          // 3. Stats & Reset
           devin.devinRevealsCount++;
           if (devin.revealedPlayersHistory.contains(target.name)) {
             devin.hasRevealedSamePlayerTwice = true;
           }
           devin.revealedPlayersHistory.add(target.name);
 
-          // Reset du cycle Devin
           devin.concentrationTargetName = null;
           devin.concentrationNights = 0;
         }
@@ -138,39 +152,32 @@ class NightActionsLogic {
     } catch (e) {}
 
     // --- 2. LOGIQUE EXPLOSION BOMBE TARDOS (PRIORITAIRE) ---
-    // On ajoute les morts à la map pendingDeathsMap AVANT de traiter les protections
     for (var p in players) {
       if (p.hasPlacedBomb && p.bombTimer == 0 && p.tardosTarget != null) {
         Player target = p.tardosTarget!;
         debugPrint("💥 LOG [Explosion] : La bombe de ${p.name} EXPLOSE sur ${target.name} !");
 
-        // Cas Spécial : La bombe est DANS la maison ou SUR la Maison
-        // Règle : Tout le monde meurt, pas de protection quiche.
         if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
           debugPrint("🏠💥 LOG [Tardos] : La bombe détruit la Maison et ses occupants !");
-
-          // 1. Tuer le propriétaire (Maison)
           try {
             Player houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
-            // On utilise une raison contenant "Tardos" pour bypass la Quiche
             pendingDeathsMap[houseOwner] = "Explosion Maison (Tardos)";
-          } catch(e) { /* Pas de maison en vie */ }
+          } catch(e) { }
 
-          // 2. Tuer tous les occupants
           for (var occupant in players.where((o) => o.isInHouse)) {
             pendingDeathsMap[occupant] = "Effondrement Maison (Tardos)";
           }
         }
-        // Cas Standard (Cible unique)
         else if (target.isAlive) {
           pendingDeathsMap[target] = "Explosion Bombe (Tardos)";
         } else {
           debugPrint("🌬️ LOG [Tardos] : La bombe explose sur un cadavre.");
         }
 
-        // Désactivation définitive de la bombe
-        p.hasPlacedBomb = false;
+        // Nettoyage visuel et logique
+        target.isBombed = false;
         p.tardosTarget = null;
+        // Note: p.hasPlacedBomb reste true pour bloquer l'interface Tardos
       }
     }
 
@@ -189,16 +196,13 @@ class NightActionsLogic {
     final List<Player> aliveBefore = players.where((p) => p.isAlive).toList();
 
     // --- 4. RÉSOLUTION DES MORTS (Morsures, Tirs, Bombes) ---
-    // Si Somnifère Actif : On ignore toutes les morts sauf Tardos (si on veut être strict, mais ici on applique l'effet global)
     if (somnifereActive) {
       debugPrint("💤 LOG [Somnifère] : Sommeil général. Aucune mort physique n'est appliquée.");
-      pendingDeathsMap.clear(); // Annulation de toutes les morts
+      pendingDeathsMap.clear();
     } else {
       pendingDeathsMap.forEach((target, reason) {
         if (!target.isAlive) return;
 
-        // Protection Quiche
-        // Elle ne protège PAS si la raison contient "Tardos", "Maison" (dans le contexte explosion), "accidentelle" ou "Bombe"
         bool isUnstoppable = reason.contains("accidentelle") ||
             reason.contains("Bombe") ||
             reason.contains("Tardos") ||
@@ -206,45 +210,33 @@ class NightActionsLogic {
 
         if (quicheIsActive && !isUnstoppable) {
           quicheSavedThisNight++;
-
-          // Logique Succès Grand-Mère (S'est sauvée elle-même)
           if (target.role?.toLowerCase() == "grand-mère") {
             target.hasSavedSelfWithQuiche = true;
             debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
           }
-
           debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
           return;
         }
 
-        // Protection Pokémon (Individuelle)
-        // Ne protège pas non plus des explosions nucléaires du Tardos
         if (target.isProtectedByPokemon && !reason.contains("Tardos")) {
           debugPrint("🛡️ LOG [Pokémon] : ${target.name} protégé.");
           return;
         }
 
-        // Traitement du décès
         bool targetWasInHouse = target.isInHouse;
         Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
         if (!finalVictim.isAlive) {
-          // Logique Maison Standard (Ricochet)
-          // Si la victime finale est la maison (parce qu'elle a protégé un occupant)
-          // ET que la raison n'est pas une explosion Tardos (car là, tout le monde meurt)
           if (targetWasInHouse &&
               finalVictim.role?.toLowerCase() == "maison" &&
               finalVictim != target &&
               !reason.contains("Tardos")) {
-
             debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
-
           } else {
             debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
             finalDeathReasons[finalVictim.name] = reason;
           }
-
           if (reason.contains("Morsure")) wolvesNightKills++;
         }
       });
@@ -252,7 +244,6 @@ class NightActionsLogic {
 
     // --- 5. MORTS DIFFÉRÉES ET CLEANUP ---
     for (var p in players) {
-      // Malédiction Pantin
       if (p.isAlive && p.pantinCurseTimer == 0) {
         debugPrint("🎭 LOG [Pantin] : Mort de la malédiction : ${p.name}");
         p.isAlive = false;
@@ -260,7 +251,6 @@ class NightActionsLogic {
         finalDeathReasons[p.name] = "Malédiction du Pantin";
       }
 
-      // Cleanup Grand-mère
       if (p.role?.toLowerCase() == "grand-mère" && p.isAlive) {
         if (p.hasBakedQuiche) {
           p.isVillageProtected = true;
@@ -269,7 +259,7 @@ class NightActionsLogic {
           debugPrint("🥧 LOG [Grand-mère] : Quiche prête pour la Nuit ${globalTurnNumber + 1}.");
         } else if (p.isVillageProtected && !p.powerActiveThisTurn) {
           p.isVillageProtected = false;
-          p.hasSavedSelfWithQuiche = false; // Reset du flag de succès
+          p.hasSavedSelfWithQuiche = false;
           debugPrint("🥧 LOG [Grand-mère] : Fin de protection.");
         }
       }
@@ -277,7 +267,6 @@ class NightActionsLogic {
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
 
-      // Réveil sauf si venin en cours
       if (!p.hasBeenHitByDart) p.isEffectivelyAsleep = false;
     }
 
@@ -286,8 +275,9 @@ class NightActionsLogic {
       deadPlayers: aliveBefore.where((p) => !p.isAlive).toList(),
       deathReasons: finalDeathReasons,
       villageWasProtected: quicheIsActive,
-      announcements: morningAnnouncements, // Intégration des annonces
+      announcements: morningAnnouncements,
       villageIsNarcoleptic: somnifereActive,
+      revealedPlayerNames: playersToReveal, // Transmission de la liste à l'UI
     );
   }
 }

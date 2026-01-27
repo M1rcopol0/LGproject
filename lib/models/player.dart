@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class Player {
   String name;
@@ -18,6 +19,9 @@ class Player {
   bool isImmunizedFromVote;
   bool isProtectedByPokemon;
   bool isEffectivelyAsleep;
+
+  // --- NOUVEAU : Cible du Devin ---
+  bool isRevealedByDevin;
 
   // --- ZOOKEEPER ---
   bool hasBeenHitByDart;
@@ -85,10 +89,12 @@ class Player {
   Player? tardosTarget;
   bool hasPlacedBomb;      // Vrai si une bombe est en cours (tic-tac)
   bool hasUsedBombPower;   // Vrai si le pouvoir a été consommé définitivement
+  bool isBombed;           // Marqueur visuel sur la victime
   int bombTimer;
 
   // Houston
   List<Player> houstonTargets;
+  bool houstonApollo13Triggered; // Flag pour succès Apollo 13
 
   // Somnifère
   int somnifereUses;
@@ -124,6 +130,7 @@ class Player {
     this.isImmunizedFromVote = false,
     this.isProtectedByPokemon = false,
     this.isEffectivelyAsleep = false,
+    this.isRevealedByDevin = false, // Init
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
@@ -162,14 +169,17 @@ class Player {
     this.concentrationTargetName,
     this.lastRevealedPlayerName,
     this.devinRevealsCount = 0,
-    this.revealedPlayersHistory = const [], // Init
-    this.hasRevealedSamePlayerTwice = false, // Init
-    this.protectedPlayersHistory = const {}, // Init (Set)
+    // --- CORRECTION : Utilisation de valeurs mutables ---
+    List<String>? revealedPlayersHistory,
+    Set<String>? protectedPlayersHistory,
+    this.hasRevealedSamePlayerTwice = false,
     this.tardosTarget,
     this.hasPlacedBomb = false,
     this.hasUsedBombPower = false,
+    this.isBombed = false,
     this.bombTimer = 0,
     this.houstonTargets = const [],
+    this.houstonApollo13Triggered = false,
     this.somnifereUses = 2,
     this.lastQuicheTurn = -1,
     this.isVillageProtected = false,
@@ -182,7 +192,10 @@ class Player {
     this.maxSimultaneousCurses = 0,
     this.canacleanPresent = false,
     this.isSelected = false,
-  }) : name = formatName(name);
+  }) : name = formatName(name),
+  // Initialisation mutable pour éviter l'erreur "Unmodifiable Set"
+        revealedPlayersHistory = revealedPlayersHistory ?? [],
+        protectedPlayersHistory = protectedPlayersHistory ?? {};
 
   static String formatName(String input) {
     if (input.trim().isEmpty) return input;
@@ -213,14 +226,13 @@ class Player {
   }
 
   void resetTemporaryStates() {
-    // IMPORTANT : On ne reset NI dingoStrikeCount, NI travelerBullets, NI bombTimer
-    // NI hasSurvivedVote, NI hasUsedBombPower
     isMutedDay = false;
     isProtectedByPokemon = false;
     isVoteCancelled = false;
     powerActiveThisTurn = false;
     targetVote = null;
     isSelected = false;
+    // isBombed et isRevealedByDevin persistent
   }
 
   // --- GÉNÉRATEUR D'ICÔNES POUR LE MENU ---
@@ -233,18 +245,27 @@ class Player {
     if (isInHouse) icons.add(const Icon(Icons.home, size: 16, color: Colors.orangeAccent));
     if (isProtectedByPokemon) icons.add(const Icon(Icons.bolt, size: 16, color: Colors.yellow));
     if (isEffectivelyAsleep) icons.add(const Icon(Icons.bedtime, size: 16, color: Colors.blueAccent));
-    if (hasBeenHitByDart) icons.add(const Icon(Icons.colorize, size: 16, color: Colors.deepPurpleAccent));
-    if (pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
 
-    // ICÔNE BOMBE TARDOS
-    if (hasPlacedBomb) {
+    // ICÔNE DEVIN (ŒIL)
+    // S'affiche UNIQUEMENT si le rôle a été révélé
+    if (isRevealedByDevin) {
       icons.add(const Padding(
         padding: EdgeInsets.symmetric(horizontal: 2.0),
-        child: Icon(Icons.settings_input_component, size: 16, color: Colors.redAccent),
+        child: Icon(Icons.remove_red_eye, size: 16, color: Colors.purpleAccent),
       ));
     }
 
-    // ICÔNE DINGO (Munitions)
+    if (hasBeenHitByDart) icons.add(const Icon(Icons.colorize, size: 16, color: Colors.deepPurpleAccent));
+    if (pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
+
+    // ICÔNE VICTIME DE BOMBE (BOMBE ROUGE)
+    if (isBombed) {
+      icons.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2.0),
+        child: Icon(FontAwesomeIcons.bomb, size: 14, color: Colors.redAccent),
+      ));
+    }
+
     if (role?.toLowerCase() == "dingo" && dingoStrikeCount > 0) {
       icons.add(Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -261,7 +282,6 @@ class Player {
       ));
     }
 
-    // ICÔNE VOYAGEUR (Balles)
     if (role?.toLowerCase() == "voyageur" && travelerBullets > 0) {
       icons.add(Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -297,6 +317,7 @@ class Player {
       'isImmunizedFromVote': isImmunizedFromVote,
       'isProtectedByPokemon': isProtectedByPokemon,
       'isEffectivelyAsleep': isEffectivelyAsleep,
+      'isRevealedByDevin': isRevealedByDevin, // SAVE
       'hasBeenHitByDart': hasBeenHitByDart,
       'zookeeperEffectReady': zookeeperEffectReady,
       'powerActiveThisTurn': powerActiveThisTurn,
@@ -333,12 +354,14 @@ class Player {
       'concentrationTargetName': concentrationTargetName,
       'lastRevealedPlayerName': lastRevealedPlayerName,
       'devinRevealsCount': devinRevealsCount,
-      'revealedPlayersHistory': revealedPlayersHistory, // ADD
-      'hasRevealedSamePlayerTwice': hasRevealedSamePlayerTwice, // ADD
-      'protectedPlayersHistory': protectedPlayersHistory.toList(), // ADD
+      'revealedPlayersHistory': revealedPlayersHistory,
+      'hasRevealedSamePlayerTwice': hasRevealedSamePlayerTwice,
+      'protectedPlayersHistory': protectedPlayersHistory.toList(), // Set -> List
       'hasPlacedBomb': hasPlacedBomb,
       'hasUsedBombPower': hasUsedBombPower,
+      'isBombed': isBombed, // SAVE
       'bombTimer': bombTimer,
+      'houstonApollo13Triggered': houstonApollo13Triggered,
       'somnifereUses': somnifereUses,
       'lastQuicheTurn': lastQuicheTurn,
       'isVillageProtected': isVillageProtected,
@@ -354,7 +377,12 @@ class Player {
   }
 
   factory Player.fromMap(Map<String, dynamic> map) {
-    return Player(name: map['name'])
+    return Player(
+      name: map['name'],
+      // --- CORRECTION : Récupération en tant que structures mutables ---
+      revealedPlayersHistory: List<String>.from(map['revealedPlayersHistory'] ?? []),
+      protectedPlayersHistory: Set<String>.from(map['protectedPlayersHistory'] ?? []),
+    )
       ..role = map['role']
       ..team = map['team'] ?? "village"
       ..isAlive = map['isAlive'] ?? true
@@ -367,6 +395,7 @@ class Player {
       ..isImmunizedFromVote = map['isImmunizedFromVote'] ?? false
       ..isProtectedByPokemon = map['isProtectedByPokemon'] ?? false
       ..isEffectivelyAsleep = map['isEffectivelyAsleep'] ?? false
+      ..isRevealedByDevin = map['isRevealedByDevin'] ?? false // LOAD
       ..hasBeenHitByDart = map['hasBeenHitByDart'] ?? false
       ..zookeeperEffectReady = map['zookeeperEffectReady'] ?? false
       ..powerActiveThisTurn = map['powerActiveThisTurn'] ?? false
@@ -403,12 +432,12 @@ class Player {
       ..concentrationTargetName = map['concentrationTargetName']
       ..lastRevealedPlayerName = map['lastRevealedPlayerName']
       ..devinRevealsCount = map['devinRevealsCount'] ?? 0
-      ..revealedPlayersHistory = List<String>.from(map['revealedPlayersHistory'] ?? []) // RESTORE
-      ..hasRevealedSamePlayerTwice = map['hasRevealedSamePlayerTwice'] ?? false // RESTORE
-      ..protectedPlayersHistory = Set<String>.from(map['protectedPlayersHistory'] ?? []) // RESTORE
+      ..hasRevealedSamePlayerTwice = map['hasRevealedSamePlayerTwice'] ?? false
       ..hasPlacedBomb = map['hasPlacedBomb'] ?? false
       ..hasUsedBombPower = map['hasUsedBombPower'] ?? false
+      ..isBombed = map['isBombed'] ?? false // LOAD
       ..bombTimer = map['bombTimer'] ?? 0
+      ..houstonApollo13Triggered = map['houstonApollo13Triggered'] ?? false
       ..somnifereUses = map['somnifereUses'] ?? 2
       ..lastQuicheTurn = map['lastQuicheTurn'] ?? -1
       ..isVillageProtected = map['isVillageProtected'] ?? false

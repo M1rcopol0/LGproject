@@ -324,7 +324,8 @@ class AchievementData {
       title: "Apollo 13",
       description: "Désignez un loup et un rôle solo en même temps.",
       icon: "🚀", rarity: 2,
-      checkCondition: (data) => data['houston_wolf_and_solo'] == true,
+      // La logique est maintenant stockée dans le flag player
+      checkCondition: (data) => data['houstonApollo13Triggered'] == true,
     ),
 
     // --- DEVIN ---
