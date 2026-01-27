@@ -14,7 +14,7 @@ class _AchievementTask {
 }
 
 class TrophyService {
-  static const String _keyPlayers = 'saved_trophies';
+  static const String _keyPlayers = 'saved_trophies_v2'; // Clé V2 pour éviter conflits
   static const String _keyGlobalStats = 'global_faction_stats';
 
   // --- GESTION DES NOTIFICATIONS ---
@@ -54,22 +54,27 @@ class TrophyService {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();
 
+    // Initialisation si joueur inconnu
     if (!stats.containsKey(playerName)) {
       stats[playerName] = {
         'totalWins': 0,
         'roles': {},
         'roleWins': {},
-        'achievements': {}
+        'achievements': {}, // Map<String, String> (ID -> Date)
+        'counters': {}
       };
     }
 
     var pData = Map<String, dynamic>.from(stats[playerName]);
+    // On force le typage en Map<String, dynamic> pour éviter les erreurs de cast
     var achievements = Map<String, dynamic>.from(pData['achievements'] ?? {});
 
+    // Si déjà débloqué, on arrête tout (false = pas nouveau)
     if (achievements.containsKey(achievementId)) {
       return false;
     }
 
+    // Sinon, on enregistre la date et l'heure
     final now = DateTime.now();
     String timestamp = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} à ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
@@ -78,11 +83,25 @@ class TrophyService {
     stats[playerName] = pData;
 
     await prefs.setString(_keyPlayers, jsonEncode(stats));
-    return true;
+    return true; // true = C'est un nouveau succès !
   }
 
   // ==========================================================
-  // 3. SYSTÈME DE POP-UP EN CASCADE (QUEUE)
+  // 3. RÉCUPÉRATION DES SUCCÈS DÉBLOQUÉS (POUR L'UI)
+  // ==========================================================
+  static Future<List<String>> getUnlockedAchievements(String playerName) async {
+    final stats = await getStats();
+    if (!stats.containsKey(playerName)) return [];
+
+    final pData = stats[playerName];
+    if (pData['achievements'] == null) return [];
+
+    // On retourne les clés de la map (les IDs des succès)
+    return Map<String, dynamic>.from(pData['achievements']).keys.toList();
+  }
+
+  // ==========================================================
+  // 4. SYSTÈME DE POP-UP EN CASCADE (QUEUE)
   // ==========================================================
   static void showAchievementPopup(BuildContext context, String title, String icon, String playerName) {
     _achievementQueue.add(_AchievementTask(title, icon, playerName));
@@ -98,21 +117,16 @@ class TrophyService {
 
     entry = OverlayEntry(
       builder: (context) => Positioned(
-        top: 0, left: 0, right: 0,
-        child: TweenAnimationBuilder<Offset>(
-          duration: const Duration(milliseconds: 600),
-          tween: Tween(begin: const Offset(0, -1.2), end: const Offset(0, 0)),
-          curve: Curves.easeOutBack,
-          builder: (context, offset, child) {
-            return FractionalTranslation(
-              translation: offset,
-              child: AchievementToast(
-                title: task.title,
-                icon: task.icon,
-                playerName: task.playerName,
-              ),
-            );
-          },
+        top: 50, // Positionné en haut
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: AchievementToast( // On utilise le widget dédié
+            title: task.title,
+            icon: task.icon,
+            playerName: task.playerName,
+          ),
         ),
       ),
     );
@@ -120,20 +134,23 @@ class TrophyService {
     final overlay = Overlay.of(context);
     overlay.insert(entry);
 
+    // Durée d'affichage (3.5 secondes)
     await Future.delayed(const Duration(milliseconds: 3500));
 
     entry.remove();
     _isDisplaying = false;
 
+    // Si d'autres succès attendent, on les affiche
     if (context.mounted) {
       _processQueue(context);
     }
   }
 
   // ==========================================================
-  // 4. ENREGISTREMENT DES VICTOIRES (POST-GAME)
+  // 5. ENREGISTREMENT DES VICTOIRES (POST-GAME)
   // ==========================================================
   static Future<void> recordWin(List<Player> winners, String roleGroup, {Map<String, dynamic>? customData}) async {
+    // Anti-doublon (si on appelle 2 fois en moins de 5 secondes)
     if (_lastWinRecordTime != null) {
       final difference = DateTime.now().difference(_lastWinRecordTime!);
       if (difference < const Duration(seconds: 5)) return;
@@ -142,7 +159,7 @@ class TrophyService {
 
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> playerStats = await getStats();
-    final Set<String> processedNames = {};
+    final Set<String> processedNames = {}; // Pour éviter de compter 2 fois le même joueur
 
     for (var p in winners) {
       if (processedNames.contains(p.name)) continue;
@@ -151,36 +168,66 @@ class TrophyService {
       final String name = p.name;
       final String actualRole = p.role?.toUpperCase().trim() ?? "SANS RÔLE";
 
+      // Création ou récupération de la fiche joueur
       Map<String, dynamic> pData = playerStats.containsKey(name)
           ? Map<String, dynamic>.from(playerStats[name])
-          : { 'totalWins': 0, 'roles': {}, 'roleWins': {}, 'achievements': {} };
+          : {
+        'totalWins': 0,
+        'roles': {},
+        'roleWins': {},
+        'achievements': {},
+        'counters': {}
+      };
 
+      // Incrémentation victoire totale
       pData['totalWins'] = (pData['totalWins'] ?? 0) + 1;
 
+      // Incrémentation victoire par Groupe (Village, Loups, Solo)
       Map<String, dynamic> rolesGroupMap = Map<String, dynamic>.from(pData['roles'] ?? {});
       rolesGroupMap[roleGroup] = (rolesGroupMap[roleGroup] ?? 0) + 1;
       pData['roles'] = rolesGroupMap;
 
+      // Incrémentation victoire par Rôle précis (Voyante, Dresseur...)
       Map<String, dynamic> specificRoleMap = Map<String, dynamic>.from(pData['roleWins'] ?? {});
       specificRoleMap[actualRole] = (specificRoleMap[actualRole] ?? 0) + 1;
       pData['roleWins'] = specificRoleMap;
+
+      // Mise à jour des compteurs cumulatifs (Archiviste, Voyageur...)
+      var counters = Map<String, dynamic>.from(pData['counters'] ?? {});
+      if (customData != null) {
+        // Archiviste : Liste des pouvoirs uniques
+        if (p.role == "Archiviste" && p.archivisteActionsUsed.isNotEmpty) {
+          List<dynamic> history = List.from(counters['archiviste_actions_all_time'] ?? []);
+          history.addAll(p.archivisteActionsUsed);
+          counters['archiviste_actions_all_time'] = history.toSet().toList(); // Uniques
+        }
+        // Voyageur : Nombre de voyages
+        if (p.travelNightsCount > 0) {
+          counters['cumulative_travels'] = (counters['cumulative_travels'] ?? 0) + 1;
+        }
+        // Maison : Hôtes cumulés
+        if ((customData['cumulative_hosted_count'] ?? 0) > 0) {
+          counters['cumulative_hosted_count'] = (counters['cumulative_hosted_count'] ?? 0) + (customData['cumulative_hosted_count'] as int);
+        }
+      }
+      pData['counters'] = counters;
 
       playerStats[name] = pData;
     }
 
     await prefs.setString(_keyPlayers, jsonEncode(playerStats));
 
+    // Stats Globales (Camembert d'accueil)
     Map<String, int> globalStats = await getGlobalStats();
     globalStats[roleGroup] = (globalStats[roleGroup] ?? 0) + 1;
     await prefs.setString(_keyGlobalStats, jsonEncode(globalStats));
   }
 
   // ==========================================================
-  // 5. RÉCUPÉRATION ET SUPPRESSION (FIX BUGS STATS)
+  // 6. GESTION DES DONNÉES (LECTURE / SUPPRESSION)
   // ==========================================================
 
   /// Supprime définitivement l'entrée JSON d'un joueur.
-  /// Garantit qu'un nouveau joueur avec le même nom commence à zéro.
   static Future<void> deletePlayerStats(String playerName) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();

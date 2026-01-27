@@ -8,7 +8,7 @@ class NightResult {
   final List<Player> deadPlayers;
   final Map<String, String> deathReasons;
   final bool villageWasProtected;
-  final String? revealedRoleMessage;
+  final List<String> announcements; // NOUVEAU : Messages pour le MJ (Houston, Devin)
   final bool villageIsNarcoleptic;
   final bool exorcistVictory;
 
@@ -16,7 +16,7 @@ class NightResult {
     required this.deadPlayers,
     required this.deathReasons,
     required this.villageWasProtected,
-    this.revealedRoleMessage,
+    this.announcements = const [],
     this.villageIsNarcoleptic = false,
     this.exorcistVictory = false,
   });
@@ -81,6 +81,7 @@ class NightActionsLogic {
 
     debugPrint("🏁 LOG [Logic] : Début de la résolution finale.");
     Map<String, String> finalDeathReasons = {};
+    List<String> morningAnnouncements = []; // Liste des messages MJ
 
     // --- VICTOIRE IMMÉDIATE EXORCISTE ---
     if (exorcistSuccess) {
@@ -93,7 +94,50 @@ class NightActionsLogic {
       );
     }
 
-    // --- LOGIQUE EXPLOSION BOMBE TARDOS (PRIORITAIRE) ---
+    // --- 1. GÉNÉRATION DES ANNONCES (HOUSTON / DEVIN) ---
+
+    // HOUSTON
+    try {
+      Player houston = players.firstWhere((p) => p.role?.toLowerCase() == "houston" && p.isAlive);
+      if (houston.houstonTargets.length == 2) {
+        Player p1 = houston.houstonTargets[0];
+        Player p2 = houston.houstonTargets[1];
+        bool sameTeam = (p1.team == p2.team);
+
+        String phrase = sameTeam ? "QUI VOILÀ-JE !" : "HOUSTON, ON A UN PROBLÈME !";
+        morningAnnouncements.add("🛰️ HOUSTON : $phrase\n(Analyse de ${p1.name} & ${p2.name})");
+
+        // Reset pour le prochain tour
+        houston.houstonTargets = [];
+      }
+    } catch (e) {}
+
+    // DEVIN
+    try {
+      Player devin = players.firstWhere((p) => p.role?.toLowerCase() == "devin" && p.isAlive);
+      // Si le Devin a une cible et que le compteur indique que la nuit est validée (>= 1)
+      // Note : L'interface incrémente de 0 à 1 lors de la sélection initiale.
+      // La nuit suivante, l'interface affiche "Nuit 2". Si le joueur valide, on doit révéler.
+      if (devin.concentrationTargetName != null && devin.concentrationNights >= 1) {
+        Player? target = players.firstWhere((p) => p.name == devin.concentrationTargetName, orElse: () => Player(name: "Inconnu"));
+        if (target.name != "Inconnu") {
+          morningAnnouncements.add("👁️ DEVIN : ${target.name} est ${target.role?.toUpperCase()}");
+
+          // Gestion Stats Devin
+          devin.devinRevealsCount++;
+          if (devin.revealedPlayersHistory.contains(target.name)) {
+            devin.hasRevealedSamePlayerTwice = true;
+          }
+          devin.revealedPlayersHistory.add(target.name);
+
+          // Reset du cycle Devin
+          devin.concentrationTargetName = null;
+          devin.concentrationNights = 0;
+        }
+      }
+    } catch (e) {}
+
+    // --- 2. LOGIQUE EXPLOSION BOMBE TARDOS (PRIORITAIRE) ---
     // On ajoute les morts à la map pendingDeathsMap AVANT de traiter les protections
     for (var p in players) {
       if (p.hasPlacedBomb && p.bombTimer == 0 && p.tardosTarget != null) {
@@ -130,7 +174,7 @@ class NightActionsLogic {
       }
     }
 
-    // --- ÉVALUATION DE LA PROTECTION QUICHE ---
+    // --- 3. ÉVALUATION DE LA PROTECTION QUICHE ---
     bool quicheIsActive = false;
     if (globalTurnNumber > 1) {
       quicheIsActive = players.any((p) =>
@@ -144,63 +188,69 @@ class NightActionsLogic {
 
     final List<Player> aliveBefore = players.where((p) => p.isAlive).toList();
 
-    // --- RÉSOLUTION DES MORTS (Morsures, Tirs, Bombes) ---
-    pendingDeathsMap.forEach((target, reason) {
-      if (!target.isAlive) return;
+    // --- 4. RÉSOLUTION DES MORTS (Morsures, Tirs, Bombes) ---
+    // Si Somnifère Actif : On ignore toutes les morts sauf Tardos (si on veut être strict, mais ici on applique l'effet global)
+    if (somnifereActive) {
+      debugPrint("💤 LOG [Somnifère] : Sommeil général. Aucune mort physique n'est appliquée.");
+      pendingDeathsMap.clear(); // Annulation de toutes les morts
+    } else {
+      pendingDeathsMap.forEach((target, reason) {
+        if (!target.isAlive) return;
 
-      // Protection Quiche
-      // Elle ne protège PAS si la raison contient "Tardos", "Maison" (dans le contexte explosion), "accidentelle" ou "Bombe"
-      bool isUnstoppable = reason.contains("accidentelle") ||
-          reason.contains("Bombe") ||
-          reason.contains("Tardos") ||
-          reason.contains("Maison");
+        // Protection Quiche
+        // Elle ne protège PAS si la raison contient "Tardos", "Maison" (dans le contexte explosion), "accidentelle" ou "Bombe"
+        bool isUnstoppable = reason.contains("accidentelle") ||
+            reason.contains("Bombe") ||
+            reason.contains("Tardos") ||
+            reason.contains("Maison");
 
-      if (quicheIsActive && !isUnstoppable) {
-        quicheSavedThisNight++;
+        if (quicheIsActive && !isUnstoppable) {
+          quicheSavedThisNight++;
 
-        // Logique Succès Grand-Mère (S'est sauvée elle-même)
-        if (target.role?.toLowerCase() == "grand-mère") {
-          target.hasSavedSelfWithQuiche = true;
-          debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
+          // Logique Succès Grand-Mère (S'est sauvée elle-même)
+          if (target.role?.toLowerCase() == "grand-mère") {
+            target.hasSavedSelfWithQuiche = true;
+            debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
+          }
+
+          debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
+          return;
         }
 
-        debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
-        return;
-      }
-
-      // Protection Pokémon (Individuelle)
-      // Ne protège pas non plus des explosions nucléaires du Tardos
-      if (target.isProtectedByPokemon && !reason.contains("Tardos")) {
-        debugPrint("🛡️ LOG [Pokémon] : ${target.name} protégé.");
-        return;
-      }
-
-      // Traitement du décès
-      bool targetWasInHouse = target.isInHouse;
-      Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
-
-      if (!finalVictim.isAlive) {
-        // Logique Maison Standard (Ricochet)
-        // Si la victime finale est la maison (parce qu'elle a protégé un occupant)
-        // ET que la raison n'est pas une explosion Tardos (car là, tout le monde meurt)
-        if (targetWasInHouse &&
-            finalVictim.role?.toLowerCase() == "maison" &&
-            finalVictim != target &&
-            !reason.contains("Tardos")) {
-
-          debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
-          finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
-
-        } else {
-          debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
-          finalDeathReasons[finalVictim.name] = reason;
+        // Protection Pokémon (Individuelle)
+        // Ne protège pas non plus des explosions nucléaires du Tardos
+        if (target.isProtectedByPokemon && !reason.contains("Tardos")) {
+          debugPrint("🛡️ LOG [Pokémon] : ${target.name} protégé.");
+          return;
         }
 
-        if (reason.contains("Morsure")) wolvesNightKills++;
-      }
-    });
+        // Traitement du décès
+        bool targetWasInHouse = target.isInHouse;
+        Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
-    // --- MORTS DIFFÉRÉES ET CLEANUP ---
+        if (!finalVictim.isAlive) {
+          // Logique Maison Standard (Ricochet)
+          // Si la victime finale est la maison (parce qu'elle a protégé un occupant)
+          // ET que la raison n'est pas une explosion Tardos (car là, tout le monde meurt)
+          if (targetWasInHouse &&
+              finalVictim.role?.toLowerCase() == "maison" &&
+              finalVictim != target &&
+              !reason.contains("Tardos")) {
+
+            debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
+            finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
+
+          } else {
+            debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
+            finalDeathReasons[finalVictim.name] = reason;
+          }
+
+          if (reason.contains("Morsure")) wolvesNightKills++;
+        }
+      });
+    }
+
+    // --- 5. MORTS DIFFÉRÉES ET CLEANUP ---
     for (var p in players) {
       // Malédiction Pantin
       if (p.isAlive && p.pantinCurseTimer == 0) {
@@ -236,7 +286,7 @@ class NightActionsLogic {
       deadPlayers: aliveBefore.where((p) => !p.isAlive).toList(),
       deathReasons: finalDeathReasons,
       villageWasProtected: quicheIsActive,
-      revealedRoleMessage: null,
+      announcements: morningAnnouncements, // Intégration des annonces
       villageIsNarcoleptic: somnifereActive,
     );
   }

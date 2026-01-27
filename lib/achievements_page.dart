@@ -1,167 +1,125 @@
 import 'package:flutter/material.dart';
 import 'trophy_service.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-
-class Achievement {
-  final String id;
-  final String title;
-  final String description;
-  final IconData icon;
-  final bool Function(Map<String, dynamic> stats) condition;
-
-  Achievement({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.condition,
-  });
-}
+import 'models/achievement.dart'; // C'est ici qu'on récupère la classe et les données déplacées
 
 class AchievementsPage extends StatelessWidget {
   final String playerName;
 
-  AchievementsPage({super.key, required this.playerName});
-
-  // ==========================================================
-  // DÉFINITION DES 10 SUCCÈS
-  // ==========================================================
-  final List<Achievement> achievementList = [
-    Achievement(
-      id: "first_win",
-      title: "Premier Sang",
-      description: "Remporter sa toute première partie.",
-      icon: Icons.emoji_events,
-      condition: (stats) => (stats['totalWins'] ?? 0) >= 1,
-    ),
-    Achievement(
-      id: "village_hero",
-      title: "Héros du Village",
-      description: "Gagner 5 fois avec le camp du Village.",
-      icon: Icons.gite,
-      condition: (stats) => (stats['roles']?['VILLAGE'] ?? 0) >= 5,
-    ),
-    Achievement(
-      id: "alpha_wolf",
-      title: "Loup Alpha",
-      description: "Gagner 5 fois avec les Loups-garous.",
-      icon: Icons.nights_stay,
-      condition: (stats) => (stats['roles']?['LOUPS-GAROUS'] ?? 0) >= 5,
-    ),
-    Achievement(
-      id: "siuuuu",
-      title: "SIUUUUUU",
-      description: "Gagner une partie avec Ron-Aldo.",
-      icon: Icons.star,
-      condition: (stats) => (stats['roles']?['RON-ALDO'] ?? 0) >= 1,
-    ),
-    Achievement(
-      id: "solo_master",
-      title: "Cavalier Seul",
-      description: "Gagner 3 fois avec un rôle Solo (hors Ron-Aldo).",
-      icon: Icons.person_pin,
-      condition: (stats) => (stats['roles']?['SOLO'] ?? 0) >= 3,
-    ),
-    Achievement(
-      id: "legend",
-      title: "Légende du Village",
-      description: "Atteindre un total de 20 victoires.",
-      icon: Icons.workspace_premium,
-      condition: (stats) => (stats['totalWins'] ?? 0) >= 20,
-    ),
-    Achievement(
-      id: "fan_club",
-      title: "Fan Club",
-      description: "Gagner 3 fois en tant que Fan de Ron-Aldo.",
-      icon: Icons.favorite,
-      condition: (stats) => (stats['roles']?['FAN'] ?? 0) >= 3,
-    ),
-    Achievement(
-      id: "survivor",
-      title: "Survivant",
-      description: "Gagner 10 parties au total.",
-      icon: Icons.shield,
-      condition: (stats) => (stats['totalWins'] ?? 0) >= 10,
-    ),
-    Achievement(
-      id: "archiviste_pro",
-      title: "L'Érudit",
-      description: "Gagner une partie après avoir été Archiviste.",
-      icon: Icons.menu_book,
-      condition: (stats) => (stats['roles']?['VILLAGE'] ?? 0) >= 1, // On simplifie la condition ici
-    ),
-    Achievement(
-      id: "veteran",
-      title: "Vétéran",
-      description: "Avoir gagné avec au moins 3 camps différents.",
-      condition: (stats) {
-        int camps = 0;
-        final roles = stats['roles'] ?? {};
-        if ((roles['VILLAGE'] ?? 0) > 0) camps++;
-        if ((roles['LOUPS-GAROUS'] ?? 0) > 0) camps++;
-        if ((roles['SOLO'] ?? 0) > 0 || (roles['RON-ALDO'] ?? 0) > 0) camps++;
-        return camps >= 3;
-      },
-      icon: Icons.military_tech,
-    ),
-  ];
+  const AchievementsPage({super.key, required this.playerName});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: Text("SUCCÈS : $playerName"),
+        title: Text("SUCCÈS : $playerName", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: TrophyService.getStats(),
+      body: FutureBuilder<List<String>>(
+        // On récupère la liste des IDs débloqués (ex: "first_blood", "bad_shooter")
+        future: TrophyService.getUnlockedAchievements(playerName),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Colors.orangeAccent));
+          }
 
-          final allStats = snapshot.data!;
-          final playerStats = allStats[playerName] ?? {'totalWins': 0, 'roles': {}};
+          final unlockedIds = snapshot.data ?? [];
+          // On récupère la définition des succès depuis le modèle centralisé (gain de place ici)
+          final allAchievements = AchievementData.allAchievements;
 
           return ListView.builder(
             padding: const EdgeInsets.all(15),
-            itemCount: achievementList.length,
-            itemBuilder: (ctx, i) {
-              final ach = achievementList[i];
-              final isUnlocked = ach.condition(playerStats);
+            itemCount: allAchievements.length,
+            itemBuilder: (context, index) {
+              final ach = allAchievements[index];
+              final isUnlocked = unlockedIds.contains(ach.id);
+
+              // La couleur est désormais gérée par le modèle (facile=bleu, légendaire=or...)
+              final rarityColor = ach.color;
 
               return Card(
-                color: isUnlocked ? Colors.white.withOpacity(0.1) : Colors.black26,
+                color: isUnlocked
+                    ? rarityColor.withOpacity(0.15)
+                    : Colors.white.withOpacity(0.05),
+                margin: const EdgeInsets.only(bottom: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                   side: BorderSide(
-                    color: isUnlocked ? Colors.orangeAccent.withOpacity(0.5) : Colors.transparent,
+                    color: isUnlocked ? rarityColor.withOpacity(0.8) : Colors.transparent,
+                    width: 1.5,
                   ),
                 ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(15),
-                  leading: Icon(
-                    ach.icon,
-                    size: 40,
-                    color: isUnlocked ? Colors.orangeAccent : Colors.white10,
-                  ),
-                  title: Text(
-                    ach.title,
-                    style: TextStyle(
-                      color: isUnlocked ? Colors.white : Colors.white24,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+
+                  // ICÔNE (Emoji)
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isUnlocked ? rarityColor.withOpacity(0.2) : Colors.white10,
+                    ),
+                    child: Text(
+                      ach.icon,
+                      style: TextStyle(
+                        fontSize: 24,
+                        color: isUnlocked ? null : Colors.white24,
+                      ),
                     ),
                   ),
-                  subtitle: Text(
-                    ach.description,
-                    style: TextStyle(
-                      color: isUnlocked ? Colors.white70 : Colors.white10,
+
+                  // TITRE + BADGE RARETÉ
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          ach.title,
+                          style: TextStyle(
+                            color: isUnlocked ? Colors.white : Colors.white38,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      if (isUnlocked)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: rarityColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            ach.rarityLabel,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // DESCRIPTION
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      ach.description,
+                      style: TextStyle(
+                        color: isUnlocked ? Colors.white70 : Colors.white24,
+                        fontSize: 12,
+                        fontStyle: isUnlocked ? FontStyle.normal : FontStyle.italic,
+                      ),
                     ),
                   ),
+
+                  // CHECKMARK ou CADENAS
                   trailing: isUnlocked
-                      ? const Icon(Icons.check_circle, color: Colors.greenAccent)
-                      : const Icon(Icons.lock_outline, color: Colors.white10),
+                      ? Icon(Icons.check_circle, color: rarityColor)
+                      : const Icon(Icons.lock_outline, color: Colors.white12),
                 ),
               );
             },

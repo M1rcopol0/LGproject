@@ -6,7 +6,7 @@ class Achievement {
   final String title;
   final String description;
   final String icon;
-  final int rarity; // 1: Commun, 2: Rare, 3: Légendaire
+  final int rarity; // 1: Facile, 2: Moyen, 3: Difficile, 4: Légendaire
   final bool Function(Map<String, dynamic> playerData) checkCondition;
 
   Achievement({
@@ -17,6 +17,27 @@ class Achievement {
     required this.rarity,
     required this.checkCondition,
   });
+
+  // Helper pour récupérer la couleur selon la rareté
+  Color get color {
+    switch (rarity) {
+      case 1: return Colors.blueAccent; // Facile
+      case 2: return Colors.greenAccent; // Intermédiaire
+      case 3: return Colors.purpleAccent; // Difficile
+      case 4: return Colors.amber; // Légendaire (Or)
+      default: return Colors.grey;
+    }
+  }
+
+  String get rarityLabel {
+    switch (rarity) {
+      case 1: return "FACILE";
+      case 2: return "INTERMÉDIAIRE";
+      case 3: return "DIFFICILE";
+      case 4: return "LÉGENDAIRE";
+      default: return "";
+    }
+  }
 }
 
 class AchievementData {
@@ -43,9 +64,11 @@ class AchievementData {
     Achievement(
       id: "ultimate_fan",
       title: "Fan Ultime",
-      description: "Voter contre Ron-Aldo alors qu'il vote contre lui-même, et mourir à sa place.",
-      icon: "🤡", rarity: 3,
-      checkCondition: (data) => data['is_ultimate_fan_sacrifice'] == true,
+      description: "Trahir Ron-Aldo et gagner avec le village.",
+      icon: "🔪", rarity: 4,
+      checkCondition: (data) =>
+      data['hasBetrayedRonAldo'] == true &&
+          data['winner_role'] == "VILLAGE",
     ),
 
     // --- DRESSEUR & POKÉMON ---
@@ -61,9 +84,19 @@ class AchievementData {
       id: "electric_phoenix",
       title: "Phénix Électrique",
       description: "Ressusciter et gagner en tant que Pokémon.",
-      icon: "🐦‍🔥", rarity: 2,
+      icon: "🐦‍🔥", rarity: 3,
       checkCondition: (data) =>
       (data['player_role'] == "Pokémon") && (data['winner_role'] == "DRESSEUR") && (data['was_revived'] == true),
+    ),
+    Achievement(
+      id: "pokemon_fail",
+      title: "C'est pas très efficace...",
+      description: "Le Pokémon meurt dès le tour 1 (Nuit ou Jour).",
+      icon: "⚰️", rarity: 1,
+      checkCondition: (data) =>
+      (data['player_role']?.toString().toLowerCase() == "pokémon" ||
+          data['player_role']?.toString().toLowerCase() == "dresseur") &&
+          data['pokemon_died_t1'] == true,
     ),
 
     // --- PANTIN ---
@@ -71,14 +104,14 @@ class AchievementData {
       id: "pantin_clutch",
       title: "Vote Décisif",
       description: "En tant que Pantin, être sauvé car votre vote double a éliminé votre cible.",
-      icon: "🎭", rarity: 3,
+      icon: "🎭", rarity: 4,
       checkCondition: (data) => data['pantin_clutch_save'] == true,
     ),
     Achievement(
       id: "pantin_chain",
       title: "Effet Domino",
       description: "Avoir maudit 4 personnes vivantes simultanément.",
-      icon: "🔗", rarity: 3,
+      icon: "🔗", rarity: 4,
       checkCondition: (data) => (data['max_simultaneous_curses'] ?? 0) >= 4,
     ),
 
@@ -87,14 +120,14 @@ class AchievementData {
       id: "time_paradox",
       title: "Paradoxe Temporel",
       description: "En tant que Maître du temps, tuer deux personnes de camps opposés la même nuit.",
-      icon: "⏳", rarity: 1,
+      icon: "⏳", rarity: 4,
       checkCondition: (data) => data['paradox_achieved'] == true,
     ),
     Achievement(
       id: "time_perfect",
       title: "Timing Précis",
       description: "En tant que Maître du temps, gagner au Jour 5.",
-      icon: "🕙", rarity: 2,
+      icon: "🕙", rarity: 3,
       checkCondition: (data) =>
       data['player_role'] == "Maître du temps" && data['winner_role'] == "MAÎTRE DU TEMPS" && data['turn_count'] == 5,
     ),
@@ -104,7 +137,7 @@ class AchievementData {
       id: "phyl_silent_assassin",
       title: "Assassin Silencieux",
       description: "Gagner seul avant la fin du jour 2 en jouant Phyl.",
-      icon: "🤫", rarity: 3,
+      icon: "🤫", rarity: 4,
       checkCondition: (data) =>
       data['player_role'] == "Phyl" && data['winner_role'] == "PHYL" && data['turn_count'] <= 2,
     ),
@@ -114,7 +147,7 @@ class AchievementData {
       id: "pack_unbreakable",
       title: "Meute Soudée",
       description: "Gagner sans qu'aucun loup n'ait voté contre un autre loup.",
-      icon: "🐾", rarity: 2,
+      icon: "🐾", rarity: 3,
       checkCondition: (data) =>
       data['is_wolf_faction'] == true && data['winner_role'] == "LOUPS-GAROUS" && data['no_friendly_fire_vote'] == true,
     ),
@@ -132,14 +165,14 @@ class AchievementData {
       id: "chaman_sniper",
       title: "Exécution Ciblée",
       description: "En tant que Loup-garou chaman, tuez au vote une personne espionnée la nuit précédente.",
-      icon: "🎯", rarity: 2,
+      icon: "🎯", rarity: 3,
       checkCondition: (data) => data['chaman_sniper_achieved'] == true,
     ),
     Achievement(
       id: "chaman_double_agent",
       title: "Infiltration Totale",
       description: "Gagner sans avoir reçu le moindre vote contre vous en tant que Loup-garou chaman.",
-      icon: "👤", rarity: 3,
+      icon: "👤", rarity: 4,
       checkCondition: (data) =>
       data['player_role'] == "Loup-garou chaman" && data['winner_role'] == "LOUPS-GAROUS" && (data['totalVotesReceivedDuringGame'] ?? 0) == 0,
     ),
@@ -159,7 +192,7 @@ class AchievementData {
       id: "evolved_alpha",
       title: "Alpha Dominant",
       description: "Gagner en étant le dernier loup vivant.",
-      icon: "👑", rarity: 2,
+      icon: "👑", rarity: 3,
       checkCondition: (data) =>
       data['is_wolf_faction'] == true &&
           data['winner_role'] == "LOUPS-GAROUS" &&
@@ -173,21 +206,20 @@ class AchievementData {
       icon: "🩸", rarity: 3,
       checkCondition: (data) => data['evolved_hunger_achieved'] == true,
     ),
-
     Achievement(
       id: "clean_paws",
       title: "Montrez patte blanche",
       description: "Gagnez sans tuer personne la nuit.",
-      icon: "🐾", rarity: 3,
+      icon: "🐾", rarity: 4,
       checkCondition: (data) => data['is_wolf_faction'] == true && data['winner_role'] == "LOUPS-GAROUS" && data['wolves_night_kills'] == 0,
     ),
 
-// --- MAISON ---
+    // --- MAISON ---
     Achievement(
       id: "crazy_casa",
       title: "Crazy Casa",
       description: "En tant que maison, survivez à la partie.",
-      icon: "🏡", rarity: 2,
+      icon: "🏡", rarity: 3,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "maison" && data['winner_role'] == "VILLAGE" && data['is_player_alive'] == true,
     ),
     Achievement(
@@ -205,7 +237,7 @@ class AchievementData {
       checkCondition: (data) => data['player_role']?.toLowerCase() == "maison" && data['turn_count'] == 1 && data['death_cause'] == "direct_hit",
     ),
 
-// --- TARDOS ---
+    // --- TARDOS ---
     Achievement(
       id: "tardos_oups",
       title: "Oups...",
@@ -214,16 +246,16 @@ class AchievementData {
       checkCondition: (data) => data['player_role']?.toLowerCase() == "tardos" && data['death_cause'] == "Explosion accidentelle",
     ),
 
-// --- EXORCISTE ---
+    // --- EXORCISTE ---
     Achievement(
       id: "mime_win",
       title: "Vite fait, bien fait !",
       description: "Faites gagner le village grâce à vos talents de mime.",
-      icon: "🎭", rarity: 3,
+      icon: "🎭", rarity: 4,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "exorciste" && data['exorcisme_success_win'] == true,
     ),
 
-// --- VOYAGEUR ---
+    // --- VOYAGEUR ---
     Achievement(
       id: "traveler_sniper",
       title: "I'm back.",
@@ -232,12 +264,12 @@ class AchievementData {
       checkCondition: (data) => data['traveler_killed_wolf'] == true,
     ),
 
-// --- GRAND-MÈRE ---
+    // --- GRAND-MÈRE ---
     Achievement(
       id: "quiche_hero",
       title: "Quiche ou tarte ?",
       description: "Prévenez le meurtre de 4 joueurs en une seule nuit.",
-      icon: "🥧", rarity: 3,
+      icon: "🥧", rarity: 4,
       checkCondition: (data) => data['quiche_saved_count'] != null && data['quiche_saved_count'] >= 4,
     ),
     Achievement(
@@ -248,16 +280,16 @@ class AchievementData {
       checkCondition: (data) => data['player_role']?.toLowerCase() == "grand-mère" && data['saved_by_own_quiche'] == true,
     ),
 
-// --- ENCULATEUR DU BLED ---
+    // --- ENCULATEUR DU BLED ---
     Achievement(
       id: "bled_all_covered",
       title: "Sortez couvert !",
       description: "Violez tous les joueurs d'une partie au moins une fois.",
-      icon: "🍆", rarity: 3,
+      icon: "🍆", rarity: 4,
       checkCondition: (data) => data['bled_protected_everyone'] == true,
     ),
 
-// --- DINGO ---
+    // --- DINGO ---
     Achievement(
       id: "bad_shooter",
       title: "Mauvais tireur",
@@ -272,22 +304,21 @@ class AchievementData {
       id: "parking_shot",
       title: "Un tir du parking !",
       description: "En tant que dingo, tuez le dernier ennemi du village.",
-      icon: "🏀", rarity: 3,
-      // Géré en temps réel par AchievementLogic.checkParkingShot
+      icon: "🏀", rarity: 4,
       checkCondition: (data) => data['parking_shot_achieved'] == true,
     ),
     Achievement(
       id: "crazy_dingo_vote",
       title: "Le plus taré des dingos",
       description: "Votez contre vous-même à chaque vote et survivez.",
-      icon: "🤪", rarity: 3,
+      icon: "🤪", rarity: 4,
       checkCondition: (data) =>
-      data['player_role']?.toString().toLowerCase() == "dingo" && // Sécurité rôle
+      data['player_role']?.toString().toLowerCase() == "dingo" &&
           data['dingo_self_voted_all_game'] == true &&
           data['is_player_alive'] == true,
     ),
 
-// --- HOUSTON ---
+    // --- HOUSTON ---
     Achievement(
       id: "apollo_13",
       title: "Apollo 13",
@@ -296,7 +327,7 @@ class AchievementData {
       checkCondition: (data) => data['houston_wolf_and_solo'] == true,
     ),
 
-// --- DEVIN ---
+    // --- DEVIN ---
     Achievement(
       id: "double_check_devin",
       title: "Il fallait en être sûr...",
@@ -308,29 +339,29 @@ class AchievementData {
       id: "messmerde",
       title: "Messmerde",
       description: "Survivez sans jamais exposer le rôle d'un joueur.",
-      icon: "😴", rarity: 2,
+      icon: "😴", rarity: 3,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "devin" && data['is_player_alive'] == true && data['devin_reveals_count'] == 0,
     ),
 
-// --- ARCHIVISTE ---
+    // --- ARCHIVISTE ---
     Achievement(
       id: "archiviste_king",
-      title: "Le roi du CDI", // Succès 'One Shot' (Dans une seule partie)
+      title: "Le roi du CDI", // Succès 'One Shot'
       description: "Utilisez 4 pouvoirs différents en une seule partie.",
-      icon: "📚", rarity: 3,
+      icon: "📚", rarity: 4,
       checkCondition: (data) => data['archiviste_all_powers_used_in_game'] == true,
     ),
 
-// --- DIVERS ---
+    // --- DIVERS ---
     Achievement(
       id: "canaclean",
       title: "Le Canaclean",
       description: "Clara, Gabriel, Jean, Marc et vous devez être dans la même équipe et vivants.",
-      icon: "🧼", rarity: 2,
+      icon: "🧼", rarity: 4,
       checkCondition: (data) => data['canaclean_present'] == true,
     ),
 
-// --- SUCCÈS CUMULATIFS (Gestion par TrophyService) ---
+    // --- SUCCÈS CUMULATIFS ---
     Achievement(
       id: "terminator_travel", title: "I'll be back.",
       description: "Partez en voyage dans 5 parties différentes.",
@@ -350,7 +381,7 @@ class AchievementData {
       checkCondition: (data) => (data['cumulative_villageois_count'] ?? 0) >= 5,
     ),
     Achievement(
-      id: "archiviste_prince", title: "Le prince du CDI", // Succès 'Cumulatif' (Sur plusieurs parties)
+      id: "archiviste_prince", title: "Le prince du CDI", // Succès 'Cumulatif'
       description: "Utilisez 4 pouvoirs différents au cours de votre carrière.",
       icon: "📖", rarity: 2,
       checkCondition: (data) => data['archiviste_all_powers_cumulated'] == true,
@@ -360,7 +391,7 @@ class AchievementData {
       id: "veteran_village",
       title: "Ancien du Village",
       description: "Gagner 10 fois avec le Village.",
-      icon: "🏘️", rarity: 2,
+      icon: "🏘️", rarity: 3,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
         return (roles['VILLAGE'] ?? 0) >= 10;
@@ -369,7 +400,7 @@ class AchievementData {
     Achievement(
       id: "veteran_wolf", title: "Vétéran de la Meute",
       description: "Gagnez 10 parties en tant que Loup-garou.",
-      icon: "🩸", rarity: 2,
+      icon: "🩸", rarity: 3,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
         return (roles['LOUPS-GAROUS'] ?? 0) >= 10;

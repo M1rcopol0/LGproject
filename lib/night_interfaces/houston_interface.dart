@@ -16,7 +16,7 @@ class HoustonInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On filtre les joueurs vivants et on exclut Houston lui-même
+    // 1. Filtrage : Vivants et pas soi-même
     final eligibleTargets = players.where((p) => p.isAlive && p != actor).toList();
 
     return Column(
@@ -36,7 +36,7 @@ class HoustonInterface extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            "Si les deux joueurs sont dans le même camp, le voyant restera vert au matin. S'ils sont de camps différents, il passera au rouge.",
+            "Le résultat de l'analyse (Même camp ou non) sera annoncé au réveil du village.",
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic),
           ),
@@ -46,11 +46,14 @@ class HoustonInterface extends StatelessWidget {
           child: TargetSelectorInterface(
             players: eligibleTargets,
             maxTargets: 2,
+            isProtective: false, // Thème neutre
             onTargetsSelected: (selected) {
               if (selected.length == 2) {
                 // --- LOGS DE CONSOLE ---
                 debugPrint("🛰️ LOG [Houston] : ${actor.name} surveille ${selected[0].name} (Camp: ${selected[0].team}) et ${selected[1].name} (Camp: ${selected[1].team}).");
 
+                // On envoie la sélection au Dispatcher qui la stockera dans actor.houstonTargets
+                // Le résultat sera généré dans NightActionsLogic au matin.
                 onComplete(selected);
               } else {
                 debugPrint("🛰️ LOG [Houston] : Action passée sans sélectionner 2 cibles.");

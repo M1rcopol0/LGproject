@@ -6,7 +6,7 @@ import 'logic.dart';
 import 'night_actions_logic.dart';
 import 'game_save_service.dart';
 import 'night_interfaces/role_action_dispatcher.dart';
-import 'fin.dart'; // Assure-toi que l'import vers GameOverScreen est correct
+import 'fin.dart';
 
 class NightActionsScreen extends StatefulWidget {
   final List<Player> players;
@@ -131,9 +131,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (nightFinished)
-      return const Scaffold(
-          backgroundColor: Color(0xFF0A0E21), body: SizedBox.shrink());
+    if (nightFinished) {
+      return const Scaffold(backgroundColor: Color(0xFF0A0E21), body: SizedBox.shrink());
+    }
 
     final action = nightActionsOrder[currentActionIndex];
 
@@ -206,9 +206,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: Text(title,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text(msg, style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
@@ -228,14 +226,20 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: const Text("🌅 RÉVEIL DU VILLAGE",
-            style: TextStyle(
-                color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+        title: const Row(
+          children: [
+            Icon(Icons.wb_sunny, color: Colors.orangeAccent),
+            SizedBox(width: 10),
+            Text("LE VILLAGE SE RÉVEILLE", style: TextStyle(color: Colors.white)),
+          ],
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+
+              // 1. VICTOIRE EXORCISTE
               if (result.exorcistVictory)
                 const Column(
                   children: [
@@ -250,27 +254,43 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                             fontSize: 18)),
                   ],
                 ),
+
+              // 2. ANNONCES SPÉCIALES (HOUSTON / DEVIN)
+              if (!result.exorcistVictory && result.announcements.isNotEmpty) ...[
+                const Text("📢 ANNONCES SPÉCIALES :", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                ...result.announcements.map((msg) => Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blueAccent.withOpacity(0.4)),
+                  ),
+                  child: Text(msg, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                )),
+                const Divider(color: Colors.white24, height: 20),
+              ],
+
+              // 3. MORTS ET NARCOLEPSIE
               if (!result.exorcistVictory && result.villageIsNarcoleptic)
-                const Text("💤 Village KO (Somnifère) !\n",
+                const Text("💤 Village KO (Somnifère) !\nPersonne n'est mort, mais personne ne pourra parler.",
                     style: TextStyle(
                         color: Colors.purpleAccent,
                         fontWeight: FontWeight.bold)),
-              if (!result.exorcistVictory) ...[
+
+              if (!result.exorcistVictory && !result.villageIsNarcoleptic) ...[
                 if (result.deadPlayers.isEmpty)
-                  const Text("🕊️ Personne n'est mort cette nuit.",
-                      style: TextStyle(color: Colors.greenAccent))
+                  const Text("🕊️ Personne n'est mort cette nuit.", style: TextStyle(color: Colors.greenAccent))
                 else ...[
-                  const Text("💀 DÉCÈS :",
-                      style: TextStyle(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.bold)),
+                  const Text("💀 DÉCÈS :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   ...result.deadPlayers.map((p) => Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Text(
                         "- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}",
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 13)),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
                   )),
                 ],
               ],
@@ -279,43 +299,28 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
         ),
         actions: [
           ElevatedButton(
-            style:
-            ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
-              // 1. GÉRER LA VICTOIRE EXORCISTE
               if (result.exorcistVictory) {
-                debugPrint("🏆 LOG [Fin] : Redirection vers écran de victoire.");
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => GameOverScreen(
-                          winnerType: "VILLAGE", players: widget.players)),
+                  MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)),
                       (route) => false,
                 );
                 return;
               }
 
-              // 2. SAUVEGARDE ET TRANSITION
               setState(() {
                 isDayTime = true;
               });
               await GameSaveService.saveGame();
 
-              // 3. VÉRIFIER SI LE CHEF EST MORT PENDANT LA NUIT
-              bool chiefAlive =
-              widget.players.any((p) => p.isAlive && p.isVillageChief);
-
               if (mounted) {
-                Navigator.pop(ctx); // Ferme le popup matin
-                Navigator.pop(context); // Retourne au menu principal
+                Navigator.pop(ctx); // Ferme le popup
+                Navigator.pop(context); // Retourne au menu
               }
-
-              // On laisse le GameMenuScreen gérer l'élection via son checkGameStateIntegrity
-              // car il est déjà programmé pour ouvrir le dialogue si chiefAlive est false.
             },
-            child: const Text("VOIR LE VILLAGE",
-                style: TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text("VOIR LE VILLAGE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           )
         ],
       ),

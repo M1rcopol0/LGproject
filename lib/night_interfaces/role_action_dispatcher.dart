@@ -158,16 +158,9 @@ class RoleActionDispatcher extends StatelessWidget {
         return DevinInterface(
           devin: actor,
           allPlayers: allPlayers,
-          onNext: (selected) {
-            debugPrint("👁️ LOG : La Devin se concentre sur ${selected.name}");
-            if (actor.concentrationTargetName == selected.name) {
-              actor.concentrationNights++;
-            } else {
-              actor.concentrationTargetName = selected.name;
-              actor.concentrationNights = 1;
-            }
-            onNext();
-          },
+          // Le DevinInterface gère lui-même sa logique interne
+          // On passe juste au rôle suivant quand il a fini
+          onNext: (selected) => onNext(),
         );
 
       case "Houston":
@@ -176,8 +169,8 @@ class RoleActionDispatcher extends StatelessWidget {
           players: allPlayers,
           onComplete: (selected) {
             actor.houstonTargets = selected;
-            // CORRECTIF : APPEL DE LA LOGIQUE DE COMPARAISON
-            _handleHoustonAction(selected);
+            // Plus de pop-up immédiat ici, c'est géré au matin
+            onNext();
           },
         );
 
@@ -291,32 +284,6 @@ class RoleActionDispatcher extends StatelessWidget {
           ),
         );
     }
-  }
-
-  // --- LOGIQUE HOUSTON (CORRIGÉE) ---
-  void _handleHoustonAction(List<Player> targets) {
-    if (targets.length != 2) {
-      onNext();
-      return;
-    }
-
-    Player p1 = targets[0];
-    Player p2 = targets[1];
-    bool sameTeam = (p1.team == p2.team);
-
-    // Message selon les règles : "Qui voilà-je" vs "Houston, on a un problème"
-    String phraseMJ = sameTeam ? "QUI VOILÀ-JE !" : "HOUSTON, ON A UN PROBLÈME !";
-    String details = sameTeam
-        ? "✅ Ils sont dans la MÊME équipe."
-        : "⚠️ Ils sont dans des équipes DIFFÉRENTES.";
-
-    String fullMessage = "Analyse terminée pour ${p1.name} et ${p2.name}.\n\n"
-        "Annoncez à voix haute :\n"
-        "📢 \"$phraseMJ\"\n\n"
-        "($details)";
-
-    // On utilise showPopUp qui doit être géré par NightActionsScreen pour passer au suivant à la fermeture
-    showPopUp("RAPPORT HOUSTON", fullMessage);
   }
 
   // --- ÉCRAN DE SOMMEIL ---
