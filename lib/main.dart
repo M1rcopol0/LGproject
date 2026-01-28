@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 import 'loading_screen.dart';
 import 'globals.dart';
 import 'models/player.dart';
@@ -9,21 +10,54 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Charger les réglages audio (Persistent)
-  await loadAudioSettings();
+  // 1. Initialisation du système de Logs (Talker)
+  globalTalker = TalkerFlutter.init(
+    settings: TalkerSettings(
+      maxHistoryItems: 5000,
+      // --- CORRECTION IMPORTANTE ---
+      // On désactive l'écriture console automatique de Talker
+      // pour éviter la boucle infinie avec debugPrint.
+      useConsoleLogs: false,
+    ),
+  );
 
-  // 2. Charger les données du jeu
+  // 2. Redirection des debugPrint
+  debugPrint = (String? message, {int? wrapWidth}) {
+    // A. On envoie à Talker (pour l'historique dans l'appli)
+    globalTalker.debug(message);
+
+    // B. On imprime manuellement dans la console Android Studio
+    // (print ne déclenche pas debugPrint, donc pas de boucle)
+    if (message != null) print(message);
+  };
+
+  // 3. Gestion des erreurs Flutter (Crashs)
+  FlutterError.onError = (details) => globalTalker.handle(details.exception, details.stack);
+
+  // 4. Charger les réglages audio (Persistent)
+  try {
+    await loadAudioSettings();
+  } catch (e) {
+    globalTalker.error("Erreur chargement audio", e);
+  }
+
+  // 5. Charger les données du jeu
   await loadSavedData();
 
   runApp(const LoupGarouApp());
 }
 
 Future<void> loadSavedData() async {
-  final prefs = await SharedPreferences.getInstance();
-  List<String>? savedNames = prefs.getStringList('saved_players_list');
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    List<String>? savedNames = prefs.getStringList('saved_players_list');
 
-  if (savedNames != null && savedNames.isNotEmpty) {
-    globalPlayers = savedNames.map((name) => Player(name: name, isPlaying: false)).toList();
+    if (savedNames != null && savedNames.isNotEmpty) {
+      globalPlayers = savedNames.map((name) => Player(name: name, isPlaying: false)).toList();
+      debugPrint("📂 Données chargées : ${globalPlayers.length} joueurs récupérés.");
+    }
+  } catch (e) {
+    debugPrint("❌ Erreur chargement sauvegarde : $e");
   }
 }
 
@@ -65,6 +99,9 @@ class LoupGarouApp extends StatelessWidget {
           ),
         ),
       ),
+
+      // Ajout de l'observateur pour voir les changements d'écran dans les logs
+      navigatorObservers: [TalkerRouteObserver(globalTalker)],
 
       initialRoute: '/',
       routes: {

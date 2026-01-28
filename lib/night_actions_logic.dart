@@ -142,6 +142,8 @@ class NightActionsLogic {
           devin.devinRevealsCount++;
           if (devin.revealedPlayersHistory.contains(target.name)) {
             devin.hasRevealedSamePlayerTwice = true;
+            // --- CORRECTION : APPEL DU SUCCÈS ---
+            AchievementLogic.checkDevinAchievements(devin);
           }
           devin.revealedPlayersHistory.add(target.name);
 
@@ -227,6 +229,16 @@ class NightActionsLogic {
         Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
         if (!finalVictim.isAlive) {
+          // --- SUCCÈS DINGO : UN TIR DU PARKING ---
+          if (reason.contains("Tir du Dingo")) {
+            try {
+              Player dingo = players.firstWhere((p) => p.role?.toLowerCase() == "dingo");
+              AchievementLogic.checkParkingShot(dingo, finalVictim, players);
+            } catch (e) {
+              debugPrint("⚠️ Erreur succès Dingo : $e");
+            }
+          }
+
           if (targetWasInHouse &&
               finalVictim.role?.toLowerCase() == "maison" &&
               finalVictim != target &&

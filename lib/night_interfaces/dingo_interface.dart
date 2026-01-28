@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
 import '../../globals.dart';
+import '../../achievement_logic.dart'; // <--- IMPORT OBLIGATOIRE POUR LE SUCCÈS
 import 'target_selector_interface.dart';
 
 class DingoInterface extends StatelessWidget {
   final Player actor; // Le joueur qui agit (Dingo)
-  final VoidCallback onHit; // Callback de navigation (Succès)
-  final VoidCallback onMiss; // Callback de navigation (Échec)
+  final VoidCallback onHit; // Callback de navigation (Succès entraînement)
+  final VoidCallback onMiss; // Callback de navigation (Échec entraînement)
   final List<Player> players;
   final Function(Player) onKillTargetSelected; // Callback pour tuer (Série terminée)
 
@@ -28,6 +29,10 @@ class DingoInterface extends StatelessWidget {
     // CAS 1 : TIR MORTEL (Série complétée : 4/4)
     // =========================================================
     if (actor.dingoStrikeCount >= 4) {
+      // 1. Filtrage et Tri Alphabétique des cibles potentielles
+      final eligibleTargets = players.where((p) => p.isAlive && p != actor).toList();
+      eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
       return Column(
         children: [
           const Padding(
@@ -40,22 +45,27 @@ class DingoInterface extends StatelessWidget {
           ),
           Expanded(
             child: TargetSelectorInterface(
-              // On exclut le Dingo lui-même et les morts
-              players: players.where((p) => p.isAlive && p != actor).toList(),
+              players: eligibleTargets,
               maxTargets: 1,
-              isProtective: false, // C'est un tir offensif
+              isProtective: false, // C'est un tir offensif (Rouge)
               onTargetsSelected: (selected) {
                 if (selected.isNotEmpty) {
-                  // MISE À JOUR DES STATS
+                  Player victim = selected.first;
+
+                  // --- 1. TRIGGER SUCCÈS "UN TIR DU PARKING" ---
+                  // On vérifie si ce tir est légendaire (dernier ennemi tué)
+                  AchievementLogic.checkParkingShotCondition(actor, victim, players);
+
+                  // --- 2. MISE À JOUR DES STATS ---
                   actor.dingoShotsFired++;
                   actor.dingoShotsHit++; // Un tir mortel compte comme un tir réussi
 
-                  // LOGS
-                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${selected.first.name}.");
+                  // --- 3. LOGS ---
+                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${victim.name}.");
                   debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired} | Touchés: ${actor.dingoShotsHit}");
 
-                  // ACTION
-                  onKillTargetSelected(selected.first);
+                  // --- 4. ACTION (Tuer) ---
+                  onKillTargetSelected(victim);
                 }
               },
             ),

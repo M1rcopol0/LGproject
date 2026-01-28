@@ -2,6 +2,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'models/player.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 // --- ROUTES ---
 const String routeGameMenu = '/GameMenu';
@@ -40,6 +41,7 @@ int quicheSavedThisNight = 0;
 bool globalMusicEnabled = true;
 bool globalSfxEnabled = true;
 String globalGameVersion = "3.0.0 - Stable";
+late Talker globalTalker; // <--- AJOUTEZ CECI
 
 // --- GESTION PERSISTANTE DES PARAMÈTRES AUDIO ---
 Future<void> loadAudioSettings() async {

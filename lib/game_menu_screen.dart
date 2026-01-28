@@ -11,6 +11,7 @@ import 'roulette_screen.dart';
 import 'globals.dart';
 import 'fin.dart';
 import 'game_save_service.dart';
+import 'achievement_logic.dart'; // <--- IMPORT AJOUTÉ
 
 class GameMenuScreen extends StatefulWidget {
   final List<Player> players;
@@ -72,6 +73,18 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     if (globalTurnNumber <= 1 && !nightOnePassed) return;
 
     debugPrint("🏁 LOG [Game Over] : Victoire détectée -> $winner");
+
+    // --- CORRECTION : DÉBLOCAGE DES SUCCÈS DE FIN DE PARTIE ---
+    // On filtre les gagnants pour attribuer les succès
+    List<Player> winnersList = _activePlayers.where((p) =>
+    (winner == "VILLAGE" && p.team == "village") ||
+        (winner == "LOUPS" && p.team == "loups") ||
+        (winner == "SOLO" && p.team == "solo")
+    ).toList();
+
+    AchievementLogic.checkEndGameAchievements(winnersList, widget.players);
+    // ----------------------------------------------------------
+
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
     GameSaveService.clearSave();
@@ -248,18 +261,25 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               debugPrint("➕ LOG [Menu] : Ajout du joueur $cleanName");
               setState(() {
                 int idx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
+
+                // --- CORRECTION : Déduction automatique de l'équipe ---
+                String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
+                String team = role != null ? GameLogic.getTeamForRole(role) : "village";
+
                 if (idx != -1) {
                   widget.players[idx].isPlaying = true;
                   widget.players[idx].isAlive = true;
-                  if (currentRoleInput.isNotEmpty) {
-                    widget.players[idx].role = currentRoleInput.trim();
-                    widget.players[idx].isRoleLocked = true; // Verrouillage manuel
+                  if (role != null) {
+                    widget.players[idx].role = role;
+                    widget.players[idx].team = team; // Assigne l'équipe correcte
+                    widget.players[idx].isRoleLocked = true;
                   }
                 } else {
                   Player newP = Player(name: cleanName, isPlaying: true);
-                  if (currentRoleInput.isNotEmpty) {
-                    newP.role = currentRoleInput.trim();
-                    newP.isRoleLocked = true; // Verrouillage manuel
+                  if (role != null) {
+                    newP.role = role;
+                    newP.team = team; // Assigne l'équipe correcte
+                    newP.isRoleLocked = true;
                   }
                   widget.players.add(newP);
                 }
@@ -423,7 +443,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                       children: [
                         Flexible(child: Text(p.name, style: TextStyle(color: Colors.white, decoration: isDead ? TextDecoration.lineThrough : null), overflow: TextOverflow.ellipsis)),
                         const SizedBox(width: 5),
-                        // --- CORRECTION : Affichage des icônes (Bombe, Œil, etc.) ---
+                        // --- CORRECTION : Utilisation de la méthode du Player ---
                         p.buildStatusIcons(),
                       ],
                     ),

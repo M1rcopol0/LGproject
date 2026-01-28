@@ -11,8 +11,65 @@ class AchievementLogic {
   static final Map<String, int> _shockTracker = {};
 
   // ==========================================================
-  // 1. ÉVÉNEMENTS DE MORT ET RÉSILIENCE
+  // 1. ÉVÉNEMENTS DE FIN DE PARTIE (VICTOIRE)
   // ==========================================================
+
+  /// Vérifie les succès liés à la victoire (appelé à l'écran de fin)
+  static void checkEndGameAchievements(List<Player> winners, List<Player> allPlayers) {
+    if (winners.isEmpty) return;
+
+    for (var p in winners) {
+      // Succès basiques
+      TrophyService.unlockAchievement(p.name, "first_win");
+
+      if (p.team == "village") TrophyService.unlockAchievement(p.name, "village_hero");
+      if (p.team == "loups") TrophyService.unlockAchievement(p.name, "wolf_pack");
+      if (p.team == "solo") TrophyService.unlockAchievement(p.name, "lone_wolf");
+
+      // --- MAÎTRE SANS POKÉMON ---
+      // Le Dresseur gagne ALORS QUE son Pokémon est mort
+      if (p.role?.toLowerCase() == "dresseur") {
+        try {
+          var pokemon = allPlayers.firstWhere(
+                  (pl) => pl.role?.toLowerCase() == "pokémon" || pl.role?.toLowerCase() == "pokemon",
+              orElse: () => Player(name: "Unknown", isAlive: true)
+          );
+          if (pokemon.name != "Unknown" && !pokemon.isAlive) {
+            debugPrint("💔 LOG [Achievement] : Maître sans Pokémon validé pour ${p.name}.");
+            TrophyService.unlockAchievement(p.name, "master_no_pokemon");
+          }
+        } catch (e) {
+          debugPrint("⚠️ Erreur check Maître sans Pokémon : $e");
+        }
+      }
+
+      // --- UN TIR DU PARKING (Validation finale) ---
+      // Le Dingo doit gagner ET avoir réussi son tir légendaire
+      if (p.role?.toLowerCase() == "dingo" && p.parkingShotUnlocked) {
+        debugPrint("🎯 LOG [Achievement] : Tir du Parking confirmé par la victoire !");
+        TrophyService.unlockAchievement(p.name, "parking_shot");
+      }
+    }
+  }
+
+  // ==========================================================
+  // 2. ÉVÉNEMENTS DE MORT ET RÉSILIENCE
+  // ==========================================================
+
+  /// Vérifie les succès liés à la mort d'un joueur (appelé par eliminatePlayer)
+  static void checkDeathAchievements(Player victim, List<Player> allPlayers) {
+    // Ce n'est pas très efficace (Le Pokémon meurt)
+    if (victim.role?.toLowerCase() == "pokémon" || victim.role?.toLowerCase() == "pokemon") {
+      TrophyService.unlockAchievement(victim.name, "not_very_effective");
+    }
+
+    // Martyr (Mort au tour 1)
+    if (globalTurnNumber == 1) {
+      TrophyService.unlockAchievement(victim.name, "martyr");
+    }
+
+    checkFirstBlood(victim);
+  }
 
   /// Gère la première mort de la partie
   static void checkFirstBlood(Player victim) {
@@ -23,48 +80,48 @@ class AchievementLogic {
     }
   }
 
-  /// CORRECTION DINGO : Un tir du parking
-  /// Vérifie si le tir élimine le dernier ennemi du village.
+  /// CORRECTION : UN TIR DU PARKING (Condition de tir)
+  /// Vérifie si le tir tue le dernier ennemi. Ne débloque pas encore le succès (attente victoire).
   static void checkParkingShot(Player dingo, Player victim, List<Player> allPlayers) {
     if (dingo.role?.toLowerCase() != "dingo") return;
 
-    // On vérifie s'il reste des ennemis hostiles au village (Loups ou Solo)
-    // On exclut la victime qui est en train de mourir et le Dingo lui-même
-    bool enemiesLeft = allPlayers.any((p) =>
-    p.isAlive &&
-        p.name != victim.name &&
-        p.name != dingo.name &&
-        (p.team == "loups" || p.team == "solo")
-    );
+    bool isEnemy = (victim.team == "loups" || victim.team == "solo");
 
-    // Si la cible était hostile et que c'était le dernier rempart ennemi
-    if (!enemiesLeft && (victim.team == "loups" || victim.team == "solo")) {
-      debugPrint("🎯 LOG [Achievement] : UN TIR DU PARKING ! ${dingo.name} finit la game.");
+    if (isEnemy) {
+      bool otherEnemiesAlive = allPlayers.any((p) =>
+      p.isAlive &&
+          p.name != victim.name &&
+          p.name != dingo.name &&
+          (p.team == "loups" || p.team == "solo")
+      );
 
-      // On marque le flag GLOBAL pour les stats de fin de partie
-      parkingShotUnlocked = true;
-
-      // IMPORTANT : On marque le joueur DINGO spécifiquement pour qu'il soit le seul à recevoir le succès
-      dingo.parkingShotUnlocked = true;
-
-      TrophyService.unlockAchievement(dingo.name, "parking_shot");
-    } else {
-      debugPrint("🎯 LOG [Dingo] : Tir réussi, mais il reste des ennemis. Pas de Parking Shot.");
+      if (!otherEnemiesAlive) {
+        debugPrint("🎯 LOG [Achievement] : Condition Tir du Parking remplie (Dernier ennemi abattu). Attente victoire...");
+        dingo.parkingShotUnlocked = true;
+        parkingShotUnlocked = true; // Global flag
+      }
     }
+  }
+
+  /// Vérifie simplement si le tir est possible (Debug/Interface)
+  static void checkParkingShotCondition(Player dingo, Player victim, List<Player> allPlayers) {
+    // Cette méthode sert juste de trigger depuis l'interface pour debug, mais la vraie validation est dans checkParkingShot
+    // appelées par Logic.
   }
 
   /// Gère le sacrifice d'un Fan (mort à la place de Ron-Aldo)
   static void checkFanSacrifice(Player deadFan, Player ronAldo) {
     if (deadFan.isFanOfRonAldo) {
-      debugPrint("🛡️ LOG [Achievement] : Sacrifice de fan détecté (${deadFan.name}).");
-      fanSacrificeAchieved = true;
-      TrophyService.unlockAchievement(deadFan.name, "fan_sacrifice");
+      if (ronAldo.isAlive) {
+        debugPrint("🛡️ LOG [Achievement] : Sacrifice de fan détecté (${deadFan.name}).");
+        fanSacrificeAchieved = true;
+        TrophyService.unlockAchievement(deadFan.name, "fan_sacrifice");
 
-      // Succès "Ultimate Fan" (Sacrifice + Trahison au vote + Ron-Aldo qui vote pour lui-même)
-      if (_traitorsThisTurn.contains(deadFan.name) && ronAldo.targetVote == ronAldo) {
-        debugPrint("👑 LOG [Achievement] : ULTIMATE FAN débloqué pour ${deadFan.name} !");
-        ultimateFanAchieved = true;
-        TrophyService.unlockAchievement(deadFan.name, "ultimate_fan");
+        if (_traitorsThisTurn.contains(deadFan.name) && ronAldo.targetVote == ronAldo) {
+          debugPrint("👑 LOG [Achievement] : ULTIMATE FAN débloqué pour ${deadFan.name} !");
+          ultimateFanAchieved = true;
+          TrophyService.unlockAchievement(deadFan.name, "ultimate_fan");
+        }
       }
     }
   }
@@ -87,22 +144,36 @@ class AchievementLogic {
 
   /// Marque un Pokémon comme ressuscité pour le succès "Phénix Électrique"
   static void recordRevive(Player revivedPlayer) {
-    if (revivedPlayer.role?.toUpperCase() == "POKÉMON") {
+    if (revivedPlayer.role?.toUpperCase() == "POKÉMON" || revivedPlayer.role?.toUpperCase() == "POKEMON") {
       debugPrint("🐦 LOG [Achievement] : Phénix Électrique en cours pour ${revivedPlayer.name}.");
       revivedPlayer.wasRevivedInThisGame = true;
     }
   }
 
   // ==========================================================
-  // 2. ACTIONS DE JEU ET POUVOIRS (LOGIQUE MÉTIER)
+  // 3. ACTIONS DE JEU ET POUVOIRS (LOGIQUE MÉTIER)
   // ==========================================================
 
+  /// CORRECTION : APOLLO 13
+  static void checkApollo13(Player houston, Player p1, Player p2) {
+    bool teamsAreDifferent = (p1.team != p2.team);
+
+    if (teamsAreDifferent) {
+      bool p1NotVillage = p1.team != "village";
+      bool p2NotVillage = p2.team != "village";
+
+      if (p1NotVillage && p2NotVillage) {
+        debugPrint("🚀 LOG [Achievement] : APOLLO 13 validé pour ${houston.name} !");
+        TrophyService.unlockAchievement(houston.name, "apollo_13");
+        houston.houstonApollo13Triggered = true;
+      }
+    }
+  }
+
   /// GESTION VOYAGEUR : Gain de munitions
-  /// Doit être appelé à chaque "prepareNightStates" ou fin de tour
   static void updateVoyageur(Player voyageur) {
     if (voyageur.isInTravel) {
       voyageur.travelNightsCount++;
-      // 1 balle tous les 2 jours passés dehors (ex: Nuit 2, Nuit 4...)
       if (voyageur.travelNightsCount % 2 == 0) {
         voyageur.travelerBullets++;
         debugPrint("✈️ LOG [Voyageur] : ${voyageur.name} gagne une munition ! (Total: ${voyageur.travelerBullets})");
@@ -113,7 +184,6 @@ class AchievementLogic {
   }
 
   /// CORRECTION CANACLEAN : Même équipe et vivants
-  /// Vérifie si Clara, Gabriel, Jean, Marc et le joueur sont vivants et ensemble.
   static void checkCanacleanCondition(List<Player> players) {
     const requiredNames = ["Clara", "Gabriel", "Jean", "Marc"];
 
@@ -163,7 +233,22 @@ class AchievementLogic {
       if (!_traitorsThisTurn.contains(voter.name)) {
         debugPrint("🐍 LOG [Achievement] : Fan Traître détecté -> ${voter.name}");
         _traitorsThisTurn.add(voter.name);
+        TrophyService.unlockAchievement(voter.name, "traitor");
       }
+    }
+  }
+
+  /// Appelé par le Devin
+  static void checkDevinAchievements(Player devin) {
+    if (devin.hasRevealedSamePlayerTwice) {
+      TrophyService.unlockAchievement(devin.name, "double_check");
+    }
+  }
+
+  /// Appelé par l'Enculateur du Bled
+  static void checkBledAchievements(Player bled) {
+    if (bled.protectedPlayersHistory.length >= 5) {
+      TrophyService.unlockAchievement(bled.name, "sortez_couvert");
     }
   }
 
@@ -184,7 +269,7 @@ class AchievementLogic {
   }
 
   // ==========================================================
-  // 3. LOGIQUE DE TRANSITION ET RESET
+  // 4. LOGIQUE DE TRANSITION ET RESET
   // ==========================================================
 
   /// Nettoie les données volatiles à chaque fin de tour

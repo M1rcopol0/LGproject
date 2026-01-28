@@ -25,6 +25,15 @@ class GameLogic {
     "fan de ron-aldo"
   ];
 
+  // --- HELPER PUBLIC ---
+  // Permet de récupérer l'équipe automatiquement lors de l'ajout manuel d'un joueur
+  static String getTeamForRole(String role) {
+    final rLower = role.toLowerCase().trim();
+    if (_wolfRoles.contains(rLower) || rLower.contains("loup")) return "loups";
+    if (_soloRoles.contains(rLower)) return "solo";
+    return "village";
+  }
+
   // ==========================================================
   // 1. TRANSITION DE TOUR (CENTRALISÉE)
   // ==========================================================
@@ -120,12 +129,6 @@ class GameLogic {
         p.totalVotesReceivedDuringGame += p.votes;
         // Check succès Fringale
         AchievementLogic.checkEvolvedHunger(p);
-
-        // Check succès Chaman : Si la cible du Chaman reçoit des votes (est en danger)
-        if (nightChamanTarget != null && p.name == nightChamanTarget!.name) {
-          debugPrint("🎯 LOG [Chaman] : La cible du Chaman (${p.name}) est sur la sellette au vote !");
-          chamanSniperAchieved = true;
-        }
       }
     }
   }
@@ -162,6 +165,14 @@ class GameLogic {
       if ((first.votes - second.votes) < 2 && second.targetVote == first) {
         pantinClutchSave = true;
         debugPrint("🎭 LOG [Pantin] : Clutch save activé pour le Pantin !");
+      }
+    }
+
+    // --- CORRECTION : TIR DU PARKING (JOUR) ---
+    // Le succès ne s'active que si le Dingo a effectivement voté pour la victime
+    for (var p in allPlayers.where((p) => p.isAlive && p.role?.toLowerCase() == "dingo")) {
+      if (p.targetVote == first) {
+        AchievementLogic.checkParkingShot(p, first, allPlayers);
       }
     }
 
@@ -262,9 +273,11 @@ class GameLogic {
       }
     }
 
-    // CHECK SUCCÈS DINGO (Parking Shot)
-    for (var p in allPlayers.where((p) => p.isAlive && p.role?.toLowerCase() == "dingo")) {
-      AchievementLogic.checkParkingShot(p, victim, allPlayers);
+    // CHECK SUCCÈS CHAMAN (SNIPER)
+    // On valide ici car la mort est confirmée.
+    if (isVote && nightChamanTarget != null && victim.name == nightChamanTarget!.name) {
+      debugPrint("🎯 LOG [Chaman] : Sniper validé (Cible ${victim.name} tuée au vote).");
+      chamanSniperAchieved = true;
     }
 
     victim.isAlive = false;
@@ -279,6 +292,9 @@ class GameLogic {
     if (roleLower == "pokémon" && globalTurnNumber == 1 && !isDayTime) {
       pokemonDiedTour1 = true;
     }
+
+    // TRIGGER SUCCÈS MORT (Ce n'est pas très efficace...)
+    AchievementLogic.checkDeathAchievements(victim, allPlayers);
 
     return victim;
   }
@@ -297,15 +313,7 @@ class GameLogic {
   static void _finalizeTeams(List<Player> players) {
     for (var p in players) {
       _initializePlayerState(p);
-      final rLower = p.role?.toLowerCase() ?? "";
-
-      if (_wolfRoles.contains(rLower) || rLower.contains("loup")) {
-        p.team = "loups";
-      } else if (_soloRoles.contains(rLower)) {
-        p.team = "solo";
-      } else {
-        p.team = "village";
-      }
+      p.team = getTeamForRole(p.role ?? ""); // Utilisation du helper
       debugPrint("👤 LOG [Setup] : ${p.name} -> ${p.role} (${p.team})");
     }
   }

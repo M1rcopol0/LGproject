@@ -1,10 +1,16 @@
+import 'dart:io'; // Pour File
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart'; // Pour le dossier temporaire
+import 'package:share_plus/share_plus.dart'; // Pour envoyer le fichier
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:talker_flutter/talker_flutter.dart'; // Pour récupérer l'historique
+
 import 'pick_ban_screen.dart';
 import 'globals.dart';
 import 'backup_service.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'trophy_service.dart';
+import 'models/player.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,7 +20,75 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
 
-  // --- LOGIQUE DE RÉINITIALISATION GLOBALE (HARD RESET) ---
+  // ===========================================================================
+  // 1. LOGIQUE D'EXPORTATION DES LOGS (Debug + Historique)
+  // ===========================================================================
+  Future<void> _generateAndSendLogs() async {
+    try {
+      // A. Création du contenu du log
+      StringBuffer sb = StringBuffer();
+
+      // --- HEADER ---
+      sb.writeln("=== LOUP GAROU 3.0 - RAPPORT DE BUG ===");
+      sb.writeln("Date: ${DateTime.now()}");
+      sb.writeln("Version: $globalGameVersion");
+      sb.writeln("Tour actuel: $globalTurnNumber");
+      sb.writeln("Phase: ${isDayTime ? 'JOUR' : 'NUIT'}");
+      sb.writeln("----------------------------------");
+
+      // --- ÉTAT DES JOUEURS (SNAPSHOT) ---
+      sb.writeln("--- ÉTAT DES JOUEURS ---");
+      for (var p in globalPlayers) {
+        sb.writeln("[${p.name}] Rôle: ${p.role ?? 'Aucun'} | Équipe: ${p.team}");
+        sb.writeln("   Vie: ${p.isAlive} | Mort: ${!p.isAlive}");
+        sb.writeln("   États: Sleep=${p.isEffectivelyAsleep}, Protected=${p.isVillageProtected}, Muted=${p.isMutedDay}");
+        sb.writeln("   Votes: ${p.votes}");
+      }
+      sb.writeln("----------------------------------");
+
+      // --- VARIABLES GLOBALES ---
+      sb.writeln("--- VARIABLES GLOBALES ---");
+      sb.writeln("FirstDead: $firstDeadPlayerName");
+      sb.writeln("WolfVotedWolf: $wolfVotedWolf");
+      sb.writeln("PantinClutch: $pantinClutchSave");
+      sb.writeln("----------------------------------");
+
+      // --- HISTORIQUE CONSOLE (TALKER) ---
+      sb.writeln("\n=== HISTORIQUE DE LA CONSOLE ===");
+      try {
+        // On récupère l'historique des logs depuis le globalTalker
+        final logs = globalTalker.history;
+        for (var log in logs) {
+          sb.writeln(log.generateTextMessage());
+        }
+      } catch (e) {
+        sb.writeln("Erreur récupération historique Talker: $e");
+      }
+      sb.writeln("=== FIN DU RAPPORT ===");
+
+      // B. Écriture dans un fichier temporaire
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/debug_logs_lg3.txt');
+      await file.writeAsString(sb.toString());
+
+      // C. Partage du fichier
+      final xFile = XFile(file.path);
+      // Le subject fonctionne surtout pour les mails
+      await Share.shareXFiles([xFile], text: 'Rapport Bug Loup Garou 3.0', subject: 'Logs Debug LG3');
+
+    } catch (e) {
+      debugPrint("Erreur lors de l'envoi des logs : $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur export logs : $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // ===========================================================================
+  // 2. LOGIQUE DE RÉINITIALISATION GLOBALE (HARD RESET)
+  // ===========================================================================
   void _showResetDialog() {
     showDialog(
       context: context,
@@ -32,11 +106,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () async {
-              // APPEL DU HARD RESET : eraseAllHistory mis à true
               await resetAllGameData(eraseAllHistory: true);
+              // On nettoie aussi les logs visuels pour repartir propre
+              globalTalker.cleanHistory();
 
               if (mounted) {
-                setState(() {}); // Rafraîchit l'écran pour mettre à jour l'UI (liste vide)
+                setState(() {});
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -53,7 +128,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- LOGIQUE IMPORTATION ---
+  // ===========================================================================
+  // 3. LOGIQUE IMPORTATION
+  // ===========================================================================
   void _confirmImport(BuildContext context) {
     showDialog(
       context: context,
@@ -81,7 +158,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- LOGIQUE SUPPRESSION INDIVIDUELLE ---
+  // ===========================================================================
+  // 4. LOGIQUE SUPPRESSION INDIVIDUELLE
+  // ===========================================================================
   void _showDeletePlayerDialog() async {
     if (globalPlayers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,23 +185,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text(player.name, style: const TextStyle(color: Colors.white)),
                 trailing: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 onTap: () async {
-                  // 1. SUPPRESSION DES STATS (Succès, Victoires)
                   await TrophyService.deletePlayerStats(player.name);
-
-                  // 2. SUPPRESSION DU JOUEUR DE LA LISTE LOCALE (RAM)
                   setState(() {
                     globalPlayers.removeAt(index);
                   });
-
-                  // 3. MISE À JOUR DU RÉPERTOIRE PERSISTANT (Disque)
                   final prefs = await SharedPreferences.getInstance();
                   List<String> names = globalPlayers.map((p) => p.name).toList();
                   await prefs.setStringList('saved_players_list', names);
 
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("${player.name} retiré et stats réinitialisées."))
-                  );
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("${player.name} retiré et stats réinitialisées."))
+                    );
+                  }
                 },
               );
             },
@@ -279,6 +355,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: const Icon(Icons.delete_forever),
             label: const Text("RÉINITIALISER TOUT"),
           ),
+
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 10),
+
+          // --- BOUTON ENVOYER LOGS (DEBUG) ---
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.withOpacity(0.2),
+              foregroundColor: Colors.tealAccent,
+              side: const BorderSide(color: Colors.tealAccent),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: _generateAndSendLogs,
+            icon: const Icon(Icons.bug_report),
+            label: const Text("ENVOYER LOGS (DEBUG)"),
+          ),
+
+          const SizedBox(height: 10),
+
+          // --- BOUTON OUVRIR CONSOLE (LIVE) ---
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey.withOpacity(0.2),
+              foregroundColor: Colors.white70,
+              side: const BorderSide(color: Colors.white24),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => TalkerScreen(talker: globalTalker)),
+            ),
+            icon: const Icon(Icons.monitor_heart),
+            label: const Text("OUVRIR CONSOLE LIVE"),
+          ),
+
+          const SizedBox(height: 30),
         ],
       ),
     );

@@ -58,14 +58,14 @@ class AchievementData {
       id: "fan_sacrifice",
       title: "Garde du Corps",
       description: "Se sacrifier pour Ron-Aldo.",
-      icon: "🧡", rarity: 2,
+      icon: "🧡", rarity: 1,
       checkCondition: (data) => data['is_fan_sacrifice'] == true,
     ),
     Achievement(
       id: "ultimate_fan",
       title: "Fan Ultime",
-      description: "Trahir Ron-Aldo et gagner avec le village.",
-      icon: "🔪", rarity: 4,
+      description: "Trahir Ron-Aldo et en subir les conséquences.",
+      icon: "🔪", rarity: 3,
       checkCondition: (data) =>
       data['hasBetrayedRonAldo'] == true &&
           data['winner_role'] == "VILLAGE",
@@ -84,7 +84,7 @@ class AchievementData {
       id: "electric_phoenix",
       title: "Phénix Électrique",
       description: "Ressusciter et gagner en tant que Pokémon.",
-      icon: "🐦‍🔥", rarity: 3,
+      icon: "🐦‍🔥", rarity: 2,
       checkCondition: (data) =>
       (data['player_role'] == "Pokémon") && (data['winner_role'] == "DRESSEUR") && (data['was_revived'] == true),
     ),
@@ -104,7 +104,7 @@ class AchievementData {
       id: "pantin_clutch",
       title: "Vote Décisif",
       description: "En tant que Pantin, être sauvé car votre vote double a éliminé votre cible.",
-      icon: "🎭", rarity: 4,
+      icon: "🎭", rarity: 3,
       checkCondition: (data) => data['pantin_clutch_save'] == true,
     ),
     Achievement(
@@ -120,7 +120,7 @@ class AchievementData {
       id: "time_paradox",
       title: "Paradoxe Temporel",
       description: "En tant que Maître du temps, tuer deux personnes de camps opposés la même nuit.",
-      icon: "⏳", rarity: 4,
+      icon: "⏳", rarity: 2,
       checkCondition: (data) => data['paradox_achieved'] == true,
     ),
     Achievement(
@@ -155,7 +155,7 @@ class AchievementData {
       id: "pack_fast_food",
       title: "Fast Food",
       description: "En tant que loup, gagner avant le Jour 4.",
-      icon: "🍔", rarity: 3,
+      icon: "🍔", rarity: 2,
       checkCondition: (data) =>
       data['is_wolf_faction'] == true && data['winner_role'] == "LOUPS-GAROUS" && data['turn_count'] < 4,
     ),
@@ -165,7 +165,7 @@ class AchievementData {
       id: "chaman_sniper",
       title: "Exécution Ciblée",
       description: "En tant que Loup-garou chaman, tuez au vote une personne espionnée la nuit précédente.",
-      icon: "🎯", rarity: 3,
+      icon: "🎯", rarity: 2,
       checkCondition: (data) => data['chaman_sniper_achieved'] == true,
     ),
     Achievement(
@@ -242,7 +242,7 @@ class AchievementData {
       id: "tardos_oups",
       title: "Oups...",
       description: "Faites exploser votre propre bombe à la figure.",
-      icon: "💥", rarity: 1,
+      icon: "💥", rarity: 4,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "tardos" && data['death_cause'] == "Explosion accidentelle",
     ),
 
@@ -251,7 +251,7 @@ class AchievementData {
       id: "mime_win",
       title: "Vite fait, bien fait !",
       description: "Faites gagner le village grâce à vos talents de mime.",
-      icon: "🎭", rarity: 4,
+      icon: "🎭", rarity: 3,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "exorciste" && data['exorcisme_success_win'] == true,
     ),
 
@@ -260,7 +260,7 @@ class AchievementData {
       id: "traveler_sniper",
       title: "I'm back.",
       description: "Au retour de votre voyage, éliminez un loup-garou.",
-      icon: "🔫", rarity: 3,
+      icon: "🔫", rarity: 2,
       checkCondition: (data) => data['traveler_killed_wolf'] == true,
     ),
 
@@ -269,7 +269,7 @@ class AchievementData {
       id: "quiche_hero",
       title: "Quiche ou tarte ?",
       description: "Prévenez le meurtre de 4 joueurs en une seule nuit.",
-      icon: "🥧", rarity: 4,
+      icon: "🥧", rarity: 3,
       checkCondition: (data) => data['quiche_saved_count'] != null && data['quiche_saved_count'] >= 4,
     ),
     Achievement(
@@ -304,7 +304,7 @@ class AchievementData {
       id: "parking_shot",
       title: "Un tir du parking !",
       description: "En tant que dingo, tuez le dernier ennemi du village.",
-      icon: "🏀", rarity: 4,
+      icon: "🏀", rarity: 3,
       checkCondition: (data) => data['parking_shot_achieved'] == true,
     ),
     Achievement(
@@ -340,7 +340,7 @@ class AchievementData {
       id: "messmerde",
       title: "Messmerde",
       description: "Survivez sans jamais exposer le rôle d'un joueur.",
-      icon: "😴", rarity: 3,
+      icon: "😴", rarity: 2,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "devin" && data['is_player_alive'] == true && data['devin_reveals_count'] == 0,
     ),
 
@@ -378,7 +378,7 @@ class AchievementData {
     Achievement(
       id: "villageois_eternal", title: "On pouvait pas redistribuer les rôles ?",
       description: "Jouez 5 parties en tant que Villageois.",
-      icon: "👨‍🌾", rarity: 1,
+      icon: "👨‍🌾", rarity: 4,
       checkCondition: (data) => (data['cumulative_villageois_count'] ?? 0) >= 5,
     ),
     Achievement(
@@ -392,7 +392,7 @@ class AchievementData {
       id: "veteran_village",
       title: "Ancien du Village",
       description: "Gagner 10 fois avec le Village.",
-      icon: "🏘️", rarity: 3,
+      icon: "🏘️", rarity: 1,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
         return (roles['VILLAGE'] ?? 0) >= 10;
@@ -401,7 +401,7 @@ class AchievementData {
     Achievement(
       id: "veteran_wolf", title: "Vétéran de la Meute",
       description: "Gagnez 10 parties en tant que Loup-garou.",
-      icon: "🩸", rarity: 3,
+      icon: "🩸", rarity: 2,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
         return (roles['LOUPS-GAROUS'] ?? 0) >= 10;

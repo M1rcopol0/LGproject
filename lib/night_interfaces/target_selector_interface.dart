@@ -5,6 +5,7 @@ import '../../globals.dart';
 class TargetSelectorInterface extends StatefulWidget {
   final List<Player> players;
   final int maxTargets;
+  final int minTargets; // Ajout du paramètre manquant
   final Function(List<Player>) onTargetsSelected;
   final bool isProtective;
 
@@ -13,6 +14,7 @@ class TargetSelectorInterface extends StatefulWidget {
     required this.players,
     required this.maxTargets,
     required this.onTargetsSelected,
+    this.minTargets = 0, // Valeur par défaut à 0 pour ne pas casser les autres rôles
     this.isProtective = false,
   });
 
@@ -31,12 +33,26 @@ class _TargetSelectorInterfaceState extends State<TargetSelectorInterface> {
     // 2. TRI ALPHABÉTIQUE
     candidates.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
+    // Vérification de la validité pour le bouton
+    // Valide si aucune sélection (Action Passer) OU si le min est atteint
+    bool isValid = _selected.isEmpty || _selected.length >= widget.minTargets;
+
+    String buttonText = _selected.isEmpty ? "PASSER" : "VALIDER";
+
+    // Si on a commencé à sélectionner mais pas assez, on indique le manque
+    if (!_selected.isEmpty && _selected.length < widget.minTargets) {
+      buttonText = "CHOISIR ${widget.minTargets} CIBLES";
+      isValid = false;
+    }
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Text(
-            "Sélectionnez ${widget.maxTargets} joueur(s)",
+            widget.minTargets > 0
+                ? "Sélectionnez entre ${widget.minTargets} et ${widget.maxTargets} joueur(s)"
+                : "Sélectionnez jusqu'à ${widget.maxTargets} joueur(s)",
             style: const TextStyle(color: Colors.white70),
           ),
         ),
@@ -60,10 +76,12 @@ class _TargetSelectorInterfaceState extends State<TargetSelectorInterface> {
           padding: const EdgeInsets.all(20),
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: widget.isProtective ? Colors.green[700] : Colors.red[900],
+              backgroundColor: isValid
+                  ? (widget.isProtective ? Colors.green[700] : Colors.red[900])
+                  : Colors.grey, // Grisé si invalide
               minimumSize: const Size(double.infinity, 50),
             ),
-            onPressed: () {
+            onPressed: isValid ? () {
               if (_selected.isEmpty) {
                 debugPrint("🎯 LOG [Selector] : Aucune cible choisie (Action PASSÉE).");
                 widget.onTargetsSelected([]);
@@ -71,8 +89,8 @@ class _TargetSelectorInterfaceState extends State<TargetSelectorInterface> {
                 debugPrint("🎯 LOG [Selector] : Validation de ${_selected.length} cible(s) : ${_selected.map((s) => s.name).join(', ')}");
                 widget.onTargetsSelected(_selected);
               }
-            },
-            child: Text(_selected.isEmpty ? "PASSER" : "VALIDER", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            } : null, // Bouton désactivé si condition minTargets non respectée
+            child: Text(buttonText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ),
       ],

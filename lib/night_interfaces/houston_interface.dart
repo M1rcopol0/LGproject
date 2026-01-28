@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
+import '../achievement_logic.dart'; // Import nécessaire pour le succès
 import 'target_selector_interface.dart';
 
 class HoustonInterface extends StatelessWidget {
@@ -16,8 +17,9 @@ class HoustonInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Filtrage : Vivants et pas soi-même
+    // 1. Filtrage et Tri Alphabétique
     final eligibleTargets = players.where((p) => p.isAlive && p != actor).toList();
+    eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Column(
       children: [
@@ -46,17 +48,26 @@ class HoustonInterface extends StatelessWidget {
           child: TargetSelectorInterface(
             players: eligibleTargets,
             maxTargets: 2,
-            isProtective: false, // Thème neutre
+            // On force la sélection de 2 cibles pour valider
+            minTargets: 2,
+            isProtective: false, // Thème neutre/action
             onTargetsSelected: (selected) {
               if (selected.length == 2) {
-                // --- LOGS DE CONSOLE ---
+                // --- 1. TRIGGER SUCCÈS APOLLO 13 ---
+                AchievementLogic.checkApollo13(actor, selected[0], selected[1]);
+
+                // --- 2. LOGS DE CONSOLE ---
                 debugPrint("🛰️ LOG [Houston] : ${actor.name} surveille ${selected[0].name} (Camp: ${selected[0].team}) et ${selected[1].name} (Camp: ${selected[1].team}).");
 
-                // On envoie la sélection au Dispatcher qui la stockera dans actor.houstonTargets
-                // Le résultat sera généré dans NightActionsLogic au matin.
+                // --- 3. SAUVEGARDE POUR RÉSOLUTION ---
+                // Important pour que NightActionsLogic puisse générer l'annonce au matin
+                actor.houstonTargets = selected;
+
+                // --- 4. NAVIGATION ---
                 onComplete(selected);
               } else {
-                debugPrint("🛰️ LOG [Houston] : Action passée sans sélectionner 2 cibles.");
+                // Cas où l'utilisateur passe son tour (normalement bloqué par minTargets, mais sécurité)
+                debugPrint("🛰️ LOG [Houston] : Action passée sans sélectionner 2 cibles complètes.");
                 onComplete([]);
               }
             },
