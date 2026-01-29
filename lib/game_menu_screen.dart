@@ -11,7 +11,7 @@ import 'roulette_screen.dart';
 import 'globals.dart';
 import 'fin.dart';
 import 'game_save_service.dart';
-import 'achievement_logic.dart'; // <--- IMPORT AJOUTÉ
+import 'achievement_logic.dart';
 
 class GameMenuScreen extends StatefulWidget {
   final List<Player> players;
@@ -74,8 +74,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
     debugPrint("🏁 LOG [Game Over] : Victoire détectée -> $winner");
 
-    // --- CORRECTION : DÉBLOCAGE DES SUCCÈS DE FIN DE PARTIE ---
-    // On filtre les gagnants pour attribuer les succès
+    // Déblocage des succès de fin de partie
     List<Player> winnersList = _activePlayers.where((p) =>
     (winner == "VILLAGE" && p.team == "village") ||
         (winner == "LOUPS" && p.team == "loups") ||
@@ -83,7 +82,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     ).toList();
 
     AchievementLogic.checkEndGameAchievements(winnersList, widget.players);
-    // ----------------------------------------------------------
 
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
@@ -128,7 +126,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 color: Colors.white10,
                 child: ListTile(
                   leading: const Icon(Icons.person, color: Colors.white),
-                  title: Text(formatPlayerName(p.name), style: const TextStyle(color: Colors.white)),
+                  title: Text(Player.formatName(p.name), style: const TextStyle(color: Colors.white)),
                   onTap: () {
                     debugPrint("👑 LOG [Chef] : Nouveau leader désigné -> ${p.name}");
                     setState(() {
@@ -168,6 +166,30 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _goToNight() {
+    // --- PROTECTION VOTE ---
+    // Si on n'a pas voté ce tour-ci et qu'on est déjà dans le jeu (après nuit 1)
+    if (!hasVotedThisTurn && globalTurnNumber >= 1 && nightOnePassed) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1D1E33),
+          title: const Text("⚠️ Vote Oublié", style: TextStyle(color: Colors.redAccent)),
+          content: const Text(
+            "Vous ne pouvez pas passer à la nuit suivante sans avoir fait voter le village !\n\nCliquez sur l'urne de vote d'abord.",
+            style: TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK, JE VOTE", style: TextStyle(color: Colors.orangeAccent)),
+            ),
+          ],
+        ),
+      );
+      return; // Bloque le passage à la nuit
+    }
+    // -----------------------
+
     debugPrint("🌙 LOG [Navigation] : Passage en phase de Nuit.");
     _resetTimer();
     isDayTime = false;
@@ -193,7 +215,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => PassScreen(
         voters: voters,
-        allPlayers: _activePlayers, // PassScreen et IndividualVoteScreen feront leur propre tri des cibles
+        allPlayers: _activePlayers,
         index: 0,
         onComplete: () {
           debugPrint("⚖️ LOG [Vote] : Clôture du vote. Vérification de la survie du Chef...");
@@ -208,7 +230,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               }
             }
 
-            isDayTime = false; // Transition cycle
+            isDayTime = false; // Fin de journée
             _resetTimer();
           });
         }
@@ -262,7 +284,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               setState(() {
                 int idx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
 
-                // --- CORRECTION : Déduction automatique de l'équipe ---
+                // Déduction automatique de l'équipe
                 String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
                 String team = role != null ? GameLogic.getTeamForRole(role) : "village";
 
@@ -271,14 +293,14 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   widget.players[idx].isAlive = true;
                   if (role != null) {
                     widget.players[idx].role = role;
-                    widget.players[idx].team = team; // Assigne l'équipe correcte
+                    widget.players[idx].team = team;
                     widget.players[idx].isRoleLocked = true;
                   }
                 } else {
                   Player newP = Player(name: cleanName, isPlaying: true);
                   if (role != null) {
                     newP.role = role;
-                    newP.team = team; // Assigne l'équipe correcte
+                    newP.team = team;
                     newP.isRoleLocked = true;
                   }
                   widget.players.add(newP);
@@ -443,11 +465,11 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                       children: [
                         Flexible(child: Text(p.name, style: TextStyle(color: Colors.white, decoration: isDead ? TextDecoration.lineThrough : null), overflow: TextOverflow.ellipsis)),
                         const SizedBox(width: 5),
-                        // --- CORRECTION : Utilisation de la méthode du Player ---
+                        // Icônes de statut
                         p.buildStatusIcons(),
                       ],
                     ),
-                    // --- CORRECTION : Affichage du rôle manuel avec cadenas ---
+                    // Affichage du rôle avec cadenas si assigné manuellement
                     subtitle: globalRolesDistributed
                         ? Text(p.role?.toUpperCase() ?? "INCONNU", style: const TextStyle(color: Colors.white38, fontSize: 10))
                         : (p.isRoleLocked ? Text("🔒 ${p.role?.toUpperCase()}", style: const TextStyle(color: Colors.amberAccent, fontSize: 10)) : null),

@@ -195,6 +195,14 @@ class NightActionsLogic {
     }
     debugPrint("🥧 LOG [Quiche] : Protection active : $quicheIsActive");
 
+    // --- RECHERCHE DU DRESSEUR POUR LA LOGIQUE DE PROTECTION ---
+    Player? dresseur;
+    Player? pokemon;
+    try {
+      dresseur = players.firstWhere((p) => p.role?.toLowerCase() == "dresseur" && p.isAlive);
+      pokemon = players.firstWhere((p) => (p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.isAlive);
+    } catch (e) {}
+
     final List<Player> aliveBefore = players.where((p) => p.isAlive).toList();
 
     // --- 4. RÉSOLUTION DES MORTS (Morsures, Tirs, Bombes) ---
@@ -204,6 +212,12 @@ class NightActionsLogic {
     } else {
       pendingDeathsMap.forEach((target, reason) {
         if (!target.isAlive) return;
+
+        // --- CORRECTION POINT 11 : IMMUNITÉ ARCHIVISTE (Nuit) ---
+        if (target.isAwayAsMJ) {
+          debugPrint("🛡️ LOG [Archiviste] : Attaque sur Archiviste annulée (Absent).");
+          return;
+        }
 
         bool isUnstoppable = reason.contains("accidentelle") ||
             reason.contains("Bombe") ||
@@ -218,6 +232,27 @@ class NightActionsLogic {
           }
           debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
           return;
+        }
+
+        // --- CORRECTION POINT 8 : LOGIQUE DRESSEUR / POKÉMON ---
+        if (dresseur != null && dresseur.lastDresseurAction != null) {
+          // Cas A : Dresseur attaqué alors qu'il se protège lui-même
+          if (target == dresseur && dresseur.lastDresseurAction == dresseur) {
+            if (pokemon != null && pokemon.isAlive) {
+              debugPrint("🦅 LOG [Dresseur] : Dresseur attaqué mais s'est protégé. Le Pokémon meurt à sa place !");
+              // On redirige la mort vers le Pokémon
+              Player pokemonVictim = GameLogic.eliminatePlayer(context, players, pokemon, isVote: false);
+              if (!pokemonVictim.isAlive) {
+                finalDeathReasons[pokemonVictim.name] = "Sacrifice pour le Dresseur ($reason)";
+              }
+              return; // Le Dresseur survit
+            }
+          }
+          // Cas B : Pokémon attaqué alors que le Dresseur le protège
+          if (target == pokemon && dresseur.lastDresseurAction == pokemon) {
+            debugPrint("🦅 LOG [Dresseur] : Pokémon attaqué mais protégé par le Dresseur. Il survit !");
+            return; // Le Pokémon survit
+          }
         }
 
         if (target.isProtectedByPokemon && !reason.contains("Tardos")) {
@@ -239,6 +274,24 @@ class NightActionsLogic {
             }
           }
 
+          // --- NOUVEAU : LOGIQUE POKÉMON (Vengeance) ---
+          // Si la victime est le Pokémon (et qu'il vient de mourir)
+          if ((finalVictim.role?.toLowerCase() == "pokémon" || finalVictim.role?.toLowerCase() == "pokemon") &&
+              finalVictim.pokemonRevengeTarget != null) {
+
+            Player revengeTarget = finalVictim.pokemonRevengeTarget!;
+            if (revengeTarget.isAlive) {
+              debugPrint("⚡ LOG [Pokémon] : MORT ! Il emporte ${revengeTarget.name} dans la tombe (Vengeance).");
+
+              // On tue la cible immédiatement
+              Player revengeVictim = GameLogic.eliminatePlayer(context, players, revengeTarget, isVote: false);
+
+              if (!revengeVictim.isAlive) {
+                finalDeathReasons[revengeVictim.name] = "Vengeance du Pokémon";
+              }
+            }
+          }
+
           if (targetWasInHouse &&
               finalVictim.role?.toLowerCase() == "maison" &&
               finalVictim != target &&
@@ -256,11 +309,20 @@ class NightActionsLogic {
 
     // --- 5. MORTS DIFFÉRÉES ET CLEANUP ---
     for (var p in players) {
+      // --- LOGIQUE PANTIN & QUICHE ---
       if (p.isAlive && p.pantinCurseTimer == 0) {
-        debugPrint("🎭 LOG [Pantin] : Mort de la malédiction : ${p.name}");
-        p.isAlive = false;
-        p.pantinCurseTimer = null;
-        finalDeathReasons[p.name] = "Malédiction du Pantin";
+        if (quicheIsActive) {
+          // La Quiche protège même de la malédiction -> Report au lendemain
+          debugPrint("🥧 LOG [Pantin] : ${p.name} survit à la malédiction grâce à la Quiche (Report +1 jour).");
+          p.pantinCurseTimer = 1; // On remet à 1 pour qu'il retombe à 0 la nuit prochaine
+          quicheSavedThisNight++;
+        } else {
+          // Mort normale par malédiction
+          debugPrint("🎭 LOG [Pantin] : Mort de la malédiction : ${p.name}");
+          p.isAlive = false;
+          p.pantinCurseTimer = null;
+          finalDeathReasons[p.name] = "Malédiction du Pantin";
+        }
       }
 
       if (p.role?.toLowerCase() == "grand-mère" && p.isAlive) {

@@ -46,6 +46,9 @@ class Player {
   // --- PHYL ---
   List<Player> phylTargets;
 
+  // --- MAÎTRE DU TEMPS (Nouveau correctif) ---
+  bool isSavedByTimeMaster;
+
   // --- STATS DE SESSION ---
   int votes;
   bool isVoteCancelled;
@@ -72,7 +75,11 @@ class Player {
   bool pokemonWillResurrect;
   bool wasRevivedInThisGame;
   bool hasUsedRevive;
-  String? lastDresseurAction;
+
+  // CORRECTION : Changement de String? à Player? pour la logique de protection
+  Player? lastDresseurAction;
+  // NOUVEAU : Cible de vengeance du Pokémon
+  Player? pokemonRevengeTarget;
 
   // Devin
   int concentrationNights;
@@ -146,6 +153,7 @@ class Player {
     this.hasScapegoatPower = false,
     this.archivisteActionsUsed = const [],
     this.phylTargets = const [],
+    this.isSavedByTimeMaster = false,
     this.votes = 0,
     this.isVoteCancelled = false,
     this.targetVote,
@@ -165,6 +173,7 @@ class Player {
     this.wasRevivedInThisGame = false,
     this.hasUsedRevive = false,
     this.lastDresseurAction,
+    this.pokemonRevengeTarget,
     this.concentrationNights = 0,
     this.concentrationTargetName,
     this.lastRevealedPlayerName,
@@ -232,6 +241,9 @@ class Player {
     powerActiveThisTurn = false;
     targetVote = null;
     isSelected = false;
+    isSavedByTimeMaster = false; // Reset Time Master
+    // lastDresseurAction = null; // Optionnel selon persistance voulue
+    pokemonRevengeTarget = null; // Reset vengeance Pokemon
     // isBombed et isRevealedByDevin persistent
   }
 
@@ -349,7 +361,8 @@ class Player {
       'pokemonWillResurrect': pokemonWillResurrect,
       'wasRevivedInThisGame': wasRevivedInThisGame,
       'hasUsedRevive': hasUsedRevive,
-      'lastDresseurAction': lastDresseurAction,
+      // Modif: On sauvegarde le nom car lastDresseurAction est maintenant un Player?
+      'lastDresseurAction': lastDresseurAction?.name,
       'concentrationNights': concentrationNights,
       'concentrationTargetName': concentrationTargetName,
       'lastRevealedPlayerName': lastRevealedPlayerName,
@@ -427,7 +440,8 @@ class Player {
       ..pokemonWillResurrect = map['pokemonWillResurrect'] ?? false
       ..wasRevivedInThisGame = map['wasRevivedInThisGame'] ?? false
       ..hasUsedRevive = map['hasUsedRevive'] ?? false
-      ..lastDresseurAction = map['lastDresseurAction']
+    // Note: On ne récupère pas lastDresseurAction ici car c'est un Player object,
+    // et fromMap ne connait pas la liste des joueurs. C'est un état temporaire.
       ..concentrationNights = map['concentrationNights'] ?? 0
       ..concentrationTargetName = map['concentrationTargetName']
       ..lastRevealedPlayerName = map['lastRevealedPlayerName']

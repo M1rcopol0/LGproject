@@ -30,8 +30,25 @@ class DresseurInterface extends StatelessWidget {
     bool isTrainerAlive = trainerPlayer.isAlive;
     bool isPokemonAlive = pokemonPlayer.isAlive;
 
-    // On utilise l'historique du Dresseur (pivot du duo) pour l'alternance
-    String? lastAction = trainerPlayer.lastDresseurAction;
+    // --- CORRECTION TYPE ---
+    // On analyse la dernière cible pour savoir si c'était une protection ou une attaque
+    bool lastWasDefensive = false;
+    bool isFirstTurn = (trainerPlayer.lastDresseurAction == null);
+
+    if (trainerPlayer.lastDresseurAction != null) {
+      // Si la dernière cible était le Dresseur ou le Pokémon, c'était une Protection
+      if (trainerPlayer.lastDresseurAction == trainerPlayer ||
+          trainerPlayer.lastDresseurAction == pokemonPlayer) {
+        lastWasDefensive = true;
+      }
+      // Sinon (Cible ennemie), c'était Immobilisation ou Attaque
+    }
+
+    // Règle d'alternance :
+    // Si la dernière était Défensive -> On doit faire Offensif (Immobiliser)
+    // Si la dernière était Offensive (ou tour 1) -> On peut faire Défensif (Protéger)
+    bool canProtect = !lastWasDefensive || isFirstTurn;
+    bool canImmobilize = lastWasDefensive || isFirstTurn;
 
     return SingleChildScrollView(
       child: Column(
@@ -74,19 +91,29 @@ class DresseurInterface extends StatelessWidget {
               }),
             ),
 
-          // --- OPTION 1 : IMMOBILISER (INSTANTANÉ) ---
-          if (isTrainerAlive && isPokemonAlive && lastAction != "IMMOBILISER")
-            _btn(Icons.flash_on, "IMMOBILISER", Colors.orange, Colors.white, () {
+          // --- OPTION 1 : IMMOBILISER (OFFENSIF) ---
+          if (isTrainerAlive && isPokemonAlive)
+            canImmobilize
+                ? _btn(Icons.flash_on, "IMMOBILISER", Colors.orange, Colors.white, () {
               _showImmobilizeSelector(context, trainerPlayer);
-            }),
+            })
+                : const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text("Immobilisation indisponible (Déjà utilisée hier)", style: TextStyle(color: Colors.grey)),
+            ),
 
-          // --- OPTION 2 : PROTÉGER (Alternance requise) ---
-          if (isTrainerAlive && isPokemonAlive && lastAction != "PROTEGER")
-            Padding(
+          // --- OPTION 2 : PROTÉGER (DÉFENSIF) ---
+          if (isTrainerAlive && isPokemonAlive)
+            canProtect
+                ? Padding(
               padding: const EdgeInsets.only(top: 20),
               child: _btn(Icons.shield, "PROTÉGER", Colors.blue, Colors.white, () {
-                _showProtectionChoice(context, trainerPlayer);
+                _showProtectionChoice(context, trainerPlayer, pokemonPlayer);
               }),
+            )
+                : const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text("Protection indisponible (Déjà utilisée hier)", style: TextStyle(color: Colors.grey)),
             ),
 
           // --- OPTION 3 : ATTAQUE (Dresseur MORT) ---
@@ -121,7 +148,8 @@ class DresseurInterface extends StatelessWidget {
   void _executeRevive(Player pokemon, Player trainer) {
     pokemon.isAlive = true;
     trainer.hasUsedRevive = true;
-    trainer.lastDresseurAction = "REVIVE";
+    // On met null pour permettre n'importe quelle action au tour suivant
+    trainer.lastDresseurAction = null;
     AchievementLogic.recordRevive(pokemon);
     onComplete(null);
   }
@@ -153,7 +181,8 @@ class DresseurInterface extends StatelessWidget {
                 targets[i].isEffectivelyAsleep = true;
                 targets[i].powerActiveThisTurn = true;
 
-                trainer.lastDresseurAction = "IMMOBILISER";
+                // On stocke la CIBLE ENNEMIE pour indiquer une action OFFENSIVE
+                trainer.lastDresseurAction = targets[i];
                 Navigator.pop(ctx);
                 onComplete(null);
               },
@@ -164,7 +193,7 @@ class DresseurInterface extends StatelessWidget {
     );
   }
 
-  void _showProtectionChoice(BuildContext context, Player trainer) {
+  void _showProtectionChoice(BuildContext context, Player trainer, Player pokemon) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -178,9 +207,9 @@ class DresseurInterface extends StatelessWidget {
               leading: const Icon(Icons.person, color: Colors.blueAccent),
               onTap: () {
                 debugPrint("⚡ LOG [Dresseur] : Protection activée sur le Dresseur.");
-                final d = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "dresseur");
-                d.isProtectedByPokemon = true;
-                trainer.lastDresseurAction = "PROTEGER";
+                trainer.isProtectedByPokemon = true;
+                // On stocke LE DRESSEUR comme cible -> Indique action DÉFENSIVE
+                trainer.lastDresseurAction = trainer;
                 Navigator.pop(ctx);
                 onComplete(null);
               },
@@ -190,9 +219,9 @@ class DresseurInterface extends StatelessWidget {
               leading: const Icon(Icons.catching_pokemon, color: Colors.amber),
               onTap: () {
                 debugPrint("⚡ LOG [Dresseur] : Protection activée sur le Pokémon.");
-                final p = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "pokémon");
-                p.isProtectedByPokemon = true;
-                trainer.lastDresseurAction = "PROTEGER";
+                pokemon.isProtectedByPokemon = true;
+                // On stocke LE POKEMON comme cible -> Indique action DÉFENSIVE
+                trainer.lastDresseurAction = pokemon;
                 Navigator.pop(ctx);
                 onComplete(null);
               },
@@ -226,7 +255,8 @@ class DresseurInterface extends StatelessWidget {
               leading: const Icon(Icons.close, color: Colors.red),
               onTap: () {
                 debugPrint("⚡ LOG [Dresseur] : Rage du Pokémon lancée contre ${targets[i].name}.");
-                trainer.lastDresseurAction = "ATTAQUE";
+                // Attaque = Offensive (Stockage de la cible ennemie)
+                trainer.lastDresseurAction = targets[i];
                 Navigator.pop(ctx);
                 onComplete(targets[i]);
               },

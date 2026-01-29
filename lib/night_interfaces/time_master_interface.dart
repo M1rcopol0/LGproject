@@ -1,77 +1,82 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart';
-import '../../globals.dart';
-import 'target_selector_interface.dart';
+import '../models/player.dart';
+import 'role_action_dispatcher.dart';
+import '../globals.dart'; // Pour formatPlayerName si besoin
 
 class TimeMasterInterface extends StatefulWidget {
-  final Function(dynamic) onTimerAdjust;
+  final Player player;
+  final List<Player> allPlayers;
+  final Function(String, dynamic) onAction;
 
-  const TimeMasterInterface({super.key, required this.onTimerAdjust});
+  const TimeMasterInterface({
+    super.key,
+    required this.player,
+    required this.allPlayers,
+    required this.onAction,
+  });
 
   @override
   State<TimeMasterInterface> createState() => _TimeMasterInterfaceState();
 }
 
 class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
+  Player? _selectedTarget;
+
   @override
   Widget build(BuildContext context) {
-    // LOG de statut au chargement
-    debugPrint("⏳ LOG [Maître du Temps] : Accès à l'interface du flux temporel.");
+    // CORRECTION POINT 3 : On retire le Maître du Temps lui-même de la liste
+    final candidates = widget.allPlayers
+        .where((p) => p.isAlive && p.name != widget.player.name)
+        .toList();
 
     return Column(
       children: [
         const Padding(
-          padding: EdgeInsets.all(15.0),
-          child: Column(
-            children: [
-              Text(
-                "MAÎTRE DU TEMPS",
-                style: TextStyle(
-                    color: Colors.cyanAccent,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2
-                ),
-              ),
-              SizedBox(height: 5),
-              Text(
-                "Choisissez 2 joueurs à éliminer du flux temporel.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            "Choisis un joueur pour remonter le temps.\n(Sa mort sera annulée s'il meurt cette nuit)",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
           ),
         ),
-        const Divider(color: Colors.cyanAccent, thickness: 0.5, indent: 40, endIndent: 40),
         Expanded(
-          child: TargetSelectorInterface(
-            players: globalPlayers.where((p) => p.isAlive).toList(),
-            maxTargets: 2,
-            isProtective: false, // Thème rouge/attaque
-            onTargetsSelected: (selected) {
-              if (selected.length == 2) {
-                debugPrint("⏳ LOG [Maître du Temps] : EFFACEMENT TEMPOREL lancé.");
-
-                // On boucle pour appliquer la mort et loguer chaque victime
-                for (var p in selected) {
-                  debugPrint("💀 LOG [Maître du Temps] : ${p.name} est effacé du flux.");
-                  p.isAlive = false;
-                }
-
-                // Finalisation de l'action
-                widget.onTimerAdjust(null);
-              } else if (selected.isEmpty) {
-                debugPrint("⏳ LOG [Maître du Temps] : Le flux temporel reste inchangé (Action passée).");
-                widget.onTimerAdjust(null);
-              }
+          child: ListView.builder(
+            itemCount: candidates.length,
+            itemBuilder: (context, index) {
+              final p = candidates[index];
+              final isSelected = _selectedTarget == p;
+              return ListTile(
+                title: Text(p.name, style: const TextStyle(color: Colors.white)),
+                leading: Radio<Player>(
+                  value: p,
+                  groupValue: _selectedTarget,
+                  activeColor: Colors.orangeAccent,
+                  onChanged: (val) => setState(() => _selectedTarget = val),
+                ),
+                onTap: () => setState(() => _selectedTarget = p),
+              );
             },
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 10),
-          child: Text(
-            "⚠️ Attention : Ces joueurs ne se réveilleront pas demain.",
-            style: TextStyle(color: Colors.white24, fontSize: 11, fontStyle: FontStyle.italic),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+              onPressed: () {
+                if (_selectedTarget == null) {
+                  // Permet de passer son tour explicitement
+                  widget.onAction("SKIP", null);
+                } else {
+                  widget.onAction("REWIND", _selectedTarget);
+                }
+              },
+              child: Text(
+                _selectedTarget == null ? "PASSER SON TOUR" : "PROTÉGER ${_selectedTarget!.name.toUpperCase()}",
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ),
       ],

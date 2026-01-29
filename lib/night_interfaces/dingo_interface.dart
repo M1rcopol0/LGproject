@@ -23,12 +23,13 @@ class DingoInterface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // --- LOGS DE CONSOLE ---
-    debugPrint("🎯 LOG [Dingo] : ${actor.name} accède à son arme. Série actuelle : ${actor.dingoStrikeCount}/4");
+    debugPrint("🎯 LOG [Dingo] : ${actor.name} accède à son arme. Série actuelle : ${actor.dingoStrikeCount}/2");
 
     // =========================================================
-    // CAS 1 : TIR MORTEL (Série complétée : 4/4)
+    // CAS 1 : TIR MORTEL (Série complétée : 2/2)
     // =========================================================
-    if (actor.dingoStrikeCount >= 4) {
+    // Le 3ème tir est mortel, donc il faut avoir réussi 2 fois avant.
+    if (actor.dingoStrikeCount >= 2) {
       // 1. Filtrage et Tri Alphabétique des cibles potentielles
       final eligibleTargets = players.where((p) => p.isAlive && p != actor).toList();
       eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -60,8 +61,12 @@ class DingoInterface extends StatelessWidget {
                   actor.dingoShotsFired++;
                   actor.dingoShotsHit++; // Un tir mortel compte comme un tir réussi
 
+                  // --- CORRECTION CRITIQUE : RESET DU COMPTEUR ---
+                  // On remet à 0 pour obliger le Dingo à se ré-entraîner (2 tirs) avant de pouvoir tuer à nouveau.
+                  actor.dingoStrikeCount = 0;
+
                   // --- 3. LOGS ---
-                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${victim.name}.");
+                  debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${victim.name}. Compteur réinitialisé.");
                   debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired} | Touchés: ${actor.dingoShotsHit}");
 
                   // --- 4. ACTION (Tuer) ---
@@ -75,14 +80,14 @@ class DingoInterface extends StatelessWidget {
     }
 
     // =========================================================
-    // CAS 2 : ENTRAÎNEMENT (Série < 4)
+    // CAS 2 : ENTRAÎNEMENT (Série < 2)
     // =========================================================
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            "Série actuelle : ${actor.dingoStrikeCount} / 4",
+            "Série actuelle : ${actor.dingoStrikeCount} / 2",
             style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
@@ -126,7 +131,7 @@ class DingoInterface extends StatelessWidget {
                   actor.dingoStrikeCount++; // INCRÉMENTATION DE LA SÉRIE
 
                   // LOGS
-                  debugPrint("🎯 LOG [Dingo] : Tir réussi ! Progression : ${actor.dingoStrikeCount}/4");
+                  debugPrint("🎯 LOG [Dingo] : Tir réussi ! Progression : ${actor.dingoStrikeCount}/2");
                   debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired} | Touchés: ${actor.dingoShotsHit}");
 
                   // NAVIGATION

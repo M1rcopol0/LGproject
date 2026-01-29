@@ -45,7 +45,8 @@ class AchievementLogic {
 
       // --- UN TIR DU PARKING (Validation finale) ---
       // Le Dingo doit gagner ET avoir réussi son tir légendaire
-      if (p.role?.toLowerCase() == "dingo" && p.parkingShotUnlocked) {
+      // On utilise le flag global car p.parkingShotUnlocked n'est pas forcément persistant sur la copie 'winners'
+      if (p.role?.toLowerCase() == "dingo" && (p.parkingShotUnlocked || parkingShotUnlocked)) {
         debugPrint("🎯 LOG [Achievement] : Tir du Parking confirmé par la victoire !");
         TrophyService.unlockAchievement(p.name, "parking_shot");
       }
@@ -58,8 +59,12 @@ class AchievementLogic {
 
   /// Vérifie les succès liés à la mort d'un joueur (appelé par eliminatePlayer)
   static void checkDeathAchievements(Player victim, List<Player> allPlayers) {
-    // Ce n'est pas très efficace (Le Pokémon meurt)
-    if (victim.role?.toLowerCase() == "pokémon" || victim.role?.toLowerCase() == "pokemon") {
+    final roleLower = victim.role?.toLowerCase() ?? "";
+
+    // --- CORRECTION "PAS TRÈS EFFICACE" ---
+    // Vérification robuste (avec ou sans accent)
+    if (roleLower == "pokémon" || roleLower == "pokemon") {
+      debugPrint("📢 LOG [Achievement] : Pokémon mort détecté. Tentative déblocage 'not_very_effective'.");
       TrophyService.unlockAchievement(victim.name, "not_very_effective");
     }
 
@@ -88,25 +93,26 @@ class AchievementLogic {
     bool isEnemy = (victim.team == "loups" || victim.team == "solo");
 
     if (isEnemy) {
+      // On vérifie s'il reste d'autres ennemis vivants
       bool otherEnemiesAlive = allPlayers.any((p) =>
       p.isAlive &&
-          p.name != victim.name &&
-          p.name != dingo.name &&
+          p.name != victim.name && // On ne compte pas la victime actuelle
+          p.name != dingo.name && // On ne compte pas le Dingo (si jamais il est solo)
           (p.team == "loups" || p.team == "solo")
       );
 
       if (!otherEnemiesAlive) {
         debugPrint("🎯 LOG [Achievement] : Condition Tir du Parking remplie (Dernier ennemi abattu). Attente victoire...");
         dingo.parkingShotUnlocked = true;
-        parkingShotUnlocked = true; // Global flag
+        parkingShotUnlocked = true; // Global flag pour persistance
       }
     }
   }
 
   /// Vérifie simplement si le tir est possible (Debug/Interface)
   static void checkParkingShotCondition(Player dingo, Player victim, List<Player> allPlayers) {
-    // Cette méthode sert juste de trigger depuis l'interface pour debug, mais la vraie validation est dans checkParkingShot
-    // appelées par Logic.
+    // Redirection vers la vraie méthode
+    checkParkingShot(dingo, victim, allPlayers);
   }
 
   /// Gère le sacrifice d'un Fan (mort à la place de Ron-Aldo)
@@ -115,10 +121,13 @@ class AchievementLogic {
       if (ronAldo.isAlive) {
         debugPrint("🛡️ LOG [Achievement] : Sacrifice de fan détecté (${deadFan.name}).");
         fanSacrificeAchieved = true;
+        // Succès : Sacrifice de Fan (Le fan meurt pour sauver Ron-Aldo)
         TrophyService.unlockAchievement(deadFan.name, "fan_sacrifice");
 
-        if (_traitorsThisTurn.contains(deadFan.name) && ronAldo.targetVote == ronAldo) {
-          debugPrint("👑 LOG [Achievement] : ULTIMATE FAN débloqué pour ${deadFan.name} !");
+        // Succès : Sacrifice Ultime (Le fan meurt alors qu'il a voté contre Ron-Aldo, ET Ron-Aldo aussi ?)
+        // Si les deux ciblent Ron-Aldo
+        if (ronAldo.targetVote == ronAldo && deadFan.targetVote == ronAldo) {
+          debugPrint("👑 LOG [Achievement] : SACRIFICE ULTIME débloqué pour ${deadFan.name} !");
           ultimateFanAchieved = true;
           TrophyService.unlockAchievement(deadFan.name, "ultimate_fan");
         }
@@ -144,7 +153,7 @@ class AchievementLogic {
 
   /// Marque un Pokémon comme ressuscité pour le succès "Phénix Électrique"
   static void recordRevive(Player revivedPlayer) {
-    if (revivedPlayer.role?.toUpperCase() == "POKÉMON" || revivedPlayer.role?.toUpperCase() == "POKEMON") {
+    if (revivedPlayer.role?.toLowerCase() == "pokémon" || revivedPlayer.role?.toLowerCase() == "pokemon") {
       debugPrint("🐦 LOG [Achievement] : Phénix Électrique en cours pour ${revivedPlayer.name}.");
       revivedPlayer.wasRevivedInThisGame = true;
     }

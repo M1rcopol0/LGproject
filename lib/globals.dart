@@ -13,6 +13,7 @@ bool isDayTime = false;            // Le jeu commence par la Nuit
 int globalTurnNumber = 1;          // Nuit 1 -> Jour 1 -> Nuit 2...
 double globalTimerMinutes = 2.0;
 bool globalRolesDistributed = false;
+bool hasVotedThisTurn = false;
 
 // --- FLAG CHRONOLOGIE ---
 bool nightOnePassed = false;
@@ -151,23 +152,24 @@ class NightAction {
 
 // L'ordre est stratégique : Protections/Sommeil -> Infos -> Attaques
 List<NightAction> nightActionsOrder = [
+  NightAction(role: "Phyl", instruction: "Éliminez vos cibles.", sound: "writing.mp3"),
   NightAction(role: "Tardos", instruction: "Amorcez votre bombe.", sound: "fuse.mp3"),
-  NightAction(role: "Exorciste", instruction: "Mimez le bon rôle", sound: "mime.mp3"),
-  NightAction(role: "Dresseur", instruction: "Immobilisation immédiate, Protection ou Attaque ?", sound: "pokémon.mp3"),
-  NightAction(role: "Voyageur", instruction: "Choisissez votre destination.", sound: "footsteps.mp3"),
+  NightAction(role: "Dresseur", instruction: "Immobilisation immédiate, Protection ou Attaque ?", sound: "dresseur.mp3"),
+  NightAction(role: "Pokémon", instruction: "Choisissez une cible à tuer si vous mourrez", sound: "pokémon.mp3"),
+  NightAction(role: "Exorciste", instruction: "Mimez le bon rôle.", sound: "mime.mp3"),
   NightAction(role: "Archiviste", instruction: "Consultez les archives.", sound: "paper_scroll.mp3"),
   NightAction(role: "Maison", instruction: "Choisissez un joueur à accueillir.", sound: "door_close.mp3"),
   NightAction(role: "Houston", instruction: "Choisissez deux personnes à surveiller.", sound: "radar.mp3"),
   NightAction(role: "Devin", instruction: "Concentrez-vous sur un joueur.", sound: "magic_sparkle.mp3"),
-  NightAction(role: "Loups-garous évolués", instruction: "Les Loups votent pour une victime.", sound: "wolf_howl.mp3"),
+  NightAction(role: "Voyageur", instruction: "Choisissez votre destination.", sound: "footsteps.mp3"),
+  NightAction(role: "Loups-garous évolués", instruction: "Votez pour une victime.", sound: "wolf_howl.mp3"),
   NightAction(role: "Loup-garou chaman", instruction: "Consultez l'identité d'un joueur.", sound: "shaman_ritual.mp3"),
-  NightAction(role: "Phyl", instruction: "Éliminez vos cibles.", sound: "writing.mp3"),
   NightAction(role: "Maître du temps", instruction: "Éliminez deux personnes.", sound: "clock_tick.mp3"),
   NightAction(role: "Pantin", instruction: "Maudissez 2 joueurs.", sound: "curse.mp3"),
-  NightAction(role: "Dingo", instruction: "Tentez un tir (4 succès = mort).", sound: "dingo_laugh.mp3"),
+  NightAction(role: "Dingo", instruction: "Tentez un tir.", sound: "dingo_laugh.mp3"),
   NightAction(role: "Enculateur du bled", instruction: "Protégez un joueur du vote.", sound: "unzip.mp3"),
   NightAction(role: "Somnifère", instruction: "Voulez-vous rendormir le village demain ?", sound: "sleep.mp3"),
-  NightAction(role: "Zookeeper", instruction: "Tirez une fléchette narcoleptique (effet demain).", sound: "dart.mp3"),
+  NightAction(role: "Zookeeper", instruction: "Tirez une fléchette narcoleptique.", sound: "dart.mp3"),
   NightAction(role: "Grand-mère", instruction: "Cuisinez une quiche pour demain.", sound: "rocking_chair.mp3"),
-  NightAction(role: "Ron-Aldo", instruction: "Recrutez un fan. SIUUU !", sound: "siuuu.mp3"),
+  NightAction(role: "Ron-Aldo", instruction: "Recrutez un fan.", sound: "siuuu.mp3"),
 ];

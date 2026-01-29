@@ -21,8 +21,10 @@ import 'zookeeper_interface.dart';
 import 'phyl_interface.dart';
 import 'tardos_interface.dart';
 import 'houston_interface.dart';
+import 'time_master_interface.dart';
+import 'pokemon_interface.dart';
 
-class RoleActionDispatcher extends StatelessWidget {
+class RoleActionDispatcher extends StatefulWidget {
   final NightAction action;
   final Player actor;
   final List<Player> allPlayers;
@@ -45,248 +47,301 @@ class RoleActionDispatcher extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // --- LOGS DE CONSOLE ---
-    debugPrint("🎬 LOG : Action en cours : ${action.role} (Joueur : ${actor.name})");
+  State<RoleActionDispatcher> createState() => _RoleActionDispatcherState();
+}
 
-    // --- LOGIQUE D'ANONYMAT ET SOMMEIL ---
-    // L'Archiviste en exil est immunisé au sommeil car il n'est pas "physiquement" là
-    bool isImmuneToSleep = (action.role == "Archiviste" && actor.isAwayAsMJ);
+class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
+  // Flag pour l'enchainement Pokémon (Vengeance -> Rage) si Dresseur mort
+  bool _pokemonVengeanceDone = false;
+
+  @override
+  Widget build(BuildContext context) {
+    debugPrint("🎬 LOG : Action en cours : ${widget.action.role} (Joueur : ${widget.actor.name})");
+
+    // L'Archiviste en exil est immunisé au sommeil
+    bool isImmuneToSleep = (widget.action.role == "Archiviste" && widget.actor.isAwayAsMJ);
 
     // Si le joueur est endormi (Zookeeper ou Pokémon)
-    if (actor.isEffectivelyAsleep && !isImmuneToSleep && action.role != "Zookeeper") {
-      debugPrint("💤 LOG : ${actor.name} est endormi (Zookeeper/Pokémon). Affichage écran sommeil.");
+    // Note : Si le Pokémon est enragé (Dresseur mort), est-il immunisé au sommeil ? Par défaut non.
+    if (widget.actor.isEffectivelyAsleep && !isImmuneToSleep && widget.action.role != "Zookeeper") {
+      debugPrint("💤 LOG : ${widget.actor.name} est endormi.");
       return _buildAsleepScreen();
     }
 
-    // --- DISPATCHER DES RÔLES ACTIFS ---
-    switch (action.role) {
-      case "Zookeeper":
-        return ZookeeperInterface(
-            players: allPlayers,
-            onTargetSelected: (t) {
-              debugPrint("💉 LOG : Zookeeper (${actor.name}) a visé ${t.name}");
-              onNext();
-            }
-        );
+    switch (widget.action.role) {
 
-      case "Phyl":
-        return PhylInterface(actor: actor, players: allPlayers, onComplete: onNext);
-
-      case "Grand-mère":
-        return GrandMereInterface(
-            actor: actor,
-            onBakeComplete: (success) {
-              if (success) debugPrint("🥧 LOG : La Grand-mère a mis une quiche au four.");
-              onNext();
-            },
-            onSkip: onNext,
-            circleBtnBuilder: _circleBtn
-        );
-
-      case "Dresseur":
-        return DresseurInterface(
-            actor: actor,
-            allPlayers: allPlayers,
-            onComplete: (target) {
+    // --- LOGIQUE POKÉMON (Vengeance + Rage si Dresseur mort) ---
+      case "Pokémon":
+      case "Pokemon":
+      // 1. D'abord, on choisit la Vengeance (Toujours)
+        if (!_pokemonVengeanceDone) {
+          return PokemonInterface(
+            actor: widget.actor,
+            players: widget.allPlayers,
+            onRevengeTargetSelected: (target) {
+              widget.actor.pokemonRevengeTarget = target;
               if (target != null) {
-                debugPrint("⚡ LOG : Pokémon Rage sur ${target.name}");
-                pendingDeaths[target] = "Rage du Pokémon";
+                debugPrint("⚡ LOG : Pokémon lie son destin à ${target.name} (Vengeance)");
               }
-              onNext();
+
+              // Si Dresseur est mort, on enchaine sur la Rage
+              Player? dresseur;
+              try {
+                dresseur = widget.allPlayers.firstWhere((p) => p.role?.toLowerCase() == "dresseur");
+              } catch (e) { dresseur = null; }
+
+              if (dresseur != null && !dresseur.isAlive) {
+                debugPrint("🔥 LOG [Pokémon] : Dresseur mort -> Passage en mode RAGE.");
+                setState(() => _pokemonVengeanceDone = true);
+              } else {
+                widget.onNext(); // Dresseur vivant, fin du tour Pokémon
+              }
+            },
+          );
+        }
+
+        // 2. Si Vengeance faite et Dresseur mort -> Mode RAGE (Interface Dresseur mode attaque)
+        return DresseurInterface(
+            actor: widget.actor,
+            allPlayers: widget.allPlayers,
+            onComplete: (target) {
+              // Target est la victime du meurtre (Rage)
+              if (target != null) {
+                debugPrint("⚡ LOG : Le Pokémon enragé attaque ${target.name}");
+                widget.pendingDeaths[target] = "Attaque du Pokémon (Rage)";
+              }
+              widget.onNext();
             }
         );
 
       case "Voyageur":
         return VoyageurInterface(
-          actor: actor,
-          allPlayers: allPlayers,
+          actor: widget.actor,
+          allPlayers: widget.allPlayers,
           onDepart: () {
-            actor.isInTravel = true;
-            onNext();
+            widget.actor.isInTravel = true;
+            widget.onNext();
           },
           onReturnWithoutShooting: () {
-            actor.isInTravel = false;
-            // Si la règle est qu'il doit attendre avant de repartir, mettre : actor.canTravelAgain = false;
-            onNext();
+            widget.actor.isInTravel = false;
+            widget.actor.canTravelAgain = false;
+            debugPrint("🏠 LOG : Retour simple du Voyageur (Vulnérable ce soir).");
+            widget.onNext();
           },
           onStayTraveling: () {
-            // Logique de stats gérée par NightActionsLogic
-            onNext();
+            widget.onNext();
           },
-          onStayAtVillage: onNext,
+          onStayAtVillage: widget.onNext,
           onShoot: (target) {
-            actor.isInTravel = false;
-            actor.travelerBullets--;
-            pendingDeaths[target] = "Tir du Voyageur (${actor.name})";
-            onNext();
+            widget.actor.isInTravel = false;
+            widget.actor.canTravelAgain = false;
+            widget.actor.travelerBullets--;
+            widget.pendingDeaths[target] = "Tir du Voyageur (${widget.actor.name})";
+            debugPrint("🔫 LOG : Retour agressif du Voyageur sur ${target.name}.");
+            widget.onNext();
+          },
+        );
+
+      case "Zookeeper":
+        return ZookeeperInterface(
+            players: widget.allPlayers,
+            onTargetSelected: (t) {
+              debugPrint("💉 LOG : Zookeeper vise ${t.name}");
+              widget.onNext();
+            }
+        );
+
+      case "Phyl":
+        return PhylInterface(actor: widget.actor, players: widget.allPlayers, onComplete: widget.onNext);
+
+      case "Grand-mère":
+        return GrandMereInterface(
+            actor: widget.actor,
+            onBakeComplete: (success) {
+              if (success) debugPrint("🥧 LOG : La Grand-mère cuisine.");
+              widget.onNext();
+            },
+            onSkip: widget.onNext,
+            circleBtnBuilder: _circleBtn
+        );
+
+      case "Dresseur":
+      // Si Dresseur mort, on saute (car géré par le tour Pokémon ci-dessus, ou juste sauté par la boucle)
+        if (!widget.actor.isAlive) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => widget.onNext());
+          return const SizedBox();
+        }
+        return DresseurInterface(
+          actor: widget.actor,
+          allPlayers: widget.allPlayers,
+          onComplete: (target) {
+            if (target != null) {
+              // Note: Avec la nouvelle interface, lastDresseurAction est déjà set dans l'interface
+              debugPrint("🦅 LOG : Dresseur action terminée.");
+            }
+            widget.onNext();
           },
         );
 
       case "Pantin":
         return TargetSelectorInterface(
-          players: allPlayers.where((p) => p.isAlive && p != actor).toList(),
+          players: widget.allPlayers.where((p) => p.isAlive && p != widget.actor).toList(),
           maxTargets: 2,
           onTargetsSelected: (selected) {
             for (var p in selected) {
               debugPrint("🎭 LOG : Le Pantin maudit ${p.name}");
               p.pantinCurseTimer = 2;
             }
-            onNext();
+            widget.onNext();
           },
         );
 
       case "Loups-garous évolués":
         return LGEvolueInterface(
-          players: allPlayers,
+          players: widget.allPlayers,
           onVictimChosen: (p) {
             if (p.name != "Personne") {
-              debugPrint("🐺 LOG : Les Loups ont choisi de mordre ${p.name}");
-              pendingDeaths[p] = "Morsure de Loup";
+              debugPrint("🐺 LOG : Les Loups mordent ${p.name}");
+              widget.pendingDeaths[p] = "Morsure de Loup";
               nightWolvesTarget = p;
-            } else {
-              debugPrint("🐺 LOG : Les Loups ne mangent personne (Meute bloquée).");
             }
-            onNext();
+            widget.onNext();
           },
         );
 
       case "Somnifère":
-        return SomnifereInterface(actor: actor, onActionComplete: onSomnifere);
+        return SomnifereInterface(actor: widget.actor, onActionComplete: widget.onSomnifere);
 
       case "Devin":
         return DevinInterface(
-          devin: actor,
-          allPlayers: allPlayers,
-          // Le DevinInterface gère lui-même sa logique interne
-          // On passe juste au rôle suivant quand il a fini
-          onNext: (selected) => onNext(),
+          devin: widget.actor,
+          allPlayers: widget.allPlayers,
+          onNext: (selected) => widget.onNext(),
         );
 
       case "Houston":
         return HoustonInterface(
-          actor: actor,
-          players: allPlayers,
+          actor: widget.actor,
+          players: widget.allPlayers,
           onComplete: (selected) {
-            actor.houstonTargets = selected;
-            // Plus de pop-up immédiat ici, c'est géré au matin
-            onNext();
+            widget.actor.houstonTargets = selected;
+            widget.onNext();
           },
         );
 
       case "Enculateur du bled":
         return BledInterface(
-          actor: actor,
-          players: allPlayers,
+          actor: widget.actor,
+          players: widget.allPlayers,
           onComplete: (targets) {
             for (var t in targets) {
-              debugPrint("🤫 LOG : Le Bled a immunisé ${t.name} (et le fait taire)");
               t.isMutedDay = true;
               t.isImmunizedFromVote = true;
             }
-            onNext();
+            widget.onNext();
           },
         );
 
       case "Archiviste":
         return ArchivisteInterface(
-          players: allPlayers,
-          actor: actor,
+          players: widget.allPlayers,
+          actor: widget.actor,
           onComplete: (msg) {
-            if (msg != null) showPopUp("ARCHIVISTE", msg);
-            else onNext();
+            if (msg != null) widget.showPopUp("ARCHIVISTE", msg);
+            else widget.onNext();
           },
         );
 
       case "Maison":
         return MaisonInterface(
-          actor: actor,
-          players: allPlayers,
+          actor: widget.actor,
+          players: widget.allPlayers,
           onComplete: (selectedList) {
             for (var p in selectedList) {
-              debugPrint("🏠 LOG : La Maison accueille ${p.name}");
               p.isInHouse = true;
             }
-            onNext();
+            widget.onNext();
           },
         );
 
       case "Chuchoteur":
         int maxMutes = (globalTurnNumber >= 5) ? 3 : (globalTurnNumber >= 3 ? 2 : 1);
         return TargetSelectorInterface(
-          players: allPlayers.where((p) => p.isAlive).toList(),
+          players: widget.allPlayers.where((p) => p.isAlive).toList(),
           maxTargets: maxMutes,
           onTargetsSelected: (selected) {
             for (var p in selected) {
-              debugPrint("🔇 LOG : Le Chuchoteur fait taire ${p.name}");
               p.isMutedDay = true;
             }
-            showPopUp("CHUCHOTEUR", "Cibles réduites au silence.");
+            widget.showPopUp("CHUCHOTEUR", "Cibles réduites au silence.");
           },
         );
 
       case "Maître du temps":
-        return TargetSelectorInterface(
-          players: allPlayers.where((p) => p.isAlive).toList(),
-          maxTargets: 2,
-          onTargetsSelected: (selected) {
-            for (var p in selected) {
-              debugPrint("⏳ LOG : Le Maître du Temps efface ${p.name}");
-              pendingDeaths[p] = "Effacé par le Temps";
+        return TimeMasterInterface(
+          player: widget.actor,
+          allPlayers: widget.allPlayers,
+          onAction: (type, target) {
+            if (type == "REWIND" && target is Player) {
+              debugPrint("⏳ LOG : Le Maître du Temps protège ${target.name}");
+              target.isSavedByTimeMaster = true;
             }
-            onNext();
+            widget.onNext();
           },
         );
 
       case "Tardos":
-        return TardosInterface(actor: actor, players: allPlayers, onNext: onNext);
+        return TardosInterface(actor: widget.actor, players: widget.allPlayers, onNext: widget.onNext);
 
       case "Dingo":
         return DingoInterface(
-          actor: actor,
-          players: allPlayers,
+          actor: widget.actor,
+          players: widget.allPlayers,
           onHit: () {
             debugPrint("🎯 LOG : Le Dingo a réussi son tir.");
-            onNext();
+            widget.onNext();
           },
           onMiss: () {
             debugPrint("❌ LOG : Le Dingo a raté son tir.");
-            onNext();
+            widget.onNext();
           },
           onKillTargetSelected: (target) {
             debugPrint("💀 LOG : Tir MORTEL du Dingo sur ${target.name}");
-            pendingDeaths[target] = "Tir du Dingo";
-            onNext();
+            widget.pendingDeaths[target] = "Tir du Dingo";
+            widget.onNext();
           },
         );
 
       case "Ron-Aldo":
-        return RonAldoInterface(actor: actor, allPlayers: allPlayers, onNext: onNext);
+        return RonAldoInterface(actor: widget.actor, allPlayers: widget.allPlayers, onNext: widget.onNext);
 
       case "Loup-garou chaman":
-        return ChamanInterface(players: allPlayers, onTargetSelected: (p) => onNext());
+        return ChamanInterface(players: widget.allPlayers, onTargetSelected: (p) => widget.onNext());
 
       case "Exorciste":
         return ExorcistInterface(
-          onActionComplete: (res) {
-            debugPrint("✝️ LOG : L'Exorciste a agi. Résultat : $res");
-            onExorcisme(res);
+          player: widget.actor,
+          allPlayers: widget.allPlayers,
+          onAction: (actionType, data) {
+            if (actionType == "EXORCISM_SUCCESS") {
+              widget.onExorcisme("SUCCESS");
+            } else {
+              widget.onExorcisme(null);
+            }
           },
-          circleBtnBuilder: _circleBtn,
         );
 
       default:
-        debugPrint("⚠️ LOG : Action non gérée pour ${action.role}");
+        debugPrint("⚠️ LOG : Action non gérée pour ${widget.action.role}");
         return Center(
           child: ElevatedButton(
-            onPressed: onNext,
+            onPressed: widget.onNext,
             child: const Text("PASSER L'ACTION"),
           ),
         );
     }
   }
 
-  // --- ÉCRAN DE SOMMEIL ---
   Widget _buildAsleepScreen() {
     return Center(
       child: Column(
@@ -294,35 +349,17 @@ class RoleActionDispatcher extends StatelessWidget {
         children: [
           const Icon(Icons.bedtime, size: 100, color: Colors.blueAccent),
           const SizedBox(height: 30),
-          const Text(
-            "VOUS DORMEZ PROFONDÉMENT",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 15),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40.0),
-            child: Text(
-              "Un événement (Zookeeper ou Pokémon) vous empêche d'agir cette nuit.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white60, fontSize: 16),
-            ),
-          ),
+          const Text("VOUS DORMEZ", style: TextStyle(color: Colors.white, fontSize: 22)),
           const SizedBox(height: 50),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15)
-            ),
-            onPressed: onNext,
-            child: const Text("CONTINUER LA NUIT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            onPressed: widget.onNext,
+            child: const Text("CONTINUER"),
           )
         ],
       ),
     );
   }
 
-  // --- HELPERS D'INTERFACE ---
   Widget _circleBtn(String text, Color col, VoidCallback fn) {
     return InkWell(
       onTap: fn,
