@@ -19,6 +19,29 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  double _volume = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVolume();
+  }
+
+  Future<void> _loadVolume() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _volume = prefs.getDouble('app_volume') ?? 1.0;
+    });
+  }
+
+  Future<void> _setVolume(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('app_volume', value);
+    setState(() {
+      _volume = value;
+      globalVolume = value; // Mise à jour globale
+    });
+  }
 
   // ===========================================================================
   // 1. LOGIQUE D'EXPORTATION DES LOGS (Debug + Historique)
@@ -106,12 +129,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () async {
-              await resetAllGameData(eraseAllHistory: true);
+              // --- CORRECTION : Nettoyage complet (Annuaire + Stats + Succès) ---
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('saved_players_list'); // Supprime l'annuaire
+
+              await TrophyService.resetAllStats(); // Supprime les succès et stats (Appel TrophyService)
+
               // On nettoie aussi les logs visuels pour repartir propre
               globalTalker.cleanHistory();
 
+              // Reset de la liste en mémoire
+              setState(() {
+                globalPlayers.clear();
+              });
+
               if (mounted) {
-                setState(() {});
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -343,6 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 12),
 
+          // --- BOUTON DE RESET TOTAL ---
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.withOpacity(0.1),

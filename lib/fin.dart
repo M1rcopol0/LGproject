@@ -36,8 +36,10 @@ class _GameOverScreenState extends State<GameOverScreen> {
     if (_hasProcessed) return;
     _hasProcessed = true;
 
+    // 1. Filtrer les joueurs actifs (ceux qui ont joué)
     List<Player> activePlayers = widget.players.where((p) => p.isPlaying).toList();
 
+    // 2. Déterminer les vainqueurs
     List<Player> computedWinners = activePlayers.where((p) {
       final role = p.role?.toUpperCase().trim() ?? "";
       final team = p.team.toLowerCase();
@@ -53,7 +55,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
           return role == "RON-ALDO" || p.isFanOfRonAldo;
         case "DRESSEUR":
         case "POKÉMON":
-        case "DRESSEUR_POKÉMON":
+        case "DRESSEUR_POKÉMON": // Cas ajouté pour sécurité
           return role == "DRESSEUR" || role == "POKÉMON";
         case "PHYL":
           return role == "PHYL";
@@ -76,6 +78,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
       if (widget.winnerType == "VILLAGE") roleGroup = "VILLAGE";
       if (widget.winnerType == "LOUPS-GAROUS") roleGroup = "LOUPS-GAROUS";
 
+      // 3. Préparer les stats globales de la partie
+      // Ajout de 'exorcisme_success_win' basé sur la variable globale
       Map<String, dynamic> customStats = {
         'winner_role': widget.winnerType,
         'turn_count': globalTurnNumber,
@@ -92,19 +96,22 @@ class _GameOverScreenState extends State<GameOverScreen> {
         'wolves_night_kills': wolvesNightKills,
         'quiche_saved_count': quicheSavedThisNight,
         'parking_shot_global_flag': parkingShotUnlocked,
+        'exorcisme_success_win': exorcistWin,
       };
 
+      // 4. Enregistrer la victoire
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
 
+      // 5. Vérifier les succès pour CHAQUE vainqueur
       for (var winner in winners) {
         Map<String, dynamic> stats = await TrophyService.getStats();
         Map<String, dynamic> playerStats = stats[winner.name] ?? {};
         Map<String, dynamic> counters = playerStats['counters'] ?? {};
 
-        // Récupération des données brutes pour l'Archiviste
         List<dynamic> rawHistory = counters['archiviste_actions_all_time'] ?? [];
         int uniquePowersCount = rawHistory.toSet().length;
 
+        // Préparation des données de vérification avec les NOUVEAUX CHAMPS
         Map<String, dynamic> checkData = {
           ...playerStats,
           ...counters,
@@ -130,25 +137,29 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'archiviste_all_powers_used_in_game': winner.archivisteActionsUsed.toSet().length >= 4,
           'archiviste_all_powers_cumulated': uniquePowersCount >= 4,
           'saved_by_own_quiche': winner.hasSavedSelfWithQuiche,
-
-          // --- LOGIQUE BLED CORRIGÉE ---
-          // On compare le nombre de joueurs UNIQUES protégés au nombre total de joueurs - 1 (car il ne peut pas se protéger)
           'bled_protected_everyone': winner.protectedPlayersHistory.length >= (widget.players.length - 1),
-
-          // --- LOGIQUE DEVIN CORRIGÉE ---
           'devin_reveals_count': winner.devinRevealsCount,
           'devin_revealed_same_twice': winner.hasRevealedSamePlayerTwice,
+
+          // --- NOUVEAUX CHAMPS AJOUTÉS ---
+          'traveler_killed_wolf': winner.travelerKilledWolf,
+          'cumulative_hosted_count': winner.hostedCountThisGame,
+          'time_master_used_power': winner.timeMasterUsedPower,
+          'tardos_suicide': winner.tardosSuicide,
         };
 
-        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> BledUnique=${winner.protectedPlayersHistory.length}/${widget.players.length - 1} | DevinReveals=${winner.devinRevealsCount}");
+        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> BledUnique=${winner.protectedPlayersHistory.length} | Hosted=${winner.hostedCountThisGame}");
 
         for (var ach in AchievementData.allAchievements) {
           try {
-            if (ach.checkCondition(checkData)) {
-              bool isNew = await TrophyService.unlockAchievement(winner.name, ach.id);
-              if (isNew && mounted) {
-                TrophyService.showAchievementPopup(context, ach.title, ach.icon, winner.name);
-              }
+            // CORRECTION IMPORTANTE : Appel avec context pour afficher le pop-up
+            if (mounted) {
+              await TrophyService.checkAndUnlockImmediate(
+                context: context,
+                playerName: winner.name,
+                achievementId: ach.id,
+                checkData: checkData,
+              );
             }
           } catch (e) {
             debugPrint("❌ LOG [GameOver] : Erreur check succès ${ach.id}: $e");
@@ -156,6 +167,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
         }
       }
 
+      // Check First Blood (hors vainqueurs)
       if (firstDeadPlayerName != null) {
         await TrophyService.unlockAchievement(firstDeadPlayerName!, "first_blood");
       }
@@ -227,6 +239,12 @@ class _GameOverScreenState extends State<GameOverScreen> {
         message = "Le Chuchoteur a eu le dernier mot.";
         themeColor = Colors.blueGrey;
         icon = Icons.volume_off;
+        break;
+      case "EXORCISTE": // Cas spécifique ajouté pour le fun
+        title = "PURIFICATION";
+        message = "Le village a été lavé de tout soupçon.";
+        themeColor = Colors.amber;
+        icon = Icons.cleaning_services;
         break;
       default:
         title = "VICTOIRE SOLITAIRE";

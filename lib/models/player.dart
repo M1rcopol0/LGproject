@@ -19,6 +19,11 @@ class Player {
   bool isImmunizedFromVote;
   bool isProtectedByPokemon;
   bool isEffectivelyAsleep;
+  bool hasReturnedThisTurn; // Pour l'annonce du matin (Voyageur)
+  bool travelerKilledWolf; // Pour 'traveler_sniper'
+  int hostedCountThisGame; // Pour 'hotel_training'
+  bool timeMasterUsedPower; // Pour 'time_perfect'
+  bool tardosSuicide; // Pour 'tardos_oups'
 
   // --- NOUVEAU : Cible du Devin ---
   bool isRevealedByDevin;
@@ -46,7 +51,7 @@ class Player {
   // --- PHYL ---
   List<Player> phylTargets;
 
-  // --- MAÎTRE DU TEMPS (Nouveau correctif) ---
+  // --- MAÎTRE DU TEMPS ---
   bool isSavedByTimeMaster;
 
   // --- STATS DE SESSION ---
@@ -137,6 +142,7 @@ class Player {
     this.isImmunizedFromVote = false,
     this.isProtectedByPokemon = false,
     this.isEffectivelyAsleep = false,
+    this.hasReturnedThisTurn = false, // Init
     this.isRevealedByDevin = false, // Init
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
@@ -156,6 +162,10 @@ class Player {
     this.isSavedByTimeMaster = false,
     this.votes = 0,
     this.isVoteCancelled = false,
+    this.travelerKilledWolf = false,
+    this.hostedCountThisGame = 0,
+    this.timeMasterUsedPower = false,
+    this.tardosSuicide = false,
     this.targetVote,
     this.totalVotesReceivedDuringGame = 0,
     this.isFanOfRonAldo = false,
@@ -178,7 +188,6 @@ class Player {
     this.concentrationTargetName,
     this.lastRevealedPlayerName,
     this.devinRevealsCount = 0,
-    // --- CORRECTION : Utilisation de valeurs mutables ---
     List<String>? revealedPlayersHistory,
     Set<String>? protectedPlayersHistory,
     this.hasRevealedSamePlayerTwice = false,
@@ -202,7 +211,6 @@ class Player {
     this.canacleanPresent = false,
     this.isSelected = false,
   }) : name = formatName(name),
-  // Initialisation mutable pour éviter l'erreur "Unmodifiable Set"
         revealedPlayersHistory = revealedPlayersHistory ?? [],
         protectedPlayersHistory = protectedPlayersHistory ?? {};
 
@@ -234,6 +242,25 @@ class Player {
     }
   }
 
+  void resetFullState() {
+    role = null;
+    team = "village";
+    isAlive = true;
+    // Reset de tous les états...
+    isProtectedByPokemon = false;
+    isVillageProtected = false;
+    isMutedDay = false;
+    isEffectivelyAsleep = false;
+    hasReturnedThisTurn = false; // <--- RESET
+    isInHouse = false;
+    isInTravel = false;
+    canTravelAgain = true;
+    travelerBullets = 0;
+    somnifereUses = 2;
+    // ... (reset des autres compteurs si nécessaire)
+    votes = 0;
+  }
+
   void resetTemporaryStates() {
     isMutedDay = false;
     isProtectedByPokemon = false;
@@ -241,7 +268,7 @@ class Player {
     powerActiveThisTurn = false;
     targetVote = null;
     isSelected = false;
-    isSavedByTimeMaster = false; // Reset Time Master
+    isSavedByTimeMaster = false;
     // lastDresseurAction = null; // Optionnel selon persistance voulue
     pokemonRevengeTarget = null; // Reset vengeance Pokemon
     // isBombed et isRevealedByDevin persistent
@@ -361,7 +388,6 @@ class Player {
       'pokemonWillResurrect': pokemonWillResurrect,
       'wasRevivedInThisGame': wasRevivedInThisGame,
       'hasUsedRevive': hasUsedRevive,
-      // Modif: On sauvegarde le nom car lastDresseurAction est maintenant un Player?
       'lastDresseurAction': lastDresseurAction?.name,
       'concentrationNights': concentrationNights,
       'concentrationTargetName': concentrationTargetName,
@@ -369,7 +395,7 @@ class Player {
       'devinRevealsCount': devinRevealsCount,
       'revealedPlayersHistory': revealedPlayersHistory,
       'hasRevealedSamePlayerTwice': hasRevealedSamePlayerTwice,
-      'protectedPlayersHistory': protectedPlayersHistory.toList(), // Set -> List
+      'protectedPlayersHistory': protectedPlayersHistory.toList(),
       'hasPlacedBomb': hasPlacedBomb,
       'hasUsedBombPower': hasUsedBombPower,
       'isBombed': isBombed, // SAVE
@@ -392,7 +418,6 @@ class Player {
   factory Player.fromMap(Map<String, dynamic> map) {
     return Player(
       name: map['name'],
-      // --- CORRECTION : Récupération en tant que structures mutables ---
       revealedPlayersHistory: List<String>.from(map['revealedPlayersHistory'] ?? []),
       protectedPlayersHistory: Set<String>.from(map['protectedPlayersHistory'] ?? []),
     )
@@ -440,8 +465,6 @@ class Player {
       ..pokemonWillResurrect = map['pokemonWillResurrect'] ?? false
       ..wasRevivedInThisGame = map['wasRevivedInThisGame'] ?? false
       ..hasUsedRevive = map['hasUsedRevive'] ?? false
-    // Note: On ne récupère pas lastDresseurAction ici car c'est un Player object,
-    // et fromMap ne connait pas la liste des joueurs. C'est un état temporaire.
       ..concentrationNights = map['concentrationNights'] ?? 0
       ..concentrationTargetName = map['concentrationTargetName']
       ..lastRevealedPlayerName = map['lastRevealedPlayerName']

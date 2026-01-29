@@ -125,9 +125,11 @@ class MaisonInterface extends StatelessWidget {
                   // --- LOGS DE CONSOLE ---
                   debugPrint("🏠 LOG [Maison] : ${actor.name} accueille ${target.name} (Équipe: ${target.team})");
 
-                  // --- TRACKING SUCCÈS ---
-                  actor.roleChangesCount++; // Utilisation détournée d'un compteur pour succès cumulatif
+                  // --- TRACKING SUCCÈS CORRIGÉ ---
+                  // On utilise le bon compteur pour "Formation Hôtelière"
+                  actor.hostedCountThisGame++;
 
+                  // Vérification immédiate pour "Bienvenue Loup"
                   if (target.team == "loups") {
                     debugPrint("🏠 LOG [Maison] : ALERTE ! Un loup vient d'entrer dans la maison.");
                     TrophyService.checkAndUnlockImmediate(

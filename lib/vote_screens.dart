@@ -42,7 +42,7 @@ class PassScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              isLastVoter ? "MAÎTRE DU JEU" : formatPlayerName(sortedVoters[index].name),
+              isLastVoter ? "MAÎTRE DU JEU" : Player.formatName(sortedVoters[index].name),
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 38,
@@ -63,8 +63,9 @@ class PassScreen extends StatelessWidget {
                 onPressed: () {
                   if (isLastVoter) {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
-                    // Validation des stats (Dingo, Trahisons...)
-                    GameLogic.validateVoteStats(allPlayers);
+
+                    // CORRECTION : Passage du context pour les Pop-ups de succès immédiats
+                    GameLogic.validateVoteStats(context, allPlayers);
 
                     Navigator.pushReplacement(
                       context,
@@ -140,7 +141,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: Text("VOTE : ${formatPlayerName(widget.voter.name)}"),
+        title: Text("VOTE : ${Player.formatName(widget.voter.name)}"),
         automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
       ),
@@ -172,7 +173,8 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
       int weight = (widget.voter.role?.toLowerCase() == "pantin") ? 2 : 1;
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
 
-      AchievementLogic.checkTraitorFan(widget.voter, selectedTarget!);
+      // CORRECTION : Passage du context pour le succès "Trahison" immédiat
+      AchievementLogic.checkTraitorFan(context, widget.voter, selectedTarget!);
 
       if (!widget.voter.isVoteCancelled) {
         selectedTarget!.votes += weight;
@@ -234,7 +236,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
             onTap: () => setState(() => selectedTarget = target),
             leading: Icon(Icons.person, color: isSelected ? Colors.orangeAccent : Colors.white24),
             title: Text(
-                formatPlayerName(target.name),
+                Player.formatName(target.name),
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)
             ),
             trailing: Radio<Player>(
@@ -305,7 +307,7 @@ class MJResultScreen extends StatelessWidget {
                     leading: isImmunized
                         ? const Icon(Icons.shield, color: Colors.cyanAccent, size: 28)
                         : const Icon(Icons.person_outline, color: Colors.white24),
-                    title: Text(formatPlayerName(p.name), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isImmunized ? Colors.cyanAccent : Colors.white)),
+                    title: Text(Player.formatName(p.name), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isImmunized ? Colors.cyanAccent : Colors.white)),
                     subtitle: Text(p.role?.toUpperCase() ?? "INCONNU", style: TextStyle(color: isImmunized ? Colors.cyanAccent.withOpacity(0.6) : Colors.orangeAccent, fontSize: 12)),
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -336,20 +338,33 @@ class MJResultScreen extends StatelessWidget {
     playSfx("cloche.mp3");
 
     if (target.isImmunizedFromVote) {
-      _showSpecialPopUp(context, "🛡️ PROTECTION", "${formatPlayerName(target.name)} est protégé(e) !");
+      _showSpecialPopUp(context, "🛡️ PROTECTION", "${Player.formatName(target.name)} est protégé(e) !");
       return;
     }
+
+    // Capture du rôle avant élimination potentielle (bien que eliminatePlayer conserve le rôle)
+    String roleReveal = target.role?.toUpperCase() ?? "INCONNU";
 
     // Toute la logique complexe (Pantin, Maison, etc.) est gérée ici
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
 
-    String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${formatPlayerName(deceased.name)} est éliminé.";
+    String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${Player.formatName(deceased.name)} est éliminé.";
 
     // Messages contextuels importants
-    if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) message = "🃏 Le Pantin a survécu (Immunité unique).";
-    if (deceased.role?.toLowerCase() == "voyageur" && deceased.isAlive) message = "✈️ Le Voyageur revient au village (Survit).";
-    if (!deceased.isAlive && target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") message = "🛡️ SACRIFICE : ${formatPlayerName(deceased.name)} s'est sacrifié !";
-    if (target.role?.toLowerCase() == "maison" && !deceased.isAlive && deceased != target) message = "🏠 La Maison s'est effondrée sur ${formatPlayerName(deceased.name)} !";
+    if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) {
+      message = "🃏 Le Pantin a survécu (Immunité unique).";
+    } else if (deceased.role?.toLowerCase() == "voyageur" && deceased.isAlive) {
+      message = "✈️ Le Voyageur revient au village (Survit).";
+    } else if (!deceased.isAlive) {
+      // Si quelqu'un est vraiment mort, on prépare le message détaillé avec rôle
+      if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
+        message = "🛡️ SACRIFICE : ${Player.formatName(deceased.name)} s'est sacrifié !\nSon rôle était : FAN DE RON-ALDO";
+      } else if (target.role?.toLowerCase() == "maison" && deceased != target) {
+        message = "🏠 La Maison s'est effondrée sur ${Player.formatName(deceased.name)} !\nSon rôle était : ${deceased.role?.toUpperCase()}";
+      } else {
+        message = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : $roleReveal";
+      }
+    }
 
     _finalize(context, message, deceased.isAlive);
   }

@@ -125,11 +125,22 @@ class AchievementData {
     ),
     Achievement(
       id: "time_perfect",
-      title: "Timing Précis",
+      title: "Timing Précis", // Renommé pour correspondre à "Gagner Jour 5"
       description: "En tant que Maître du temps, gagner au Jour 5.",
       icon: "🕙", rarity: 3,
       checkCondition: (data) =>
       data['player_role'] == "Maître du temps" && data['winner_role'] == "MAÎTRE DU TEMPS" && data['turn_count'] == 5,
+    ),
+    // NOUVEAU SUCCÈS POUR LE FLAG 'time_master_used_power'
+    Achievement(
+      id: "time_master_clean",
+      title: "Synchronisation Parfaite",
+      description: "Gagner sans jamais utiliser votre pouvoir.",
+      icon: "🕰️", rarity: 3,
+      checkCondition: (data) =>
+      data['player_role'] == "Maître du temps" &&
+          data['winner_role'] == "MAÎTRE DU TEMPS" &&
+          data['time_master_used_power'] == false,
     ),
 
     // --- PHYL ---
@@ -217,7 +228,7 @@ class AchievementData {
     // --- MAISON ---
     Achievement(
       id: "crazy_casa",
-      title: "Crazy Casa",
+      title: "La Casa de Papel",
       description: "En tant que maison, survivez à la partie.",
       icon: "🏡", rarity: 3,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "maison" && data['winner_role'] == "VILLAGE" && data['is_player_alive'] == true,
@@ -242,8 +253,8 @@ class AchievementData {
       id: "tardos_oups",
       title: "Oups...",
       description: "Faites exploser votre propre bombe à la figure.",
-      icon: "💥", rarity: 4,
-      checkCondition: (data) => data['player_role']?.toLowerCase() == "tardos" && data['death_cause'] == "Explosion accidentelle",
+      icon: "💥", rarity: 2, // Ajusté à 2 car c'est un échec
+      checkCondition: (data) => data['tardos_suicide'] == true,
     ),
 
     // --- EXORCISTE ---
@@ -252,7 +263,7 @@ class AchievementData {
       title: "Vite fait, bien fait !",
       description: "Faites gagner le village grâce à vos talents de mime.",
       icon: "🎭", rarity: 3,
-      checkCondition: (data) => data['player_role']?.toLowerCase() == "exorciste" && data['exorcisme_success_win'] == true,
+      checkCondition: (data) => data['exorcisme_success_win'] == true,
     ),
 
     // --- VOYAGEUR ---
@@ -270,7 +281,7 @@ class AchievementData {
       title: "Quiche ou tarte ?",
       description: "Prévenez le meurtre de 4 joueurs en une seule nuit.",
       icon: "🥧", rarity: 3,
-      checkCondition: (data) => data['quiche_saved_count'] != null && data['quiche_saved_count'] >= 4,
+      checkCondition: (data) => data['quiche_saved_count'] != null && (data['quiche_saved_count'] as int) >= 4,
     ),
     Achievement(
       id: "self_quiche_save",
@@ -293,12 +304,13 @@ class AchievementData {
     Achievement(
       id: "bad_shooter",
       title: "Mauvais tireur",
-      description: "Ne réussissez aucun de vos tirs dans une partie (min. 3).",
+      description: "Ne réussissez aucun de vos tirs dans une partie (min. 1).",
       icon: "🎯", rarity: 1,
+      // CORRECTION : >= 1 suffit, car s'il a tiré 1 fois et raté 1 fois (hit=0), il est mauvais tireur.
       checkCondition: (data) =>
-      data['player_role']?.toString().toLowerCase() == "dingo" && // Sécurité rôle
-          data['dingo_shots_fired'] >= 3 &&
-          data['dingo_shots_hit'] == 0,
+      data['player_role']?.toString().toLowerCase() == "dingo" &&
+          (data['dingo_shots_fired'] ?? 0) >= 1 &&
+          (data['dingo_shots_hit'] ?? 0) == 0,
     ),
     Achievement(
       id: "parking_shot",
@@ -324,7 +336,6 @@ class AchievementData {
       title: "Apollo 13",
       description: "Désignez un loup et un rôle solo en même temps.",
       icon: "🚀", rarity: 2,
-      // La logique est maintenant stockée dans le flag player
       checkCondition: (data) => data['houstonApollo13Triggered'] == true,
     ),
 
@@ -341,13 +352,13 @@ class AchievementData {
       title: "Messmerde",
       description: "Survivez sans jamais exposer le rôle d'un joueur.",
       icon: "😴", rarity: 2,
-      checkCondition: (data) => data['player_role']?.toLowerCase() == "devin" && data['is_player_alive'] == true && data['devin_reveals_count'] == 0,
+      checkCondition: (data) => data['player_role']?.toLowerCase() == "devin" && data['is_player_alive'] == true && (data['devin_reveals_count'] ?? 0) == 0,
     ),
 
     // --- ARCHIVISTE ---
     Achievement(
       id: "archiviste_king",
-      title: "Le roi du CDI", // Succès 'One Shot'
+      title: "Le roi du CDI",
       description: "Utilisez 4 pouvoirs différents en une seule partie.",
       icon: "📚", rarity: 4,
       checkCondition: (data) => data['archiviste_all_powers_used_in_game'] == true,
@@ -360,6 +371,52 @@ class AchievementData {
       description: "Clara, Gabriel, Jean, Marc et vous devez être dans la même équipe et vivants.",
       icon: "🧼", rarity: 4,
       checkCondition: (data) => data['canaclean_present'] == true,
+    ),
+
+    // --- BASIQUES ---
+    Achievement(
+      id: "first_win",
+      title: "Première Victoire",
+      description: "Gagner une partie pour la première fois.",
+      icon: "🏆", rarity: 1,
+      checkCondition: (data) => (data['totalWins'] ?? 0) >= 1,
+    ),
+    Achievement(
+      id: "village_hero",
+      title: "Héros du Village",
+      description: "Gagner avec le Village.",
+      icon: "🏡", rarity: 1,
+      checkCondition: (data) {
+        final roles = Map<String, dynamic>.from(data['roles'] ?? {});
+        return (roles['VILLAGE'] ?? 0) >= 1;
+      },
+    ),
+    Achievement(
+      id: "wolf_pack",
+      title: "Membre de la Meute",
+      description: "Gagner avec les Loups-Garous.",
+      icon: "🐺", rarity: 1,
+      checkCondition: (data) {
+        final roles = Map<String, dynamic>.from(data['roles'] ?? {});
+        return (roles['LOUPS-GAROUS'] ?? 0) >= 1;
+      },
+    ),
+    Achievement(
+      id: "lone_wolf",
+      title: "En solitaire",
+      description: "Gagner avec un rôle Solo.",
+      icon: "👤", rarity: 1,
+      checkCondition: (data) {
+        final roles = Map<String, dynamic>.from(data['roles'] ?? {});
+        return (roles['SOLO'] ?? 0) >= 1;
+      },
+    ),
+    Achievement(
+      id: "first_blood",
+      title: "Premier Sang",
+      description: "Être le premier joueur à mourir dans la partie.",
+      icon: "🩸", rarity: 1,
+      checkCondition: (data) => false, // Géré manuellement
     ),
 
     // --- SUCCÈS CUMULATIFS ---
@@ -379,10 +436,13 @@ class AchievementData {
       id: "villageois_eternal", title: "On pouvait pas redistribuer les rôles ?",
       description: "Jouez 5 parties en tant que Villageois.",
       icon: "👨‍🌾", rarity: 4,
-      checkCondition: (data) => (data['cumulative_villageois_count'] ?? 0) >= 5,
+      checkCondition: (data) {
+        final roleWins = Map<String, dynamic>.from(data['roleWins'] ?? {});
+        return (roleWins['VILLAGEOIS'] ?? 0) >= 5;
+      },
     ),
     Achievement(
-      id: "archiviste_prince", title: "Le prince du CDI", // Succès 'Cumulatif'
+      id: "archiviste_prince", title: "Le prince du CDI",
       description: "Utilisez 4 pouvoirs différents au cours de votre carrière.",
       icon: "📖", rarity: 2,
       checkCondition: (data) => data['archiviste_all_powers_cumulated'] == true,
@@ -392,7 +452,7 @@ class AchievementData {
       id: "veteran_village",
       title: "Ancien du Village",
       description: "Gagner 10 fois avec le Village.",
-      icon: "🏘️", rarity: 1,
+      icon: "👴", rarity: 1,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
         return (roles['VILLAGE'] ?? 0) >= 10;

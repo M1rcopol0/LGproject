@@ -7,6 +7,15 @@ import 'package:talker_flutter/talker_flutter.dart';
 // --- ROUTES ---
 const String routeGameMenu = '/GameMenu';
 
+// --- CONFIGURATION GÉNÉRALE ---
+String globalGameVersion = "3.0.0 - Stable";
+late Talker globalTalker;
+
+// --- PARAMÈTRES AUDIO ---
+bool globalMusicEnabled = true;
+bool globalSfxEnabled = true;
+double globalVolume = 1.0; // <--- CELLE-CI ÉTAIT MANQUANTE ET FAISAIT CRASHER
+
 // --- ÉTAT DU JEU (CYCLE MODIFIÉ) ---
 List<Player> globalPlayers = [];
 bool isDayTime = false;            // Le jeu commence par la Nuit
@@ -16,7 +25,7 @@ bool globalRolesDistributed = false;
 bool hasVotedThisTurn = false;
 
 // --- FLAG CHRONOLOGIE ---
-bool nightOnePassed = false;
+bool nightOnePassed = false; // Indique si la Nuit 1 est terminée
 
 // --- FLAGS DE SUCCÈS (3.0) ---
 bool anybodyDeadYet = false;
@@ -30,6 +39,7 @@ bool evolvedHungerAchieved = false;
 bool fanSacrificeAchieved = false;
 bool ultimateFanAchieved = false;
 bool parkingShotUnlocked = false;
+bool exorcistWin = false;
 
 // --- TRACKING ACTIONS SPÉCIFIQUES ---
 Player? nightChamanTarget;
@@ -38,27 +48,7 @@ bool nightWolvesTargetSurvived = false;
 int wolvesNightKills = 0;
 int quicheSavedThisNight = 0;
 
-// --- PARAMÈTRES ---
-bool globalMusicEnabled = true;
-bool globalSfxEnabled = true;
-String globalGameVersion = "3.0.0 - Stable";
-late Talker globalTalker; // <--- AJOUTEZ CECI
-
-// --- GESTION PERSISTANTE DES PARAMÈTRES AUDIO ---
-Future<void> loadAudioSettings() async {
-  final prefs = await SharedPreferences.getInstance();
-  globalMusicEnabled = prefs.getBool('settings_music') ?? true;
-  globalSfxEnabled = prefs.getBool('settings_sfx') ?? true;
-}
-
-Future<void> saveAudioSettings() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('settings_music', globalMusicEnabled);
-  await prefs.setBool('settings_sfx', globalSfxEnabled);
-  if (!globalMusicEnabled) stopMusic();
-}
-
-// --- PICK & BAN (MIS À JOUR) ---
+// --- PICK & BAN ---
 Map<String, List<String>> globalPickBan = {
   "village": [
     "Archiviste", "Devin", "Dingo", "Zookeeper", "Enculateur du bled",
@@ -72,8 +62,51 @@ Map<String, List<String>> globalPickBan = {
   ],
 };
 
-// --- FORMATAGE NOMS ---
+// --- UTILITAIRES ---
 String formatPlayerName(String name) => Player.formatName(name);
+
+// --- SYSTÈME AUDIO ---
+final AudioPlayer globalAudioPlayer = AudioPlayer();
+final AudioPlayer globalMusicPlayer = AudioPlayer();
+
+Future<void> loadAudioSettings() async {
+  final prefs = await SharedPreferences.getInstance();
+  globalMusicEnabled = prefs.getBool('settings_music') ?? true;
+  globalSfxEnabled = prefs.getBool('settings_sfx') ?? true;
+  globalVolume = prefs.getDouble('app_volume') ?? 1.0;
+}
+
+Future<void> saveAudioSettings() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('settings_music', globalMusicEnabled);
+  await prefs.setBool('settings_sfx', globalSfxEnabled);
+  await prefs.setDouble('app_volume', globalVolume);
+  if (!globalMusicEnabled) stopMusic();
+}
+
+Future<void> playSfx(String fileName) async {
+  if (globalSfxEnabled) {
+    try {
+      await globalAudioPlayer.setVolume(globalVolume);
+      await globalAudioPlayer.stop();
+      await globalAudioPlayer.play(AssetSource('sounds/$fileName'));
+    } catch (e) { debugPrint("Erreur SFX : $e"); }
+  }
+}
+
+Future<void> playMusic(String fileName) async {
+  if (globalMusicEnabled) {
+    try {
+      await globalMusicPlayer.setVolume(globalVolume * 0.5); // Musique un peu moins forte
+      await globalMusicPlayer.setReleaseMode(ReleaseMode.loop);
+      await globalMusicPlayer.play(AssetSource('sounds/$fileName'));
+    } catch (e) { debugPrint("Erreur Musique : $e"); }
+  }
+}
+
+Future<void> stopMusic() async {
+  try { await globalMusicPlayer.stop(); } catch (e) { debugPrint("Erreur stop : $e"); }
+}
 
 // --- NETTOYAGE (RESET) ---
 Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
@@ -82,10 +115,19 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
 
   if (eraseAllHistory) {
     await prefs.remove('saved_players_list');
-    await prefs.remove('saved_trophies');
+    await prefs.remove('saved_trophies_v2'); // Nom correct V2
     await prefs.remove('global_faction_stats');
-    await prefs.remove('registered_players');
     globalPlayers.clear();
+  } else {
+    // Reset juste pour une nouvelle partie (on garde les joueurs)
+    for (var p in globalPlayers) {
+      // On suppose une méthode reset dans Player, sinon on réinitialise manuellement ici
+      p.isPlaying = true;
+      p.isAlive = true;
+      p.role = null;
+      p.team = "village";
+      // ... autres resets ...
+    }
   }
 
   globalTimerMinutes = 2.0;
@@ -93,6 +135,7 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
   globalTurnNumber = 1;
   globalRolesDistributed = false;
   nightOnePassed = false;
+  hasVotedThisTurn = false;
 
   // Reset Flags Succès
   anybodyDeadYet = false;
@@ -105,6 +148,8 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
   ultimateFanAchieved = false;
   chamanSniperAchieved = false;
   evolvedHungerAchieved = false;
+  exorcistWin = false;
+  parkingShotUnlocked = false;
 
   // Reset Tracking
   nightChamanTarget = null;
@@ -114,32 +159,6 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
   quicheSavedThisNight = 0;
 
   stopMusic();
-}
-
-// --- SYSTÈME AUDIO ---
-final AudioPlayer globalAudioPlayer = AudioPlayer();
-final AudioPlayer globalMusicPlayer = AudioPlayer();
-
-Future<void> playSfx(String fileName) async {
-  if (globalSfxEnabled) {
-    try {
-      await globalAudioPlayer.stop();
-      await globalAudioPlayer.play(AssetSource('sounds/$fileName'));
-    } catch (e) { debugPrint("Erreur SFX : $e"); }
-  }
-}
-
-Future<void> playMusic(String fileName) async {
-  if (globalMusicEnabled) {
-    try {
-      await globalMusicPlayer.setReleaseMode(ReleaseMode.loop);
-      await globalMusicPlayer.play(AssetSource('sounds/$fileName'));
-    } catch (e) { debugPrint("Erreur Musique : $e"); }
-  }
-}
-
-Future<void> stopMusic() async {
-  try { await globalMusicPlayer.stop(); } catch (e) { debugPrint("Erreur stop : $e"); }
 }
 
 // --- LOGIQUE NOCTURNE (ORDRE OPTIMISÉ) ---

@@ -15,7 +15,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
   late Timer _progressTimer;
   late Timer _phraseTimer;
 
-  // Liste enrichie de phrases immersives
   final List<String> _phrases = [
     "Préparation des rôles...",
     "Affûtage des crocs des Loups-garous...",
@@ -52,14 +51,12 @@ class _LoadingScreenState extends State<LoadingScreen> {
   @override
   void initState() {
     super.initState();
-    // Mélange initial : garantit un ordre unique sans répétition
     _phrases.shuffle();
     _currentPhrase = _phrases[0];
     _startLoading();
   }
 
   void _startLoading() {
-    // Timer pour la barre de progression
     _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       if (mounted) {
         setState(() {
@@ -73,9 +70,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
       }
     });
 
-    // Timer pour les phrases (une nouvelle phrase toutes les 1.2 secondes)
     _phraseTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) {
-      // Parcours de la liste mélangée sans jamais revenir en arrière
       if (mounted && _phraseIndex < _phrases.length - 1) {
         setState(() {
           _phraseIndex++;
@@ -123,32 +118,16 @@ class _LoadingScreenState extends State<LoadingScreen> {
           ),
           Container(color: Colors.black.withOpacity(0.5)),
 
-          // 2. Phrases (Centre de l'écran)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                _currentPhrase,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w400,
-                  fontStyle: FontStyle.italic,
-                  shadows: [Shadow(blurRadius: 5, color: Colors.black)],
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Barre de progression et Pourcentage (Bas de l'écran)
+          // 2. Groupe du bas : Pourcentage + Barre + Phrase
           Positioned(
-            bottom: bottomPadding + 30,
+            // On remonte un peu plus (50px + padding) pour laisser la place au texte en dessous
+            bottom: bottomPadding + 50,
             left: 0,
             right: 0,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Pourcentage juste au-dessus de la barre
+                // Pourcentage
                 Text(
                   "${(_progress * 100).toInt()}%",
                   style: const TextStyle(
@@ -158,6 +137,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
+
                 // Barre de chargement
                 SizedBox(
                   width: 300,
@@ -188,6 +168,24 @@ class _LoadingScreenState extends State<LoadingScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+
+                const SizedBox(height: 25), // Espace entre la barre et le texte
+
+                // Phrase (Déplacée ici, sous la barre)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  child: Text(
+                    _currentPhrase,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18, // Légèrement plus petit pour bien tenir
+                      fontWeight: FontWeight.w400,
+                      fontStyle: FontStyle.italic,
+                      shadows: [Shadow(blurRadius: 5, color: Colors.black)],
+                    ),
                   ),
                 ),
               ],

@@ -13,10 +13,9 @@ void main() async {
   // 1. Initialisation du système de Logs (Talker)
   globalTalker = TalkerFlutter.init(
     settings: TalkerSettings(
-      maxHistoryItems: 5000,
-      // --- CORRECTION IMPORTANTE ---
-      // On désactive l'écriture console automatique de Talker
-      // pour éviter la boucle infinie avec debugPrint.
+      // CORRECTION : Augmentation de la limite à 10 000 pour conserver plus d'historique récent
+      maxHistoryItems: 10000,
+      // On désactive l'écriture console automatique pour éviter les doublons/boucles
       useConsoleLogs: false,
     ),
   );
@@ -27,7 +26,6 @@ void main() async {
     globalTalker.debug(message);
 
     // B. On imprime manuellement dans la console Android Studio
-    // (print ne déclenche pas debugPrint, donc pas de boucle)
     if (message != null) print(message);
   };
 

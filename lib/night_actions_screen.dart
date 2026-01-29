@@ -118,6 +118,12 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       exorcistSuccess: (_exorcismeResult == "success"),
     );
 
+    // --- CORRECTION : DÉTECTION VICTOIRE EXORCISTE ---
+    if (result.exorcistVictory) {
+      debugPrint("🏆 LOG [NightScreen] : L'exorciste a réussi son mime !");
+      exorcistWin = true; // Variable globale pour le succès
+    }
+
     playSfx((result.deadPlayers.isEmpty && !result.villageIsNarcoleptic)
         ? "oiseau.mp3"
         : "cloche.mp3");
@@ -304,6 +310,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
               if (result.exorcistVictory) {
+                // CORRECTION : Déblocage du succès Mime Win ici (sécurité doublée)
+                exorcistWin = true;
+
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)),

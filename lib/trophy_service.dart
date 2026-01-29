@@ -5,27 +5,28 @@ import 'models/player.dart';
 import 'models/achievement.dart';
 import 'widgets/achievement_toast.dart';
 
-/// Structure simple pour la file d'attente des notifications
 class _AchievementTask {
-  final String title;
-  final String icon;
+  final Achievement achievement;
   final String playerName;
-  _AchievementTask(this.title, this.icon, this.playerName);
+  _AchievementTask(this.achievement, this.playerName);
 }
 
 class TrophyService {
-  static const String _keyPlayers = 'saved_trophies_v2'; // Clé V2 pour éviter conflits
+  static const String _keyPlayers = 'saved_trophies_v2';
   static const String _keyGlobalStats = 'global_faction_stats';
 
-  // --- GESTION DES NOTIFICATIONS ---
+  // File d'attente pour les Toasts
   static final List<_AchievementTask> _achievementQueue = [];
   static bool _isDisplaying = false;
 
-  // --- SÉCURITÉ ANTI-DOUBLON ---
+  // Cache RAM pour éviter le double affichage immédiat (spam visuel en < 5 sec)
+  static final Map<String, DateTime> _recentlyShownToasts = {};
+
+  // Sécurité anti-doublon pour l'enregistrement des victoires
   static DateTime? _lastWinRecordTime;
 
   // ==========================================================
-  // 1. DÉVERROUILLAGE IMMÉDIAT (PENDANT LE JEU)
+  // 1. DÉVERROUILLAGE IMMÉDIAT (COEUR DU SYSTÈME)
   // ==========================================================
   static Future<void> checkAndUnlockImmediate({
     required BuildContext context,
@@ -33,49 +34,84 @@ class TrophyService {
     required String achievementId,
     required Map<String, dynamic> checkData,
   }) async {
-    final ach = AchievementData.allAchievements.firstWhere(
-          (a) => a.id == achievementId,
-      orElse: () => throw Exception("Succès $achievementId introuvable"),
-    );
+    // 1. Récupération du succès
+    Achievement? ach;
+    try {
+      ach = AchievementData.allAchievements.firstWhere((a) => a.id == achievementId);
+    } catch (e) {
+      // ID inconnu, on arrête
+      return;
+    }
 
+    // 2. Vérification de la condition du jeu
     if (ach.checkCondition(checkData)) {
-      bool newlyUnlocked = await unlockAchievement(playerName, achievementId);
 
-      if (newlyUnlocked && context.mounted) {
-        showAchievementPopup(context, ach.title, ach.icon, playerName);
+      // 3. Tentative de déblocage en base de données
+      // Returns true = C'est une première fois.
+      // Returns false = C'était déjà acquis.
+      bool isBrandNew = await unlockAchievement(playerName, achievementId);
+      bool shouldShowPopup = false;
+
+      if (isBrandNew) {
+        // C'est nouveau -> On affiche !
+        shouldShowPopup = true;
+        debugPrint("🏆 LOG [Trophy] : Nouveau succès débloqué : ${ach.title}");
+      } else {
+        // C'est déjà acquis -> On vérifie la date pour voir si c'est "tout frais" (< 1m30s)
+        String? storedDateStr = await _getAchievementDate(playerName, achievementId);
+        if (storedDateStr != null) {
+          DateTime? storedDate = _parseCustomDate(storedDateStr);
+          if (storedDate != null) {
+            final diff = DateTime.now().difference(storedDate);
+            // Si obtenu il y a moins de 90 secondes, on considère que c'est l'action actuelle
+            if (diff.inSeconds < 90) {
+              shouldShowPopup = true;
+              debugPrint("♻️ LOG [Trophy] : Succès existant mais RÉCENT (${diff.inSeconds}s) -> Affichage autorisé.");
+            } else {
+              // C'est un vieux succès, on ne spamme pas
+              debugPrint("⏳ LOG [Trophy] : Succès ancien (${storedDateStr}) -> Pas de pop-up.");
+            }
+          }
+        }
+      }
+
+      // 4. Affichage avec sécurité anti-spam RAM (éviter double affichage en 1 sec)
+      if (shouldShowPopup && context.mounted) {
+        String ramKey = "${playerName}_$achievementId";
+        DateTime? lastShownRAM = _recentlyShownToasts[ramKey];
+
+        // Si on l'a déjà montré il y a moins de 10 secondes (RAM), on bloque
+        if (lastShownRAM == null || DateTime.now().difference(lastShownRAM).inSeconds > 10) {
+          _recentlyShownToasts[ramKey] = DateTime.now();
+          debugPrint("🔔 LOG [Trophy] : Affichage POP-UP pour '${ach.title}' !");
+          _showAchievementPopup(context, ach, playerName);
+        }
       }
     }
   }
 
   // ==========================================================
-  // 2. DÉVERROUILLAGE SUCCÈS (DATE FIGÉE)
+  // 2. GESTION BASE DE DONNÉES (UNLOCK)
   // ==========================================================
   static Future<bool> unlockAchievement(String playerName, String achievementId) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();
 
-    // Initialisation si joueur inconnu
     if (!stats.containsKey(playerName)) {
-      stats[playerName] = {
-        'totalWins': 0,
-        'roles': {},
-        'roleWins': {},
-        'achievements': {}, // Map<String, String> (ID -> Date)
-        'counters': {}
-      };
+      stats[playerName] = {'totalWins': 0, 'roles': {}, 'achievements': {}};
     }
 
     var pData = Map<String, dynamic>.from(stats[playerName]);
-    // On force le typage en Map<String, dynamic> pour éviter les erreurs de cast
     var achievements = Map<String, dynamic>.from(pData['achievements'] ?? {});
 
-    // Si déjà débloqué, on arrête tout (false = pas nouveau)
+    // Si déjà présent, on ne touche PAS à la date d'origine et on renvoie false
     if (achievements.containsKey(achievementId)) {
       return false;
     }
 
-    // Sinon, on enregistre la date et l'heure
+    // Nouveau -> On enregistre la date actuelle
     final now = DateTime.now();
+    // Format sans les secondes (limitation actuelle conservée pour compatibilité)
     String timestamp = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} à ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
     achievements[achievementId] = timestamp;
@@ -83,28 +119,49 @@ class TrophyService {
     stats[playerName] = pData;
 
     await prefs.setString(_keyPlayers, jsonEncode(stats));
-    return true; // true = C'est un nouveau succès !
+    return true;
   }
 
-  // ==========================================================
-  // 3. RÉCUPÉRATION DES SUCCÈS DÉBLOQUÉS (POUR L'UI)
-  // ==========================================================
-  static Future<List<String>> getUnlockedAchievements(String playerName) async {
+  // Helper pour récupérer la date stockée
+  static Future<String?> _getAchievementDate(String playerName, String achievementId) async {
     final stats = await getStats();
-    if (!stats.containsKey(playerName)) return [];
+    if (!stats.containsKey(playerName)) return null;
+    final achievements = stats[playerName]['achievements'];
+    if (achievements is Map && achievements.containsKey(achievementId)) {
+      return achievements[achievementId] as String;
+    }
+    return null;
+  }
 
-    final pData = stats[playerName];
-    if (pData['achievements'] == null) return [];
+  // Helper pour parser le format "dd/MM/yyyy à HH:mm"
+  static DateTime? _parseCustomDate(String dateStr) {
+    try {
+      // Ex: "29/01/2026 à 16:33"
+      final parts = dateStr.split(' à '); // ["29/01/2026", "16:33"]
+      if (parts.length != 2) return null;
 
-    // On retourne les clés de la map (les IDs des succès)
-    return Map<String, dynamic>.from(pData['achievements']).keys.toList();
+      final dateParts = parts[0].split('/'); // ["29", "01", "2026"]
+      final timeParts = parts[1].split(':'); // ["16", "33"]
+
+      if (dateParts.length != 3 || timeParts.length != 2) return null;
+
+      return DateTime(
+        int.parse(dateParts[2]), // Année
+        int.parse(dateParts[1]), // Mois
+        int.parse(dateParts[0]), // Jour
+        int.parse(timeParts[0]), // Heure
+        int.parse(timeParts[1]), // Minute
+      );
+    } catch (e) {
+      return null;
+    }
   }
 
   // ==========================================================
-  // 4. SYSTÈME DE POP-UP EN CASCADE (QUEUE)
+  // 3. AFFICHAGE (QUEUE)
   // ==========================================================
-  static void showAchievementPopup(BuildContext context, String title, String icon, String playerName) {
-    _achievementQueue.add(_AchievementTask(title, icon, playerName));
+  static void _showAchievementPopup(BuildContext context, Achievement achievement, String playerName) {
+    _achievementQueue.add(_AchievementTask(achievement, playerName));
     _processQueue(context);
   }
 
@@ -113,44 +170,35 @@ class TrophyService {
     _isDisplaying = true;
 
     final task = _achievementQueue.removeAt(0);
-    OverlayEntry? entry;
 
-    entry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: 50, // Positionné en haut
-        left: 20,
-        right: 20,
-        child: Material(
-          color: Colors.transparent,
-          child: AchievementToast( // On utilise le widget dédié
-            title: task.title,
-            icon: task.icon,
-            playerName: task.playerName,
-          ),
-        ),
-      ),
-    );
+    if (context.mounted) {
+      // CORRECTION : Appel avec 3 arguments (context, achievement, playerName)
+      AchievementToast.show(context, task.achievement, task.playerName);
+    }
 
-    final overlay = Overlay.of(context);
-    overlay.insert(entry);
-
-    // Durée d'affichage (3.5 secondes)
-    await Future.delayed(const Duration(milliseconds: 3500));
-
-    entry.remove();
+    // On laisse le temps au toast de s'afficher et disparaître
+    await Future.delayed(const Duration(seconds: 4)); // Réglé à 4s pour une bonne lecture
     _isDisplaying = false;
 
-    // Si d'autres succès attendent, on les affiche
-    if (context.mounted) {
+    // Suite de la file
+    if (context.mounted && _achievementQueue.isNotEmpty) {
       _processQueue(context);
     }
   }
 
   // ==========================================================
-  // 5. ENREGISTREMENT DES VICTOIRES (POST-GAME)
+  // 4. AUTRES MÉTHODES (Stats, Getters...)
   // ==========================================================
+
+  static Future<List<String>> getUnlockedAchievements(String playerName) async {
+    final stats = await getStats();
+    if (!stats.containsKey(playerName)) return [];
+    final pData = stats[playerName];
+    if (pData['achievements'] == null) return [];
+    return Map<String, dynamic>.from(pData['achievements']).keys.toList();
+  }
+
   static Future<void> recordWin(List<Player> winners, String roleGroup, {Map<String, dynamic>? customData}) async {
-    // Anti-doublon (si on appelle 2 fois en moins de 5 secondes)
     if (_lastWinRecordTime != null) {
       final difference = DateTime.now().difference(_lastWinRecordTime!);
       if (difference < const Duration(seconds: 5)) return;
@@ -159,7 +207,7 @@ class TrophyService {
 
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> playerStats = await getStats();
-    final Set<String> processedNames = {}; // Pour éviter de compter 2 fois le même joueur
+    final Set<String> processedNames = {};
 
     for (var p in winners) {
       if (processedNames.contains(p.name)) continue;
@@ -168,74 +216,51 @@ class TrophyService {
       final String name = p.name;
       final String actualRole = p.role?.toUpperCase().trim() ?? "SANS RÔLE";
 
-      // Création ou récupération de la fiche joueur
       Map<String, dynamic> pData = playerStats.containsKey(name)
           ? Map<String, dynamic>.from(playerStats[name])
-          : {
-        'totalWins': 0,
-        'roles': {},
-        'roleWins': {},
-        'achievements': {},
-        'counters': {}
-      };
+          : { 'totalWins': 0, 'roles': {}, 'roleWins': {}, 'achievements': {}, 'counters': {} };
 
-      // Incrémentation victoire totale
       pData['totalWins'] = (pData['totalWins'] ?? 0) + 1;
 
-      // Incrémentation victoire par Groupe (Village, Loups, Solo)
       Map<String, dynamic> rolesGroupMap = Map<String, dynamic>.from(pData['roles'] ?? {});
       rolesGroupMap[roleGroup] = (rolesGroupMap[roleGroup] ?? 0) + 1;
       pData['roles'] = rolesGroupMap;
 
-      // Incrémentation victoire par Rôle précis (Voyante, Dresseur...)
       Map<String, dynamic> specificRoleMap = Map<String, dynamic>.from(pData['roleWins'] ?? {});
       specificRoleMap[actualRole] = (specificRoleMap[actualRole] ?? 0) + 1;
       pData['roleWins'] = specificRoleMap;
 
-      // Mise à jour des compteurs cumulatifs (Archiviste, Voyageur...)
       var counters = Map<String, dynamic>.from(pData['counters'] ?? {});
       if (customData != null) {
-        // Archiviste : Liste des pouvoirs uniques
         if (p.role == "Archiviste" && p.archivisteActionsUsed.isNotEmpty) {
           List<dynamic> history = List.from(counters['archiviste_actions_all_time'] ?? []);
           history.addAll(p.archivisteActionsUsed);
-          counters['archiviste_actions_all_time'] = history.toSet().toList(); // Uniques
+          counters['archiviste_actions_all_time'] = history.toSet().toList();
         }
-        // Voyageur : Nombre de voyages
         if (p.travelNightsCount > 0) {
           counters['cumulative_travels'] = (counters['cumulative_travels'] ?? 0) + 1;
         }
-        // Maison : Hôtes cumulés
         if ((customData['cumulative_hosted_count'] ?? 0) > 0) {
           counters['cumulative_hosted_count'] = (counters['cumulative_hosted_count'] ?? 0) + (customData['cumulative_hosted_count'] as int);
         }
       }
       pData['counters'] = counters;
-
       playerStats[name] = pData;
     }
 
     await prefs.setString(_keyPlayers, jsonEncode(playerStats));
 
-    // Stats Globales (Camembert d'accueil)
     Map<String, int> globalStats = await getGlobalStats();
     globalStats[roleGroup] = (globalStats[roleGroup] ?? 0) + 1;
     await prefs.setString(_keyGlobalStats, jsonEncode(globalStats));
   }
 
-  // ==========================================================
-  // 6. GESTION DES DONNÉES (LECTURE / SUPPRESSION)
-  // ==========================================================
-
-  /// Supprime définitivement l'entrée JSON d'un joueur.
   static Future<void> deletePlayerStats(String playerName) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();
-
     if (stats.containsKey(playerName)) {
       stats.remove(playerName);
       await prefs.setString(_keyPlayers, jsonEncode(stats));
-      debugPrint("🗑️ Données JSON effacées pour : $playerName");
     }
   }
 
@@ -265,5 +290,13 @@ class TrophyService {
     } catch (e) {
       return defaults;
     }
+  }
+
+  // --- NOUVEAU : NETTOYAGE COMPLET DES SUCCÈS ---
+  static Future<void> resetAllStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyPlayers);
+    await prefs.remove(_keyGlobalStats);
+    debugPrint("🔥 LOG [Trophy] : TOUTES les statistiques et succès ont été effacés.");
   }
 }

@@ -23,6 +23,8 @@ import 'tardos_interface.dart';
 import 'houston_interface.dart';
 import 'time_master_interface.dart';
 import 'pokemon_interface.dart';
+import 'chuchoteur_interface.dart';
+import 'pantin_interface.dart';
 
 class RoleActionDispatcher extends StatefulWidget {
   final NightAction action;
@@ -62,7 +64,6 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
     bool isImmuneToSleep = (widget.action.role == "Archiviste" && widget.actor.isAwayAsMJ);
 
     // Si le joueur est endormi (Zookeeper ou Pokémon)
-    // Note : Si le Pokémon est enragé (Dresseur mort), est-il immunisé au sommeil ? Par défaut non.
     if (widget.actor.isEffectivelyAsleep && !isImmuneToSleep && widget.action.role != "Zookeeper") {
       debugPrint("💤 LOG : ${widget.actor.name} est endormi.");
       return _buildAsleepScreen();
@@ -78,7 +79,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           return PokemonInterface(
             actor: widget.actor,
             players: widget.allPlayers,
-            onRevengeTargetSelected: (target) {
+            onTargetSelected: (target) {
               widget.actor.pokemonRevengeTarget = target;
               if (target != null) {
                 debugPrint("⚡ LOG : Pokémon lie son destin à ${target.name} (Vengeance)");
@@ -117,7 +118,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
       case "Voyageur":
         return VoyageurInterface(
           actor: widget.actor,
-          allPlayers: widget.allPlayers,
+          allPlayers: widget.allPlayers, // Correction: utilisation de 'allPlayers'
           onDepart: () {
             widget.actor.isInTravel = true;
             widget.onNext();
@@ -125,6 +126,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           onReturnWithoutShooting: () {
             widget.actor.isInTravel = false;
             widget.actor.canTravelAgain = false;
+            widget.actor.hasReturnedThisTurn = true; // Flag activé
             debugPrint("🏠 LOG : Retour simple du Voyageur (Vulnérable ce soir).");
             widget.onNext();
           },
@@ -135,15 +137,18 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           onShoot: (target) {
             widget.actor.isInTravel = false;
             widget.actor.canTravelAgain = false;
+            widget.actor.hasReturnedThisTurn = true; // Flag activé
             widget.actor.travelerBullets--;
             widget.pendingDeaths[target] = "Tir du Voyageur (${widget.actor.name})";
             debugPrint("🔫 LOG : Retour agressif du Voyageur sur ${target.name}.");
             widget.onNext();
           },
+          // Correction: Suppression de onAction
         );
 
       case "Zookeeper":
         return ZookeeperInterface(
+          // Correction: Suppression de actor
             players: widget.allPlayers,
             onTargetSelected: (t) {
               debugPrint("💉 LOG : Zookeeper vise ${t.name}");
@@ -152,7 +157,12 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
         );
 
       case "Phyl":
-        return PhylInterface(actor: widget.actor, players: widget.allPlayers, onComplete: widget.onNext);
+        return PhylInterface(
+            actor: widget.actor,
+            players: widget.allPlayers,
+            onComplete: widget.onNext
+          // Correction: Suppression de onClonesSelected
+        );
 
       case "Grand-mère":
         return GrandMereInterface(
@@ -163,6 +173,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
             },
             onSkip: widget.onNext,
             circleBtnBuilder: _circleBtn
+          // Correction: Suppression de onAction
         );
 
       case "Dresseur":
@@ -176,7 +187,6 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           allPlayers: widget.allPlayers,
           onComplete: (target) {
             if (target != null) {
-              // Note: Avec la nouvelle interface, lastDresseurAction est déjà set dans l'interface
               debugPrint("🦅 LOG : Dresseur action terminée.");
             }
             widget.onNext();
@@ -184,9 +194,9 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
         );
 
       case "Pantin":
-        return TargetSelectorInterface(
-          players: widget.allPlayers.where((p) => p.isAlive && p != widget.actor).toList(),
-          maxTargets: 2,
+        return PantinInterface(
+          // Correction: Suppression de actor
+          players: widget.allPlayers,
           onTargetsSelected: (selected) {
             for (var p in selected) {
               debugPrint("🎭 LOG : Le Pantin maudit ${p.name}");
@@ -210,7 +220,13 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
         );
 
       case "Somnifère":
-        return SomnifereInterface(actor: widget.actor, onActionComplete: widget.onSomnifere);
+        return SomnifereInterface(
+            actor: widget.actor,
+            onActionComplete: (used) {
+              widget.onSomnifere(used);
+            }
+          // Correction: Suppression de onSleep / onSkip
+        );
 
       case "Devin":
         return DevinInterface(
@@ -265,15 +281,15 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
         );
 
       case "Chuchoteur":
-        int maxMutes = (globalTurnNumber >= 5) ? 3 : (globalTurnNumber >= 3 ? 2 : 1);
-        return TargetSelectorInterface(
-          players: widget.allPlayers.where((p) => p.isAlive).toList(),
-          maxTargets: maxMutes,
+        return ChuchoteurInterface(
+          // Correction: Suppression de actor
+          players: widget.allPlayers,
           onTargetsSelected: (selected) {
             for (var p in selected) {
               p.isMutedDay = true;
             }
             widget.showPopUp("CHUCHOTEUR", "Cibles réduites au silence.");
+            widget.onNext();
           },
         );
 
@@ -313,15 +329,23 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
         );
 
       case "Ron-Aldo":
-        return RonAldoInterface(actor: widget.actor, allPlayers: widget.allPlayers, onNext: widget.onNext);
+        return RonAldoInterface(
+            actor: widget.actor,
+            allPlayers: widget.allPlayers, // Correction: players -> allPlayers
+            onNext: widget.onNext // Correction: onFanSelected -> onNext
+        );
 
       case "Loup-garou chaman":
-        return ChamanInterface(players: widget.allPlayers, onTargetSelected: (p) => widget.onNext());
+        return ChamanInterface(
+          // Correction: Suppression de actor
+            players: widget.allPlayers,
+            onTargetSelected: (p) => widget.onNext() // Correction: onAction -> onTargetSelected
+        );
 
       case "Exorciste":
         return ExorcistInterface(
-          player: widget.actor,
-          allPlayers: widget.allPlayers,
+          player: widget.actor, // Correction: actor -> player
+          allPlayers: widget.allPlayers, // Correction: players -> allPlayers
           onAction: (actionType, data) {
             if (actionType == "EXORCISM_SUCCESS") {
               widget.onExorcisme("SUCCESS");
@@ -329,6 +353,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
               widget.onExorcisme(null);
             }
           },
+          // Correction: Suppression de onExorcisme
         );
 
       default:

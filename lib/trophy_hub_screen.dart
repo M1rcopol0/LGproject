@@ -3,6 +3,7 @@ import 'trophy_service.dart';
 import 'globals.dart';
 import 'models/achievement.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'models/player.dart'; // Nécessaire pour le type Player
 
 class TrophyHubScreen extends StatefulWidget {
   const TrophyHubScreen({super.key});
@@ -12,15 +13,6 @@ class TrophyHubScreen extends StatefulWidget {
 }
 
 class _TrophyHubScreenState extends State<TrophyHubScreen> {
-  // Helper pour obtenir la couleur selon la rareté
-  Color _getRarityColor(int rarity) {
-    switch (rarity) {
-      case 3: return Colors.amberAccent; // Légendaire
-      case 2: return Colors.purpleAccent; // Rare
-      default: return Colors.blueAccent; // Commun
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -40,6 +32,17 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
 
           final allStats = snapshot.data ?? {};
 
+          // --- CORRECTION : TRI DES JOUEURS ---
+          // On crée une copie de la liste globale pour ne pas perturber l'ordre du jeu ailleurs
+          List<Player> sortedPlayers = List.from(globalPlayers);
+
+          // On trie par nombre de victoires décroissant (du plus grand au plus petit)
+          sortedPlayers.sort((a, b) {
+            int winsA = (allStats[a.name]?['totalWins'] ?? 0) as int;
+            int winsB = (allStats[b.name]?['totalWins'] ?? 0) as int;
+            return winsB.compareTo(winsA); // B comparé à A = Décroissant
+          });
+
           return FutureBuilder<Map<String, int>>(
             future: TrophyService.getGlobalStats(),
             builder: (context, globalSnapshot) {
@@ -53,23 +56,24 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
                   _buildGlobalHeader(global, totalGames),
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 10),
-                    child: Text("RÉPERTOIRE DES JOUEURS",
+                    child: Text("CLASSEMENT DES JOUEURS", // Changé de "RÉPERTOIRE" à "CLASSEMENT"
                         style: TextStyle(color: Colors.white24, letterSpacing: 1.2, fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                   Expanded(
-                    child: globalPlayers.isEmpty
+                    child: sortedPlayers.isEmpty
                         ? const Center(child: Text("Aucun joueur dans le répertoire", style: TextStyle(color: Colors.white38)))
                         : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 15),
-                      itemCount: globalPlayers.length,
+                      itemCount: sortedPlayers.length,
                       itemBuilder: (context, index) {
-                        final player = globalPlayers[index];
+                        final player = sortedPlayers[index];
                         final rawData = allStats[player.name];
                         final Map<String, dynamic> pData = rawData != null
                             ? Map<String, dynamic>.from(rawData)
                             : {'totalWins': 0, 'roles': {}, 'achievements': {}};
 
-                        return _buildPlayerCard(player.name, pData);
+                        // On passe l'index pour afficher le rang (1er, 2ème...)
+                        return _buildPlayerCard(player.name, pData, index + 1);
                       },
                     ),
                   ),
@@ -118,25 +122,45 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
     );
   }
 
-  Widget _buildPlayerCard(String name, Map<String, dynamic> pData) {
+  Widget _buildPlayerCard(String name, Map<String, dynamic> pData, int rank) {
     int total = pData['totalWins'] ?? 0;
     final Map<String, dynamic> roles = pData['roles'] != null
         ? Map<String, dynamic>.from(pData['roles'])
         : {};
+
+    // Couleur spéciale pour le top 3
+    Color rankColor = Colors.white10;
+    if (rank == 1) rankColor = Colors.amber;
+    if (rank == 2) rankColor = Colors.grey.shade400;
+    if (rank == 3) rankColor = Colors.brown.shade400;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
+        border: rank <= 3 ? Border.all(color: rankColor.withOpacity(0.3)) : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-        leading: CircleAvatar(
-          backgroundColor: total > 0 ? Colors.orangeAccent : Colors.white10,
-          child: Text("$total", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        leading: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (rank <= 3)
+              Icon(Icons.emoji_events, color: rankColor.withOpacity(0.2), size: 40),
+            CircleAvatar(
+              backgroundColor: total > 0 ? Colors.orangeAccent : Colors.white10,
+              radius: 18,
+              child: Text("$total", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
+          ],
         ),
-        title: Text(formatPlayerName(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            Text("#$rank ", style: TextStyle(color: rankColor, fontWeight: FontWeight.bold, fontSize: 12)),
+            Text(formatPlayerName(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
         subtitle: Text("V : ${roles['VILLAGE'] ?? 0} | L : ${roles['LOUPS-GAROUS'] ?? 0} | S : ${roles['SOLO'] ?? 0}",
             style: const TextStyle(color: Colors.white38, fontSize: 12)),
         trailing: const Icon(Icons.chevron_right, color: Colors.white10),
@@ -174,7 +198,8 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
                     final ach = AchievementData.allAchievements[index];
                     final isUnlocked = unlocked.containsKey(ach.id);
                     final dateObtained = unlocked[ach.id];
-                    final rarityColor = _getRarityColor(ach.rarity);
+
+                    final rarityColor = ach.color;
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -189,18 +214,34 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
                       ),
                       child: Row(
                         children: [
-                          // Affichage de l'Emoji du succès
                           Text(ach.icon, style: TextStyle(fontSize: 30, color: isUnlocked ? null : Colors.grey.withOpacity(0.2))),
                           const SizedBox(width: 15),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(ach.title,
-                                    style: TextStyle(
-                                        color: isUnlocked ? Colors.white : Colors.white24,
-                                        fontWeight: FontWeight.bold
-                                    )),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(ach.title,
+                                          style: TextStyle(
+                                              color: isUnlocked ? Colors.white : Colors.white24,
+                                              fontWeight: FontWeight.bold
+                                          )),
+                                    ),
+                                    if (isUnlocked)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                            color: rarityColor.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: rarityColor.withOpacity(0.5), width: 0.5)
+                                        ),
+                                        child: Text(ach.rarityLabel, style: TextStyle(fontSize: 8, color: rarityColor, fontWeight: FontWeight.bold)),
+                                      )
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
                                 Text(ach.description,
                                     style: TextStyle(
                                         color: isUnlocked ? Colors.white70 : Colors.white10,
@@ -215,7 +256,11 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
                               ],
                             ),
                           ),
-                          if (isUnlocked) Icon(Icons.verified, color: rarityColor, size: 20),
+                          if (isUnlocked)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: Icon(Icons.verified, color: rarityColor, size: 20),
+                            ),
                         ],
                       ),
                     );

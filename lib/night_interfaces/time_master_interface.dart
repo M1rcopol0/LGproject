@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
-import 'role_action_dispatcher.dart';
-import '../globals.dart'; // Pour formatPlayerName si besoin
+import '../globals.dart';
 
 class TimeMasterInterface extends StatefulWidget {
   final Player player;
@@ -24,7 +23,7 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
 
   @override
   Widget build(BuildContext context) {
-    // CORRECTION POINT 3 : On retire le Maître du Temps lui-même de la liste
+    // On retire le Maître du Temps lui-même de la liste (ne peut pas s'auto-cibler)
     final candidates = widget.allPlayers
         .where((p) => p.isAlive && p.name != widget.player.name)
         .toList();
@@ -69,6 +68,9 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
                   // Permet de passer son tour explicitement
                   widget.onAction("SKIP", null);
                 } else {
+                  // --- SUIVI POUR SUCCÈS "TIME PERFECT" ---
+                  widget.player.timeMasterUsedPower = true;
+
                   widget.onAction("REWIND", _selectedTarget);
                 }
               },

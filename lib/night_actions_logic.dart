@@ -12,7 +12,6 @@ class NightResult {
   final bool villageIsNarcoleptic;
   final bool exorcistVictory;
 
-  // NOUVEAU : Liste des joueurs dont le rôle est officiellement révélé ce matin
   final List<String> revealedPlayerNames;
 
   NightResult({
@@ -22,7 +21,7 @@ class NightResult {
     this.announcements = const [],
     this.villageIsNarcoleptic = false,
     this.exorcistVictory = false,
-    this.revealedPlayerNames = const [], // Initialisation par défaut
+    this.revealedPlayerNames = const [],
   });
 }
 
@@ -85,8 +84,6 @@ class NightActionsLogic {
     debugPrint("🏁 LOG [Logic] : Début de la résolution finale.");
     Map<String, String> finalDeathReasons = {};
     List<String> morningAnnouncements = [];
-
-    // Liste temporaire pour stocker les révélations du Devin avant de les passer à l'UI
     List<String> playersToReveal = [];
 
     // --- VICTOIRE IMMÉDIATE EXORCISTE ---
@@ -100,7 +97,14 @@ class NightActionsLogic {
       );
     }
 
-    // --- 1. GÉNÉRATION DES ANNONCES (HOUSTON / DEVIN) ---
+    // --- 1. GÉNÉRATION DES ANNONCES (HOUSTON / DEVIN / VOYAGEUR) ---
+
+    // ANNONCE VOYAGEUR
+    for (var p in players) {
+      if (p.role?.toLowerCase() == "voyageur" && p.hasReturnedThisTurn) {
+        morningAnnouncements.add("🌍 Le Voyageur est de retour au village !");
+      }
+    }
 
     // HOUSTON
     try {
@@ -113,14 +117,7 @@ class NightActionsLogic {
         String phrase = sameTeam ? "QUI VOILÀ-JE !" : "HOUSTON, ON A UN PROBLÈME !";
         morningAnnouncements.add("🛰️ HOUSTON : $phrase\n(Analyse de ${p1.name} & ${p2.name})");
 
-        // --- DÉTECTION SUCCÈS APOLLO 13 ---
-        bool oneWolf = (p1.team == "loups" || p2.team == "loups");
-        bool oneSolo = (p1.team == "solo" || p2.team == "solo");
-        if (oneWolf && oneSolo) {
-          houston.houstonApollo13Triggered = true;
-          debugPrint("🛰️ LOG [Succès] : Apollo 13 détecté !");
-        }
-
+        AchievementLogic.checkApollo13(context, houston, p1, p2);
         houston.houstonTargets = [];
       }
     } catch (e) {}
@@ -128,22 +125,16 @@ class NightActionsLogic {
     // DEVIN
     try {
       Player devin = players.firstWhere((p) => p.role?.toLowerCase() == "devin" && p.isAlive);
-      // Si le Devin a une cible et que le compteur indique que la nuit est validée (>= 2)
       if (devin.concentrationTargetName != null && devin.concentrationNights >= 2) {
         Player? target = players.firstWhere((p) => p.name == devin.concentrationTargetName, orElse: () => Player(name: "Inconnu"));
         if (target.name != "Inconnu") {
-          // 1. On prépare l'annonce
           morningAnnouncements.add("👁️ DEVIN : ${target.name} est ${target.role?.toUpperCase()}");
-
-          // 2. On ajoute à la liste des révélations pour l'UI (Icone Œil)
           playersToReveal.add(target.name);
 
-          // 3. Stats & Reset
           devin.devinRevealsCount++;
           if (devin.revealedPlayersHistory.contains(target.name)) {
             devin.hasRevealedSamePlayerTwice = true;
-            // --- CORRECTION : APPEL DU SUCCÈS ---
-            AchievementLogic.checkDevinAchievements(devin);
+            AchievementLogic.checkDevinAchievements(context, devin);
           }
           devin.revealedPlayersHistory.add(target.name);
 
@@ -158,6 +149,12 @@ class NightActionsLogic {
       if (p.hasPlacedBomb && p.bombTimer == 0 && p.tardosTarget != null) {
         Player target = p.tardosTarget!;
         debugPrint("💥 LOG [Explosion] : La bombe de ${p.name} EXPLOSE sur ${target.name} !");
+
+        // Suicide Tardos (Succès Oups)
+        if (target == p) {
+          p.tardosSuicide = true;
+          AchievementLogic.checkTardosOups(context, p);
+        }
 
         if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
           debugPrint("🏠💥 LOG [Tardos] : La bombe détruit la Maison et ses occupants !");
@@ -176,10 +173,8 @@ class NightActionsLogic {
           debugPrint("🌬️ LOG [Tardos] : La bombe explose sur un cadavre.");
         }
 
-        // Nettoyage visuel et logique
         target.isBombed = false;
         p.tardosTarget = null;
-        // Note: p.hasPlacedBomb reste true pour bloquer l'interface Tardos
       }
     }
 
@@ -195,7 +190,6 @@ class NightActionsLogic {
     }
     debugPrint("🥧 LOG [Quiche] : Protection active : $quicheIsActive");
 
-    // --- RECHERCHE DU DRESSEUR POUR LA LOGIQUE DE PROTECTION ---
     Player? dresseur;
     Player? pokemon;
     try {
@@ -213,7 +207,6 @@ class NightActionsLogic {
       pendingDeathsMap.forEach((target, reason) {
         if (!target.isAlive) return;
 
-        // --- CORRECTION POINT 11 : IMMUNITÉ ARCHIVISTE (Nuit) ---
         if (target.isAwayAsMJ) {
           debugPrint("🛡️ LOG [Archiviste] : Attaque sur Archiviste annulée (Absent).");
           return;
@@ -234,24 +227,29 @@ class NightActionsLogic {
           return;
         }
 
-        // --- CORRECTION POINT 8 : LOGIQUE DRESSEUR / POKÉMON ---
         if (dresseur != null && dresseur.lastDresseurAction != null) {
-          // Cas A : Dresseur attaqué alors qu'il se protège lui-même
           if (target == dresseur && dresseur.lastDresseurAction == dresseur) {
             if (pokemon != null && pokemon.isAlive) {
               debugPrint("🦅 LOG [Dresseur] : Dresseur attaqué mais s'est protégé. Le Pokémon meurt à sa place !");
-              // On redirige la mort vers le Pokémon
               Player pokemonVictim = GameLogic.eliminatePlayer(context, players, pokemon, isVote: false);
               if (!pokemonVictim.isAlive) {
                 finalDeathReasons[pokemonVictim.name] = "Sacrifice pour le Dresseur ($reason)";
+                AchievementLogic.checkDeathAchievements(context, pokemonVictim, players);
+                if (pokemonVictim.pokemonRevengeTarget != null && pokemonVictim.pokemonRevengeTarget!.isAlive) {
+                  Player revenge = pokemonVictim.pokemonRevengeTarget!;
+                  debugPrint("⚡ LOG [Pokémon] : MORT (Sacrifice)! Il emporte ${revenge.name} (${revenge.role}).");
+                  // ANNONCE SPECIALE
+                  morningAnnouncements.add("⚡ Le Pokémon (Sacrifié) emporte ${revenge.name} (${revenge.role}) !");
+
+                  GameLogic.eliminatePlayer(context, players, revenge, isVote: false);
+                }
               }
-              return; // Le Dresseur survit
+              return;
             }
           }
-          // Cas B : Pokémon attaqué alors que le Dresseur le protège
           if (target == pokemon && dresseur.lastDresseurAction == pokemon) {
             debugPrint("🦅 LOG [Dresseur] : Pokémon attaqué mais protégé par le Dresseur. Il survit !");
-            return; // Le Pokémon survit
+            return;
           }
         }
 
@@ -264,18 +262,28 @@ class NightActionsLogic {
         Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
         if (!finalVictim.isAlive) {
-          // --- SUCCÈS DINGO : UN TIR DU PARKING ---
+          // CHECK DEATH ACHIEVEMENTS
+          AchievementLogic.checkDeathAchievements(context, finalVictim, players);
+
+          // --- SUCCÈS VOYAGEUR ---
+          if (reason.contains("Tir du Voyageur")) {
+            try {
+              Player voyageur = players.firstWhere((p) => p.role?.toLowerCase() == "voyageur");
+              if (finalVictim.team == "loups") {
+                voyageur.travelerKilledWolf = true;
+              }
+            } catch (_) {}
+          }
+
+          // --- SUCCÈS DINGO ---
           if (reason.contains("Tir du Dingo")) {
             try {
               Player dingo = players.firstWhere((p) => p.role?.toLowerCase() == "dingo");
-              AchievementLogic.checkParkingShot(dingo, finalVictim, players);
-            } catch (e) {
-              debugPrint("⚠️ Erreur succès Dingo : $e");
-            }
+              AchievementLogic.checkParkingShot(context, dingo, finalVictim, players);
+            } catch (e) {}
           }
 
-          // --- NOUVEAU : LOGIQUE POKÉMON (Vengeance) ---
-          // Si la victime est le Pokémon (et qu'il vient de mourir)
+          // --- REVANCHE DU POKEMON ---
           if ((finalVictim.role?.toLowerCase() == "pokémon" || finalVictim.role?.toLowerCase() == "pokemon") &&
               finalVictim.pokemonRevengeTarget != null) {
 
@@ -283,10 +291,12 @@ class NightActionsLogic {
             if (revengeTarget.isAlive) {
               debugPrint("⚡ LOG [Pokémon] : MORT ! Il emporte ${revengeTarget.name} dans la tombe (Vengeance).");
 
-              // On tue la cible immédiatement
-              Player revengeVictim = GameLogic.eliminatePlayer(context, players, revengeTarget, isVote: false);
+              // ANNONCE SPECIALE POUR LA VENGEANCE AVEC ROLE
+              morningAnnouncements.add("⚡ Le Pokémon emporte ${revengeTarget.name} (${revengeTarget.role}) dans sa chute !");
 
+              Player revengeVictim = GameLogic.eliminatePlayer(context, players, revengeTarget, isVote: false);
               if (!revengeVictim.isAlive) {
+                AchievementLogic.checkDeathAchievements(context, revengeVictim, players);
                 finalDeathReasons[revengeVictim.name] = "Vengeance du Pokémon";
               }
             }
@@ -309,18 +319,15 @@ class NightActionsLogic {
 
     // --- 5. MORTS DIFFÉRÉES ET CLEANUP ---
     for (var p in players) {
-      // --- LOGIQUE PANTIN & QUICHE ---
       if (p.isAlive && p.pantinCurseTimer == 0) {
         if (quicheIsActive) {
-          // La Quiche protège même de la malédiction -> Report au lendemain
           debugPrint("🥧 LOG [Pantin] : ${p.name} survit à la malédiction grâce à la Quiche (Report +1 jour).");
-          p.pantinCurseTimer = 1; // On remet à 1 pour qu'il retombe à 0 la nuit prochaine
+          p.pantinCurseTimer = 1;
           quicheSavedThisNight++;
         } else {
-          // Mort normale par malédiction
           debugPrint("🎭 LOG [Pantin] : Mort de la malédiction : ${p.name}");
-          p.isAlive = false;
-          p.pantinCurseTimer = null;
+          GameLogic.eliminatePlayer(context, players, p, isVote: false);
+          AchievementLogic.checkDeathAchievements(context, p, players);
           finalDeathReasons[p.name] = "Malédiction du Pantin";
         }
       }
@@ -340,6 +347,7 @@ class NightActionsLogic {
 
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
+      p.hasReturnedThisTurn = false; // Reset du flag Voyageur
 
       if (!p.hasBeenHitByDart) p.isEffectivelyAsleep = false;
     }
@@ -351,7 +359,7 @@ class NightActionsLogic {
       villageWasProtected: quicheIsActive,
       announcements: morningAnnouncements,
       villageIsNarcoleptic: somnifereActive,
-      revealedPlayerNames: playersToReveal, // Transmission de la liste à l'UI
+      revealedPlayerNames: playersToReveal,
     );
   }
 }

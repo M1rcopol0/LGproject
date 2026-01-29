@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../globals.dart';
+import '../achievement_logic.dart'; // Import nécessaire pour le succès
 import 'target_selector_interface.dart';
 
 class TardosInterface extends StatefulWidget {
@@ -159,11 +160,15 @@ class _TardosInterfaceState extends State<TardosInterface> {
         widget.actor.tardosTarget = widget.actor;
         widget.actor.bombTimer = 0; // Explosion immédiate (fin de nuit)
         widget.actor.hasPlacedBomb = true; // Active l'état "Bombe en cours"
+        widget.actor.tardosSuicide = true; // Flag pour succès
 
         // --- VISUEL : C'est le Tardos qui porte la bombe ---
         widget.actor.isBombed = true;
       });
       _showPop("CRITIQUE !", "La bombe vous a explosé dans les mains !\nVous mourrez ce matin.", true);
+
+      // Déclenchement du succès immédiat
+      AchievementLogic.checkTardosOups(context, widget.actor);
     } else {
       // SUCCÈS STANDARD
       debugPrint("🧨 LOG [Tardos] : Bombe posée sur ${target.name}.");

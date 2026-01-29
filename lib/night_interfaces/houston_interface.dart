@@ -54,7 +54,8 @@ class HoustonInterface extends StatelessWidget {
             onTargetsSelected: (selected) {
               if (selected.length == 2) {
                 // --- 1. TRIGGER SUCCÈS APOLLO 13 ---
-                AchievementLogic.checkApollo13(actor, selected[0], selected[1]);
+                // CORRECTION : Ajout du context pour afficher le Toast immédiatement
+                AchievementLogic.checkApollo13(context, actor, selected[0], selected[1]);
 
                 // --- 2. LOGS DE CONSOLE ---
                 debugPrint("🛰️ LOG [Houston] : ${actor.name} surveille ${selected[0].name} (Camp: ${selected[0].team}) et ${selected[1].name} (Camp: ${selected[1].team}).");

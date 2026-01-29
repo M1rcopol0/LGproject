@@ -34,6 +34,11 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     _currentSeconds = (globalTimerMinutes * 60).toInt();
     _recoverActivePlayers();
 
+    // SÉCURITÉ : Si on charge une partie (jour > 1), on considère que le vote n'est pas encore fait pour CE jour.
+    // Sauf si on vient de recharger l'app en plein milieu de journée, mais là c'est un cas limite.
+    // Par défaut, false au chargement de l'écran.
+    hasVotedThisTurn = false;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkGameStateIntegrity();
     });
@@ -69,12 +74,10 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     String? winner = GameLogic.checkWinner(_activePlayers);
     if (winner == null) return;
 
-    // Pas de victoire jour 1 si la nuit n'est pas passée (sauf cas exceptionnels)
     if (globalTurnNumber <= 1 && !nightOnePassed) return;
 
     debugPrint("🏁 LOG [Game Over] : Victoire détectée -> $winner");
 
-    // Déblocage des succès de fin de partie
     List<Player> winnersList = _activePlayers.where((p) =>
     (winner == "VILLAGE" && p.team == "village") ||
         (winner == "LOUPS" && p.team == "loups") ||
@@ -150,13 +153,11 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
 
   void _handlePlayerTap(Player p) {
     if (!globalRolesDistributed) {
-      // Phase de préparation : Activer/Désactiver le joueur
       debugPrint("👤 LOG [Préparation] : ${p.name} est maintenant ${!p.isPlaying ? 'ACTIF' : 'INACTIF'}");
       setState(() => p.isPlaying = !p.isPlaying);
       return;
     }
 
-    // Phase de Jeu : Tuer / Ressusciter
     if (!p.isPlaying) return;
     if (!p.isAlive) {
       _showResurrectionConfirmation(p);
@@ -165,39 +166,51 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     }
   }
 
-  void _goToNight() {
-    // --- PROTECTION VOTE ---
-    // Si on n'a pas voté ce tour-ci et qu'on est déjà dans le jeu (après nuit 1)
-    if (!hasVotedThisTurn && globalTurnNumber >= 1 && nightOnePassed) {
+  void _goToNight({bool force = false}) {
+    // CORRECTION : On vérifie si c'est la Nuit 1 (pas besoin de vote avant la nuit 1)
+    bool isFirstNight = (globalTurnNumber == 1 && !nightOnePassed);
+
+    if (!force && !hasVotedThisTurn && !isFirstNight) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1D1E33),
           title: const Text("⚠️ Vote Oublié", style: TextStyle(color: Colors.redAccent)),
           content: const Text(
-            "Vous ne pouvez pas passer à la nuit suivante sans avoir fait voter le village !\n\nCliquez sur l'urne de vote d'abord.",
+            "Le village n'a pas voté ce jour. Voulez-vous vraiment passer à la nuit sans vote ?",
             style: TextStyle(color: Colors.white),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text("OK, JE VOTE", style: TextStyle(color: Colors.orangeAccent)),
+              child: const Text("ANNULER", style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _goToNight(force: true); // Force le passage
+              },
+              child: const Text("FORCER LA NUIT", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       );
-      return; // Bloque le passage à la nuit
+      return;
     }
-    // -----------------------
 
     debugPrint("🌙 LOG [Navigation] : Passage en phase de Nuit.");
     _resetTimer();
     isDayTime = false;
     playMusic("ambiance_nuit.mp3");
+
     Navigator.push(context, MaterialPageRoute(builder: (_) => NightActionsScreen(players: _activePlayers))).then((_) {
       debugPrint("☀️ LOG [Navigation] : Retour de la Nuit. Début du Jour.");
       setState(() {
         isDayTime = true;
+
+        // --- REMISE À ZÉRO DU VOTE POUR LA NOUVELLE JOURNÉE ---
+        hasVotedThisTurn = false;
+
         _resetTimer();
         _checkGameStateIntegrity();
       });
@@ -209,7 +222,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     _resetTimer();
     await playSfx("vote_music.mp3");
 
-    // On passe les joueurs déjà triés alphabétiquement
     List<Player> voters = _activePlayers.where((p) => p.isAlive).toList();
     voters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -219,6 +231,10 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         index: 0,
         onComplete: () {
           debugPrint("⚖️ LOG [Vote] : Clôture du vote. Vérification de la survie du Chef...");
+
+          // --- VALIDATION DU VOTE ---
+          hasVotedThisTurn = true;
+
           setState(() {
             _checkGameOver();
 
@@ -230,7 +246,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               }
             }
 
-            isDayTime = false; // Fin de journée
+            isDayTime = false;
             _resetTimer();
           });
         }
@@ -284,7 +300,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               setState(() {
                 int idx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
 
-                // Déduction automatique de l'équipe
                 String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
                 String team = role != null ? GameLogic.getTeamForRole(role) : "village";
 
@@ -317,10 +332,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       ),
     );
   }
-
-  // ==========================================================
-  // UI ET MJ HELPERS
-  // ==========================================================
 
   void _startTimer() {
     if (_isTimerRunning) return;
@@ -362,6 +373,9 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         ElevatedButton(onPressed: () async {
           debugPrint("💀 LOG [MJ] : Élimination manuelle de ${p.name}");
           Navigator.pop(ctx);
+
+          hasVotedThisTurn = true; // Considere que le tour est joué
+
           Player v = GameLogic.eliminatePlayer(context, _activePlayers, p);
           setState(() {});
           playSfx("cloche.mp3");
@@ -465,11 +479,9 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                       children: [
                         Flexible(child: Text(p.name, style: TextStyle(color: Colors.white, decoration: isDead ? TextDecoration.lineThrough : null), overflow: TextOverflow.ellipsis)),
                         const SizedBox(width: 5),
-                        // Icônes de statut
                         p.buildStatusIcons(),
                       ],
                     ),
-                    // Affichage du rôle avec cadenas si assigné manuellement
                     subtitle: globalRolesDistributed
                         ? Text(p.role?.toUpperCase() ?? "INCONNU", style: const TextStyle(color: Colors.white38, fontSize: 10))
                         : (p.isRoleLocked ? Text("🔒 ${p.role?.toUpperCase()}", style: const TextStyle(color: Colors.amberAccent, fontSize: 10)) : null),
@@ -489,7 +501,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                     children: [
                       Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: _goToVote, icon: const Icon(Icons.how_to_vote), label: const Text("VOTE"))),
                       const SizedBox(width: 15),
-                      Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: _goToNight, icon: const Icon(Icons.nights_stay), label: const Text("NUIT"))),
+                      Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: () => _goToNight(force: false), icon: const Icon(Icons.nights_stay), label: const Text("NUIT"))),
                     ],
                   ),
                 ] else ...[
