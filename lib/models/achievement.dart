@@ -165,6 +165,15 @@ class AchievementData {
       checkCondition: (data) => data['player_role']?.toLowerCase() == "maison" && data['turn_count'] == 1 && data['death_cause'] == "direct_hit",
     ),
 
+    // --- Tardos ---
+    Achievement(
+      id: "tardos_oups",
+      title: "Oups...",
+      description: "Faites exploser votre propre bombe à la figure.",
+      icon: "💥", rarity: 2,
+      checkCondition: (data) => data['tardos_suicide'] == true,
+    ),
+
     // --- Voyageur ---
     Achievement(
       id: "traveler_sniper",
@@ -361,15 +370,6 @@ class AchievementData {
       data['player_role']?.toString().trim() == "Ron-Aldo" &&
           data['is_fan'] == false &&
           data['winner_role'] == "RON-ALDO",
-    ),
-
-    // --- Tardos ---
-    Achievement(
-      id: "tardos_oups",
-      title: "Oups...",
-      description: "Faites exploser votre propre bombe à la figure.",
-      icon: "💥", rarity: 2,
-      checkCondition: (data) => data['tardos_suicide'] == true,
     ),
 
     // ==========================================

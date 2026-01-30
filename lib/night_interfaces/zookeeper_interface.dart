@@ -15,13 +15,18 @@ class ZookeeperInterface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // --- CORRECTION CRITIQUE ---
-    // 1. On ne garde QUE les joueurs VIVANTS (fix du bug "viser un mort").
-    // 2. On exclut ceux qui ont déjà le venin en cours pour éviter les doublons inutiles.
+    // 1. On ne garde QUE les joueurs VIVANTS.
+    // 2. On exclut ceux qui ont déjà le venin en cours.
+    // 3. AJOUT : On exclut le Zookeeper lui-même (ne peut pas se viser).
     final selectablePlayers = players.where((p) =>
     p.isAlive &&
         !p.hasBeenHitByDart &&
-        !p.zookeeperEffectReady
+        !p.zookeeperEffectReady &&
+        p.role?.toLowerCase() != "zookeeper" // <--- EMPÊCHE L'AUTO-CIBLE
     ).toList();
+
+    // Tri alphabétique pour plus de clarté
+    selectablePlayers.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     debugPrint("💉 LOG [Zookeeper] : Interface chargée. Cibles éligibles : ${selectablePlayers.length}");
 
@@ -58,24 +63,17 @@ class ZookeeperInterface extends StatelessWidget {
         const Divider(color: Colors.cyanAccent, thickness: 0.5, indent: 40, endIndent: 40),
         Expanded(
           child: TargetSelectorInterface(
-            // Si la liste filtrée est vide (rare, fin de partie), on fallback sur les vivants
-            players: selectablePlayers.isNotEmpty
-                ? selectablePlayers
-                : players.where((p) => p.isAlive).toList(),
+            players: selectablePlayers,
             maxTargets: 1,
             isProtective: false,
             onTargetsSelected: (selectedList) {
               if (selectedList.isNotEmpty) {
                 final target = selectedList.first;
 
-                // --- LOGS DE CONSOLE ---
                 debugPrint("💉 LOG [Zookeeper] : Fléchette tirée sur ${target.name}.");
                 debugPrint("⏳ LOG [Zookeeper] : Venin injecté. Activation prévue au début de la Nuit suivante.");
 
-                // --- LOGIQUE DIFFÉRÉE ---
-                // On marque que la cible a été touchée
                 target.hasBeenHitByDart = true;
-                // On prépare le venin pour qu'il s'active au début de la prochaine boucle de nuit
                 target.zookeeperEffectReady = true;
 
                 onTargetSelected(target);
