@@ -150,6 +150,15 @@ class AchievementData {
     ),
 
     // --- Maison ---
+
+    Achievement(
+      id: "house_collapse",
+      title: "Assurance Tous Risques",
+      description: "Votre maison s'est effondrée pour protéger un invité d'une attaque mortelle.",
+      icon: "🧱", rarity: 1,
+      checkCondition: (data) => false, // Déclenché manuellement par Logic.eliminatePlayer
+    ),
+
     Achievement(
       id: "crazy_casa",
       title: "Crazy Casa",
@@ -168,7 +177,7 @@ class AchievementData {
       id: "house_fast_death",
       title: "Vous auriez pu toquer !",
       description: "En tant que maison, mourrez dès la première nuit.",
-      icon: "🏚️", rarity: 1,
+      icon: "🏚️", rarity: 2,
       checkCondition: (data) => data['player_role']?.toLowerCase() == "maison" && data['turn_count'] == 1 && data['death_cause'] == "direct_hit",
     ),
 
