@@ -65,7 +65,13 @@ class CloudService {
 
         int wins = _max(local['totalWins'] ?? 0, cloud['totalWins'] ?? 0);
 
-        Map<String, dynamic> finalRoles = (local['totalWins'] ?? 0) >= (cloud['totalWins'] ?? 0)
+        // --- CORRECTION : FUSION DES STATS DE GROUPE (VILLAGE/LOUPS) ---
+        // On prend celui qui a le plus de victoires totales pour être cohérent
+        Map<String, dynamic> finalRolesGroups = (local['totalWins'] ?? 0) >= (cloud['totalWins'] ?? 0)
+            ? Map<String, dynamic>.from(local['roles'] ?? {})
+            : Map<String, dynamic>.from(cloud['roles'] ?? {});
+
+        Map<String, dynamic> finalRolesSpecific = (local['totalWins'] ?? 0) >= (cloud['totalWins'] ?? 0)
             ? Map<String, dynamic>.from(local['roleWins'] ?? {})
             : Map<String, dynamic>.from(cloud['roleWins'] ?? {});
 
@@ -77,7 +83,8 @@ class CloudService {
 
         mergedPlayerStats[name] = {
           'totalWins': wins,
-          'roleWins': finalRoles,
+          'roles': finalRolesGroups, // AJOUTÉ : Préserve les stats par équipe
+          'roleWins': finalRolesSpecific,
           'achievements': mergedAch,
           'counters': local['counters'] ?? cloud['counters'] ?? {},
         };
@@ -146,7 +153,7 @@ class CloudService {
         try {
           var ach = AchievementData.allAchievements.firstWhere(
                   (a) => a.id == id,
-              orElse: () => Achievement(id: id, title: "Inconnu", description: "-", icon: "❓", rarity: 1, checkCondition: (_)=>false)
+              orElse: () => Achievement(id: id, title: "Inconnu ($id)", description: "-", icon: "❓", rarity: 1, checkCondition: (_)=>false)
           );
           richAchievements.add({
             'title': ach.title, 'description': ach.description, 'icon': ach.icon, 'rarity': ach.rarity, 'date': dateStr

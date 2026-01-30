@@ -46,6 +46,7 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
   @override
   Widget build(BuildContext context) {
     // Filtrer les candidats : Vivants et pas le Maître du Temps lui-même
+    // On exclut aussi le Maître du Temps de la liste pour qu'il ne puisse pas se suicider par erreur
     final candidates = widget.allPlayers
         .where((p) => p.isAlive && p.name != widget.player.name)
         .toList();
@@ -137,10 +138,14 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
                   widget.onAction("SKIP", null);
                 } else {
                   // Action Tuer
-                  // On marque que le pouvoir a été utilisé (pour le succès "Clean Hands")
+                  // 1. On marque que le pouvoir a été utilisé (pour le succès "Clean Hands")
                   widget.player.timeMasterUsedPower = true;
 
-                  // On envoie la liste des cibles
+                  // 2. CORRECTION CRITIQUE : On sauvegarde la liste des noms des cibles dans le profil du joueur.
+                  // C'est cette liste que NightActionsLogic va lire pour tuer les joueurs.
+                  widget.player.timeMasterTargets = _selectedTargets.map((p) => p.name).toList();
+
+                  // 3. On envoie l'action pour fermer l'écran
                   widget.onAction("KILL", _selectedTargets);
                 }
               },

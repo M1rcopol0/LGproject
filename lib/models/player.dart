@@ -24,7 +24,7 @@ class Player {
   int hostedCountThisGame; // Pour 'hotel_training'
   bool timeMasterUsedPower; // Pour 'time_perfect'
   bool tardosSuicide; // Pour 'tardos_oups'
-  bool pantinClutchTriggered; // NOUVEAU : Pour le succès Clutch
+  bool pantinClutchTriggered; // Pour le succès Clutch
 
   // --- NOUVEAU : Cible du Devin ---
   bool isRevealedByDevin;
@@ -54,6 +54,7 @@ class Player {
 
   // --- MAÎTRE DU TEMPS ---
   bool isSavedByTimeMaster;
+  List<String> timeMasterTargets; // AJOUT : Liste des cibles à tuer (Correction Bug)
 
   // --- STATS DE SESSION ---
   int votes;
@@ -82,9 +83,7 @@ class Player {
   bool wasRevivedInThisGame;
   bool hasUsedRevive;
 
-  // CORRECTION : Changement de String? à Player? pour la logique de protection
   Player? lastDresseurAction;
-  // NOUVEAU : Cible de vengeance du Pokémon
   Player? pokemonRevengeTarget;
 
   // Devin
@@ -162,6 +161,7 @@ class Player {
     this.archivisteActionsUsed = const [],
     this.phylTargets = const [],
     this.isSavedByTimeMaster = false,
+    this.timeMasterTargets = const [], // Initialisation vide
     this.votes = 0,
     this.isVoteCancelled = false,
     this.travelerKilledWolf = false,
@@ -258,6 +258,7 @@ class Player {
     travelerBullets = 0;
     somnifereUses = 1;
     votes = 0;
+    timeMasterTargets = []; // Reset complet
   }
 
   void resetTemporaryStates() {
@@ -270,6 +271,7 @@ class Player {
     isSavedByTimeMaster = false;
     pokemonRevengeTarget = null;
     hasReturnedThisTurn = false;
+    // Note: On ne reset pas timeMasterTargets ici car elles sont traitées à la fin de la nuit
   }
 
   Widget buildStatusIcons() {
@@ -409,6 +411,7 @@ class Player {
       'timeMasterUsedPower': timeMasterUsedPower,
       'tardosSuicide': tardosSuicide,
       'pantinClutchTriggered': pantinClutchTriggered,
+      'timeMasterTargets': timeMasterTargets, // AJOUTÉ POUR SAUVEGARDE
     };
   }
 
@@ -487,6 +490,7 @@ class Player {
       ..hostedCountThisGame = map['hostedCountThisGame'] ?? 0
       ..timeMasterUsedPower = map['timeMasterUsedPower'] ?? false
       ..tardosSuicide = map['tardosSuicide'] ?? false
-      ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false;
+      ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false
+      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? []); // AJOUTÉ POUR CHARGEMENT
   }
 }
