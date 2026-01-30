@@ -32,19 +32,19 @@ class WikiPage extends StatelessWidget {
             ),
             const WikiItem(
                 role: "Devin",
-                desc: "Pendant deux nuits, le Devin se concentre sur une personne dont le rôle sera révélé au grand jour. Chaque nuit, il a le droit de changer son objet de concentration mais il se réinitialise."
+                desc: "Pendant deux nuits, le Devin concentre sur une personne dont le rôle sera révélé au grand jour. Chaque nuit, il a le droit de changer son objet de concentration mais il se réinitialise."
             ),
             const WikiItem(
                 role: "Dingo",
-                desc: "Chaque nuit, le Dingo peut lancer un objet léger sur un participant de son choix. Il peut recevoir un objet lourd à lancer à la discrétion du MJ. Lors du lancer de l’objet lourd, un son retentira pour demander aux joueurs de se protéger. Le Dingo doit atteindre 4 cibles pendant la partie avant d’être tué. Il ne doit pas se déplacer. Une fois ses quatre cibles touchées, il reçoit un objet lourd et pendant la journée il le lance sur qui il veut en le tuant."
+                desc: "Chaque nuit, le Dingo peut lancer un objet léger sur un participant de son choix. Il peut recevoir un objet lourd à lancer à la discrétion du MJ. Lors du lancer de l’objet lourd, un son retentira pour demander aux joueurs de se protéger. Le Dingo doit atteindre 2 cibles pendant la partie avant d’être tué. Il ne doit pas se déplacer. Une fois ses 2 cibles touchées, il reçoit un objet lourd et pendant la nuit il le lance sur qui il veut en le tuant."
             ),
             const WikiItem(
                 role: "Zookeeper",
-                desc: "Chaque nuit, le Zookeeper peut utiliser son fusil tranquillisant pour endormir sa cible, qui ne se réveillera pas la nuit suivante."
+                desc: "Chaque nuit, le Zookeeper peut utiliser son fusil tranquillisant pour endormir sa cible, qui ne se réveillera pas la nuit suivante. ll ne peut pas viser 2 nuits de suite la même cible"
             ),
             const WikiItem(
                 role: "Enculateur du bled",
-                desc: "Chaque nuit, l'Enculateur du bled choisit une personne à violer pendant la journée, ce qui la protège du vote."
+                desc: "Chaque nuit, l'Enculateur du bled choisit une personne à violer pendant la journée, ce qui la protège du vote. Il ne peut pas se protéger lui-même. Il ne peut pas protéger la même personne deux  jours de suite"
             ),
             const WikiItem(
                 role: "Exorciste",
@@ -52,7 +52,7 @@ class WikiPage extends StatelessWidget {
             ),
             const WikiItem(
                 role: "Grand-mère",
-                desc: "Toutes les deux nuits, la Grand-mère choisit de faire une quiche. Cette dernière protège tous les joueurs de la mort pendant la nuit. La Grand-mère a 1 chance sur 2 de rater sa quiche, la rendant inefficace."
+                desc: "Toutes les deux nuits, la Grand-mère choisit de faire une quiche. Cette dernière protège tous les joueurs de la mort pendant la nuit. La quiche n'empêche pas les victimes du Tardos d'exploser."
             ),
             const WikiItem(
                 role: "Houston",
@@ -60,11 +60,11 @@ class WikiPage extends StatelessWidget {
             ),
             const WikiItem(
                 role: "Maison",
-                desc: "Chaque nuit la Maison peut accueillir une personne. Cette personne est protégée des attaques pendant la nuit. La Maison peut contenir simultanément 2 personnes maximum et ne peut pas les enlever de la maison une fois choisies. Si une personne protégée est ciblée, elle survit et la maison meurt à la place. Si le Tardos attaque la maison ou un des membres, tout le monde meurt."
+                desc: "Chaque nuit la Maison peut accueillir une personne. Cette personne est protégée des attaques de jour comme de nuit. La Maison peut contenir simultanément 2 personnes maximum et ne peut pas les enlever de la maison une fois choisies. Si une personne protégée est ciblée, elle survit et la maison meurt à la place. Si le Tardos attaque la maison ou un des membres, tout le monde meurt."
             ),
             const WikiItem(
                 role: "Tardos",
-                desc: "Le Tardos a le droit de poser une bombe dans la partie sur un joueur. Une fois posée, la bombe n’explose pas avant deux nuits, puis explose en tuant la cible et un de ses voisins aléatoirement. La bombe du Tardos à 1 chance sur 100 de lui exploser dans les mains, le tuant instantanément."
+                desc: "Le Tardos a le droit de poser une bombe dans la partie sur un joueur. Une fois posée, la bombe n’explose pas avant deux nuits, puis explose en tuant la cible et un de ses voisins aléatoirement. La bombe du Tardos à 1 chance sur 100 de lui exploser dans les mains dès l'amorçage, le tuant instantanément."
             ),
             const WikiItem(
                 role: "Villageois",
@@ -72,27 +72,27 @@ class WikiPage extends StatelessWidget {
             ),
             const WikiItem(
                 role: "Voyageur",
-                desc: "Le Voyageur choisit de partir en voyage aussi longtemps qu’il le souhaite. Toutes les deux nuits d’absence, il gagne une balle qu’il pourra utiliser à son retour. Pendant son absence son vote ne sera pas comptabilisé. S’il est “tué” pendant son voyage ou voté lors de la journée, il revient avec ce qu’il a récupéré, est exposé aux yeux de tous et devient un simple Villageois."
+                desc: "Le Voyageur choisit de partir en voyage aussi longtemps qu’il le souhaite. Toutes les deux nuits d’absence, il gagne une balle qu’il pourra utiliser à son retour. Pendant son absence son vote ne sera pas comptabilisé. S’il est “tué” pendant son voyage ou voté lors de la journée, il revient avec ce qu’il a récupéré, est exposé aux yeux de tous et devient un simple Villageois, ne pouvant plus repartir en voyage. En cas de retour normal, il peut immédiatement utiliser une balle par nuit, mais perd l'option de partir en voyage. "
             ),
 
             _buildFactionHeader("LOUPS-GAROUS", Colors.redAccent),
             const WikiItem(
                 role: "Loup-garou chaman",
-                desc: "Le Loup-garou chaman est un Loup-garou évolué qui peut voir le rôle d’une personne au choix lors de la nuit. Pendant le vote des autres Loups-garous évolués, le sien n’est pas comptabilisé. Si tous les autres Loups-garous évolués sont tués, il perd son don de clairvoyance et gagne le pouvoir de voter la nuit."
+                desc: "Le Loup-garou chaman est un Loup-garou évolué qui peut voir le rôle d’une personne au choix lors de la nuit. Pendant le vote des autres Loups-garous évolués, le sien n’est pas comptabilisé. Si tous les autres Loups-garous évolués ou Somifère sont tués, il perd son don de clairvoyance et gagne le pouvoir de voter la nuit."
             ),
             const WikiItem(
                 role: "Loup-garou évolué",
-                desc: "Chaque nuit, le Loup-garou évolué se concerte avec ses camarades pour désigner une personne à tuer. Il peut mettre une chiquette à qui il veut en mourant (sauf Charles et Gabriel)."
+                desc: "Chaque nuit, le Loup-garou évolué se concerte avec ses camarades pour désigner une personne à tuer. Il peut mettre une chiquette à qui il veut en mourant (sauf Charles, Xantin et Gabriel)."
             ),
             const WikiItem(
                 role: "Somnifère",
-                desc: "2 fois par partie, Somnifère choisit d’empoisonner tous les joueurs en les endormant pendant la journée. Ils se réveilleront pour entendre les morts de la nuit puis devront se rendormir."
+                desc: "Une fois par partie, Somnifère choisit d’empoisonner tous les joueurs en les endormant pendant la journée. Ils se réveilleront pour entendre les morts de la nuit puis devront se rendormir. "
             ),
 
             _buildFactionHeader("SOLO", Colors.orangeAccent),
             const WikiItem(
                 role: "Chuchoteur",
-                desc: "Chaque nuit, le Chuchoteur choisit une cible à qui passer Jimi. La cible aura interdiction de parler la journée et ne pourra pas voter. Les nuits 3 et 4, il peut chuchoter à l'oreille de 2 joueurs qui ne peuvent ni parler ni voter. A partir de la nuit 5, le Chuchoteur étend son pouvoir à 3 joueurs simultanément."
+                desc: "TRAVAIL EN COURS."
             ),
             const WikiItem(
                 role: "Maître du temps",
@@ -100,15 +100,15 @@ class WikiPage extends StatelessWidget {
             ),
             const WikiItem(
                 role: "Pantin",
-                desc: "Invincible à tout sauf le vote du jour, chaque nuit le Pantin maudit 2 personnes qui mourront 2 tours plus tard. S'il est voté, il ne meurt que deux nuits après le vote. La Maison est maudite dès lors qu'elle accueille une personne maudite. Le vote du Pantin compte double."
+                desc: "Invincible à tout sauf le vote du jour, chaque nuit le Pantin maudit 2 personnes qui mourront 2 tours plus tard. S'il est voté, il ne meurt que deux nuits après le vote. Le vote du Pantin compte double. En cas de quiche, les morts de la malédiction sont retardés d'une nuit."
             ),
             const WikiItem(
                 role: "Phyl",
-                desc: "Pour gagner, Phyl doit être nommé chef du village (d'une manière ou d'une autre) et que ses 2 cibles indiquées par le MJ en début de partie soient décédées."
+                desc: "Pour gagner, Phyl doit être nommé chef du village (d'une manière ou d'une autre) et que ses 2 cibles indiquées par le MJ en début de partie soient décédées. "
             ),
             const WikiItem(
                 role: "Dresseur",
-                desc: "Chaque nuit, le Dresseur a deux choix : immobiliser un joueur selon le choix de son Pokémon en désactivant son action de la nuit, ou alors protéger son Pokémon (ou lui-même) pour la nuit. Si c'est le Dresseur qui se protège grâce à son Pokémon, le Pokémon mourra en cas d'attaque (sauf s'il est déjà mort, dans ce cas le Dresseur meurt). Si le Pokémon est mort, le Dresseur peut le réanimer pendant la nuit une seule fois. Chaque nuit le Dresseur doit changer d'action."
+                desc: "Chaque nuit, le Dresseur a deux choix : immobiliser un joueur selon le choix de son Pokémon en désactivant son action de la nuit, ou alors protéger son Pokémon (ou lui-même) pour la nuit. Si c'est le Dresseur qui se protège grâce à son Pokémon, le Pokémon mourra en cas d'attaque (sauf s'il est déjà mort, dans ce cas le Dresseur meurt). Si le Pokémon est mort, le Dresseur peut le réanimer pendant la nuit une seule fois. Chaque nuit le Dresseur doit changer d'action. "
             ),
             const WikiItem(
                 role: "Pokémon",
@@ -116,11 +116,11 @@ class WikiPage extends StatelessWidget {
             ),
             const WikiItem(
                 role: "Ron-Aldo",
-                desc: "Chaque nuit, Ron-Aldo se réveille pour convertir un Fan avec une limite de 3 Fans maximum. Lorsque le Fan est converti, le MJ lui tape sur la tête pour qu'il reconnaisse son nouveau maître. Si Ron-Aldo meurt d’une manière ou d’une autre, c’est son Fan le plus ancien qui meurt à la place."
+                desc: "Chaque nuit, Ron-Aldo se réveille pour convertir un Fan avec une limite de 3 Fans maximum. Lorsque le Fan est converti, le MJ lui tape sur la tête pour qu'il reconnaisse son nouveau maître. Si Ron-Aldo meurt d’une manière ou d’une autre, c’est son Fan le plus ancien qui meurt à la place. Ce dernier pouvoir ne peut s'activer qu'une seule fois."
             ),
             const WikiItem(
                 role: "Fan de Ron-Aldo",
-                desc: "Dès qu’il est désigné par Ron-Aldo, le Fan perd son rôle précédent et ses pouvoirs. Son seul but désormais est de suivre Ron-Aldo et de le défendre par tous les moyens. Lors d’un vote, le Fan doit obligatoirement suivre les indications de Ron-Aldo. Cela signifie que même si Ron-Aldo accuse son Fan, il devra se désigner lui-même. Seul le premier Fan recruté par Ron-Aldo peut le protéger d’une mort certaine. À la mort de Ron-Aldo, les Fans doivent gagner entre eux."
+                desc: "Dès qu’il est désigné par Ron-Aldo, le Fan perd son rôle précédent et ses pouvoirs. Son seul but désormais est de suivre Ron-Aldo et de le défendre par tous les moyens. Lors d’un vote, le Fan doit obligatoirement suivre les indications de Ron-Aldo (et donc les interpréter puisque le vote est anonyme). Cela signifie que même si Ron-Aldo accuse son Fan, il devra se désigner lui-même. Seul le premier Fan recruté par Ron-Aldo peut le protéger d’une mort certaine. À la mort de Ron-Aldo, les Fans doivent gagner entre eux. "
             ),
 
             // NOUVELLE SECTION : TITRES ET POSITIONS
