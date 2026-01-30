@@ -364,11 +364,10 @@ class AchievementData {
     Achievement(
       id: "ultimate_fan",
       title: "Fan Ultime",
-      description: "Trahir Ron-Aldo et en subir les conséquences.",
-      icon: "🔪", rarity: 3,
-      checkCondition: (data) =>
-      data['hasBetrayedRonAldo'] == true &&
-          data['winner_role'] == "VILLAGE",
+      description: "Votez contre Ron-Aldo mais mourez pour le sauver.",
+      icon: "💔", rarity: 3,
+      // Condition mise à jour pour réagir au déclencheur immédiat
+      checkCondition: (data) => data['ultimate_fan_action'] == true,
     ),
     Achievement(
       id: "fan_sacrifice",

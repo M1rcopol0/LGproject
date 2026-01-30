@@ -159,12 +159,26 @@ class AchievementLogic {
     if (deadFan.isFanOfRonAldo) {
       if (ronAldo.isAlive) {
         fanSacrificeAchieved = true;
+
+        // 1. Succès Standard : Garde du Corps
         TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: deadFan.name,
           achievementId: "fan_sacrifice",
           checkData: {'is_fan_sacrifice': true},
         );
+
+        // 2. Succès Fan Ultime : Trahison ET Sacrifice
+        // Le fan meurt pour Ron-Aldo ALORS qu'il a voté contre lui ce tour-ci
+        if (deadFan.targetVote != null && deadFan.targetVote!.name == ronAldo.name) {
+          debugPrint("💔 LOG [Achievement] : SACRIFICE ULTIME détecté pour ${deadFan.name} !");
+          TrophyService.checkAndUnlockImmediate(
+            context: context,
+            playerName: deadFan.name,
+            achievementId: "ultimate_fan",
+            checkData: {'ultimate_fan_action': true},
+          );
+        }
       }
     }
   }
