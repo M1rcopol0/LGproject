@@ -11,22 +11,23 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 1. Initialisation du système de Logs (Talker)
+  // CONFIGURATION CRITIQUE : On garde les 20 000 lignes les plus récentes.
   globalTalker = TalkerFlutter.init(
     settings: TalkerSettings(
-      // CORRECTION : Augmentation de la limite à 10 000 pour conserver plus d'historique récent
-      maxHistoryItems: 10000,
-      // On désactive l'écriture console automatique pour éviter les doublons/boucles
-      useConsoleLogs: false,
+      maxHistoryItems: 20000, // Les anciens logs seront écrasés par les nouveaux
+      useConsoleLogs: false,  // On gère nous-même le print pour éviter les doublons
     ),
   );
 
   // 2. Redirection des debugPrint
   debugPrint = (String? message, {int? wrapWidth}) {
-    // A. On envoie à Talker (pour l'historique dans l'appli)
-    globalTalker.debug(message);
+    if (message != null) {
+      // A. On envoie à Talker (pour l'historique dans l'appli et l'export)
+      globalTalker.debug(message);
 
-    // B. On imprime manuellement dans la console Android Studio
-    if (message != null) print(message);
+      // B. On imprime manuellement dans la console Android Studio (pour le débug direct)
+      print(message);
+    }
   };
 
   // 3. Gestion des erreurs Flutter (Crashs)
