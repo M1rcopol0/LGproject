@@ -21,6 +21,7 @@ class ArchivisteInterface extends StatefulWidget {
 
 class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   String? _currentView;
+  int? _generatedDestinyNumber; // Le chiffre que l'appli a généré pour ce tour
 
   // Enregistre l'action pour les succès et LOGS
   void _recordAction(String actionName, String details) {
@@ -31,23 +32,37 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   }
 
   // --- LOGIQUE DU DÉPÔT DU DESTIN ---
-  void _consultDestiny() {
-    widget.actor.mjNightsCount++;
-    int chance = (widget.actor.mjNightsCount == 1) ? 15
-        : (widget.actor.mjNightsCount == 2) ? 7 : 3;
+  void _generateDestinyNumber() {
+    // Si on a déjà généré un chiffre pour cette session d'écran, on ne le change pas (évite la triche par re-clic)
+    if (_generatedDestinyNumber != null) return;
 
-    int roll = Random().nextInt(chance) + 1;
-    debugPrint("🎲 LOG [Archiviste] : Consultation du destin (Nuit ${widget.actor.mjNightsCount} en exil). Roll: $roll/$chance");
+    // Incrémentation du compteur de nuits en exil (si pas déjà fait ce tour)
+    // Note: Idéalement, cela devrait être géré dans la logique globale, mais pour l'affichage ici on calcule la range.
+    // On utilise mjNightsCount stocké dans le joueur.
 
-    if (roll == 1) {
-      _recordAction("transcendance_return", "Réussite du jet de retour ! Choix de l'équipe requis.");
-      setState(() {
-        widget.actor.needsToChooseTeam = true;
-      });
-    } else {
-      debugPrint("📖 LOG [Archiviste] : Échec du retour. L'exil continue.");
-      widget.onComplete("Le destin vous maintient dans l'ombre (Roll: $roll/$chance). L'exil continue.");
-    }
+    int maxRange = 15;
+    if (widget.actor.mjNightsCount >= 2) maxRange = 3;      // 3ème nuit et + (index commence à 0 donc >=2 signifie 3ème passage)
+    else if (widget.actor.mjNightsCount == 1) maxRange = 7; // 2ème nuit
+    else maxRange = 15;                                     // 1ère nuit
+
+    setState(() {
+      _generatedDestinyNumber = Random().nextInt(maxRange) + 1;
+    });
+
+    debugPrint("🎲 LOG [Archiviste] : Chiffre du destin généré : $_generatedDestinyNumber (Range 1-$maxRange)");
+  }
+
+  void _handleMjSuccess() {
+    _recordAction("transcendance_return", "Le MJ a trouvé le chiffre ! Retour de l'Archiviste.");
+    setState(() {
+      widget.actor.needsToChooseTeam = true;
+    });
+  }
+
+  void _handleMjFailure() {
+    widget.actor.mjNightsCount++; // On augmente le compteur pour réduire la difficulté la prochaine fois
+    debugPrint("📖 LOG [Archiviste] : Le MJ a échoué. L'exil continue (Compteur: ${widget.actor.mjNightsCount}).");
+    widget.onComplete("Le MJ n'a pas trouvé le chiffre caché. L'exil continue jusqu'à la prochaine nuit.");
   }
 
   void _applyTeamChoice(String team) {
@@ -56,6 +71,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
       widget.actor.team = team;
       widget.actor.isAwayAsMJ = false;
       widget.actor.needsToChooseTeam = false;
+      widget.actor.mjNightsCount = 0; // Reset pour une future transcendance éventuelle
     });
     widget.onComplete("Vous avez choisi le camp : ${team.toUpperCase()}. Vous reviendrez au village à l'aube.");
   }
@@ -65,15 +81,24 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
     setState(() {
       widget.actor.isAwayAsMJ = true;
       widget.actor.hasUsedSwapMJ = true;
-      widget.actor.mjNightsCount = 0;
+      widget.actor.mjNightsCount = 0; // Départ compteur
     });
-    widget.onComplete("Vous quittez le village. Le dé de retour pourra être lancé dès la nuit prochaine.");
+    widget.onComplete("Vous quittez le village pour remplacer le MJ. Bonne chance !");
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Si on est en mode "Away", on génère le chiffre dès l'arrivée sur l'écran
+    if (widget.actor.isAwayAsMJ && !widget.actor.needsToChooseTeam) {
+      _generateDestinyNumber();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.actor.needsToChooseTeam) return _buildTeamSelectionView();
-    if (widget.actor.isAwayAsMJ) return _buildAwayView();
+    if (widget.actor.isAwayAsMJ) return _buildDestinyView(); // Nouvelle vue interactive
     if (_currentView != null) return _buildPlayerSelector();
 
     return _buildMainPowerMenu();
@@ -111,24 +136,76 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
     );
   }
 
-  Widget _buildAwayView() {
+  // NOUVELLE VUE : LE DÉFI DU MJ
+  Widget _buildDestinyView() {
+    int maxRange = 15;
+    if (widget.actor.mjNightsCount >= 2) maxRange = 3;
+    else if (widget.actor.mjNightsCount == 1) maxRange = 7;
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.auto_awesome_motion, color: Colors.amberAccent, size: 60),
-          const SizedBox(height: 20),
-          const Text("VOUS ÊTES LE MAÎTRE DU JEU", style: TextStyle(color: Colors.amber, fontSize: 20, fontWeight: FontWeight.bold)),
-          const Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Text(
-              "Le village ne vous voit plus. Sollicitez le destin pour tenter de revenir parmi les mortels.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.psychology_alt, color: Colors.amberAccent, size: 60),
+            const SizedBox(height: 20),
+            const Text(
+                "DÉFI DU DESTIN",
+                style: TextStyle(color: Colors.amber, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)
             ),
-          ),
-          _actionBtn("CONSULTER LE DESTIN", Colors.indigo, _consultDestiny),
-        ],
+            const SizedBox(height: 10),
+            Text(
+              "Demandez au MJ de deviner un chiffre\nentre 1 et $maxRange.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+            const SizedBox(height: 30),
+
+            // AFFICHAGE DU CHIFFRE SECRET
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amberAccent),
+              ),
+              child: Column(
+                children: [
+                  const Text("LE CHIFFRE EST :", style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  Text(
+                    "${_generatedDestinyNumber ?? '?'}",
+                    style: const TextStyle(color: Colors.white, fontSize: 60, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            // BOUTONS DE RÉSOLUTION
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  minimumSize: const Size(double.infinity, 60),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+              ),
+              onPressed: _handleMjSuccess,
+              icon: const Icon(Icons.check_circle, size: 30),
+              label: const Text("LE MJ A DEVINÉ !", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 15),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+              ),
+              onPressed: _handleMjFailure,
+              icon: const Icon(Icons.close, size: 30),
+              label: const Text("LE MJ A ÉCHOUÉ...", style: TextStyle(fontSize: 16)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -138,14 +215,20 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.check_circle, color: Colors.greenAccent, size: 60),
+          const Icon(Icons.handshake, color: Colors.greenAccent, size: 60),
           const SizedBox(height: 10),
-          const Text("DICE ROLL RÉUSSI !", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          const Text("Choisissez votre camp de retour :", style: TextStyle(color: Colors.white70)),
+          const Text("RETOUR VALIDÉ !", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+            child: Text("Vous reprenez votre place de joueur.\nChoisissez votre nouvelle allégeance :",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70)
+            ),
+          ),
           const SizedBox(height: 20),
-          _teamBtn("VILLAGE", Colors.green, () => _applyTeamChoice("village")),
-          _teamBtn("LOUPS-GAROUS", Colors.red, () => _applyTeamChoice("loups")),
-          _teamBtn("SOLO", Colors.deepPurpleAccent, () => _applyTeamChoice("solo")),
+          _teamBtn("RESTER VILLAGE", Colors.green, () => _applyTeamChoice("village")),
+          _teamBtn("REJOINDRE LES LOUPS", Colors.red, () => _applyTeamChoice("loups")),
+          _teamBtn("JOUER SOLO", Colors.deepPurpleAccent, () => _applyTeamChoice("solo")),
         ],
       ),
     );
@@ -166,7 +249,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
           child: ListView.builder(
             itemCount: list.length,
             itemBuilder: (ctx, i) => ListTile(
-              title: Text(formatPlayerName(list[i].name), style: const TextStyle(color: Colors.white)),
+              title: Text(Player.formatName(list[i].name), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 if (_currentView == 'cancelVote') {
                   list[i].isVoteCancelled = true;
@@ -204,23 +287,16 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   Widget _teamBtn(String text, Color col, VoidCallback fn) => Padding(
     padding: const EdgeInsets.all(8.0),
     child: SizedBox(
-      width: 250,
-      height: 50,
+      width: 280,
+      height: 55,
       child: ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: col),
+        style: ElevatedButton.styleFrom(
+            backgroundColor: col,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+        ),
         onPressed: fn,
-        child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
       ),
     ),
-  );
-
-  Widget _actionBtn(String text, Color col, VoidCallback fn) => ElevatedButton(
-    style: ElevatedButton.styleFrom(
-        backgroundColor: col,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))
-    ),
-    onPressed: fn,
-    child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
   );
 }
