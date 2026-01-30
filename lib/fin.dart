@@ -67,6 +67,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
           return role == "PANTIN";
         case "CHUCHOTEUR":
           return role == "CHUCHOTEUR";
+        case "EXORCISTE": // Cas spécifique géré par checkWinner dans logic.dart
+          return role == "EXORCISTE"; // L'exorciste gagne seul dans la logique interne, mais affiché comme Village
         default:
           return role == widget.winnerType;
       }
@@ -75,17 +77,12 @@ class _GameOverScreenState extends State<GameOverScreen> {
     computedWinners = computedWinners.toSet().toList();
     if (mounted) setState(() => winners = computedWinners);
 
-    // 3. Vérifications des succès de Fin de Partie (Roi du CDI, Victoires, etc.)
-    if (mounted) {
-      AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
-    }
-
     if (widget.winnerType != "ÉGALITÉ_SANGUINAIRE" && winners.isNotEmpty) {
       String roleGroup = "SOLO";
-      if (widget.winnerType == "VILLAGE") roleGroup = "VILLAGE";
+      if (widget.winnerType == "VILLAGE" || widget.winnerType == "EXORCISTE") roleGroup = "VILLAGE";
       if (widget.winnerType == "LOUPS-GAROUS") roleGroup = "LOUPS-GAROUS";
 
-      // 4. Préparer les stats globales de la partie
+      // 3. Préparer les stats globales de la partie
       Map<String, dynamic> customStats = {
         'winner_role': widget.winnerType,
         'turn_count': globalTurnNumber,
@@ -105,11 +102,19 @@ class _GameOverScreenState extends State<GameOverScreen> {
         'exorcisme_success_win': exorcistWin,
       };
 
-      // 5. Enregistrer la victoire dans la base locale
+      // 4. Enregistrer la victoire dans la base locale (CRUCIAL : AVANT les succès)
+      // On utilise await pour être sûr que le fichier est écrit avant de lire les stats pour les succès
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
 
-      // 6. Vérifier les succès individuels pour CHAQUE vainqueur
+      // 5. Vérifier les succès de Fin de Partie (Roi du CDI, Première Victoire, etc.)
+      // Maintenant que recordWin est passé, "totalWins" est à jour pour "Première Victoire".
+      if (mounted) {
+        await AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
+      }
+
+      // 6. Vérifier les succès individuels complexes pour CHAQUE vainqueur
       for (var winner in winners) {
+        // On recharge les stats fraîches (qui contiennent la victoire qu'on vient d'ajouter)
         Map<String, dynamic> stats = await TrophyService.getStats();
         Map<String, dynamic> playerStats = stats[winner.name] ?? {};
         Map<String, dynamic> counters = playerStats['counters'] ?? {};
@@ -165,14 +170,14 @@ class _GameOverScreenState extends State<GameOverScreen> {
       }
     }
 
-    // 7. SYNCHRO CLOUD AUTOMATIQUE (NOUVEAU)
+    // 7. SYNCHRO CLOUD AUTOMATIQUE
     try {
       final prefs = await SharedPreferences.getInstance();
       bool autoSync = prefs.getBool('auto_cloud_sync') ?? false;
 
       if (autoSync && mounted) {
         debugPrint("☁️ LOG [GameOver] : Lancement de la sauvegarde automatique Google Sheets...");
-        // On n'attend pas (await) pour ne pas bloquer l'UI, le service gère les SnackBars
+        // On n'attend pas (await) pour ne pas bloquer l'UI, le service gère les SnackBars en fond
         CloudService.uploadData(context);
       }
     } catch (e) {
@@ -191,10 +196,13 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
     switch (widget.winnerType) {
       case "VILLAGE":
+      case "EXORCISTE": // Affichage identique pour Exorciste
         title = "VICTOIRE DU VILLAGE";
-        message = "La paix revient enfin sur le village.";
+        message = widget.winnerType == "EXORCISTE"
+            ? "L'Exorciste a purifié le village !"
+            : "La paix revient enfin sur le village.";
         themeColor = Colors.greenAccent;
-        icon = Icons.gite;
+        icon = widget.winnerType == "EXORCISTE" ? Icons.cleaning_services : Icons.gite;
         break;
       case "LOUPS-GAROUS":
         title = "VICTOIRE DES LOUPS";
@@ -245,12 +253,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
         message = "Le Chuchoteur a eu le dernier mot.";
         themeColor = Colors.blueGrey;
         icon = Icons.volume_off;
-        break;
-      case "EXORCISTE":
-        title = "PURIFICATION";
-        message = "Le village a été lavé de tout soupçon.";
-        themeColor = Colors.amber;
-        icon = Icons.cleaning_services;
         break;
       default:
         title = "VICTOIRE SOLITAIRE";

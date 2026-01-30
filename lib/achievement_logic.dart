@@ -12,15 +12,16 @@ class AchievementLogic {
   // 1. ÉVÉNEMENTS DE FIN DE PARTIE (VICTOIRE)
   // ==========================================================
 
-  static void checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) {
+  static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) async {
     if (winners.isEmpty) return;
 
     for (var p in winners) {
-      _safeUnlock(p.name, "first_win");
+      // On await pour éviter que les écritures ne se chevauchent avec recordWin
+      await _safeUnlock(p.name, "first_win");
 
-      if (p.team == "village") _safeUnlock(p.name, "village_hero");
-      if (p.team == "loups") _safeUnlock(p.name, "wolf_pack");
-      if (p.team == "solo") _safeUnlock(p.name, "lone_wolf");
+      if (p.team == "village") await _safeUnlock(p.name, "village_hero");
+      if (p.team == "loups") await _safeUnlock(p.name, "wolf_pack");
+      if (p.team == "solo") await _safeUnlock(p.name, "lone_wolf");
 
       if (p.role?.toLowerCase() == "dresseur") {
         try {
@@ -29,7 +30,7 @@ class AchievementLogic {
               orElse: () => Player(name: "Unknown", isAlive: true)
           );
           if (pokemon.name != "Unknown" && !pokemon.isAlive) {
-            TrophyService.unlockAchievement(p.name, "master_no_pokemon");
+            await TrophyService.unlockAchievement(p.name, "master_no_pokemon");
           }
         } catch (e) {
           debugPrint("⚠️ Erreur check Maître sans Pokémon : $e");
@@ -38,21 +39,21 @@ class AchievementLogic {
 
       if (p.role?.toLowerCase() == "dingo" && (p.parkingShotUnlocked || parkingShotUnlocked)) {
         debugPrint("🎯 LOG [Achievement] : Tir du Parking confirmé par la victoire !");
-        TrophyService.unlockAchievement(p.name, "parking_shot");
+        await TrophyService.unlockAchievement(p.name, "parking_shot");
       }
     }
 
     // Vérification spéciale Archiviste en fin de partie
     for (var p in allPlayers) {
       if (p.role?.toLowerCase() == "archiviste") {
-        checkArchivisteEndGame(context, p);
+        await checkArchivisteEndGame(context, p);
       }
     }
   }
 
-  static void _safeUnlock(String name, String id) {
+  static Future<void> _safeUnlock(String name, String id) async {
     try {
-      TrophyService.unlockAchievement(name, id);
+      await TrophyService.unlockAchievement(name, id);
     } catch (_) {}
   }
 
@@ -72,6 +73,7 @@ class AchievementLogic {
           checkData: {'pokemon_died_t1': true, 'player_role': 'Pokémon'},
         );
       } else {
+        // En cas d'appel hors contexte UI (ex: console), on tente le déblocage silencieux
         _safeUnlock(victim.name, "pokemon_fail");
       }
     }
@@ -169,7 +171,6 @@ class AchievementLogic {
         );
 
         // 2. Succès Fan Ultime : Trahison ET Sacrifice
-        // Le fan meurt pour Ron-Aldo ALORS qu'il a voté contre lui ce tour-ci
         if (deadFan.targetVote != null && deadFan.targetVote!.name == ronAldo.name) {
           debugPrint("💔 LOG [Achievement] : SACRIFICE ULTIME détecté pour ${deadFan.name} !");
           TrophyService.checkAndUnlockImmediate(
@@ -275,7 +276,7 @@ class AchievementLogic {
   }
 
   // --- ARCHIVISTE : ROI & PRINCE ---
-  static void checkArchivisteEndGame(BuildContext context, Player p) async {
+  static Future<void> checkArchivisteEndGame(BuildContext context, Player p) async {
     if (p.role?.toLowerCase() != "archiviste") return;
 
     // Liste des actions attendues
@@ -290,7 +291,7 @@ class AchievementLogic {
 
     // 1. LE ROI DU CDI
     if (usedThisGame.containsAll(requiredPowers)) {
-      TrophyService.checkAndUnlockImmediate(
+      await TrophyService.checkAndUnlockImmediate(
         context: context,
         playerName: p.name,
         achievementId: "archiviste_king",
@@ -312,7 +313,7 @@ class AchievementLogic {
 
       // Vérification
       if (historySet.containsAll(requiredPowers)) {
-        TrophyService.checkAndUnlockImmediate(
+        await TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: p.name,
           achievementId: "archiviste_prince",
