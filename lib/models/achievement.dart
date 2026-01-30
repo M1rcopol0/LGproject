@@ -329,9 +329,9 @@ class AchievementData {
     Achievement(
       id: "pantin_clutch",
       title: "Vote Décisif",
-      description: "En tant que Pantin, être sauvé car votre vote double a éliminé votre cible.",
+      description: "En tant que Pantin, éliminez votre cible au vote avec seulement une voix d'écart alors que vous étiez visé.",
       icon: "🎭", rarity: 3,
-      checkCondition: (data) => data['pantin_clutch_save'] == true,
+      checkCondition: (data) => data['pantin_clutch_triggered'] == true,
     ),
 
     // --- Phyl ---

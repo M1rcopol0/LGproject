@@ -24,6 +24,7 @@ class Player {
   int hostedCountThisGame; // Pour 'hotel_training'
   bool timeMasterUsedPower; // Pour 'time_perfect'
   bool tardosSuicide; // Pour 'tardos_oups'
+  bool pantinClutchTriggered; // NOUVEAU : Pour le succès Clutch
 
   // --- NOUVEAU : Cible du Devin ---
   bool isRevealedByDevin;
@@ -142,8 +143,9 @@ class Player {
     this.isImmunizedFromVote = false,
     this.isProtectedByPokemon = false,
     this.isEffectivelyAsleep = false,
-    this.hasReturnedThisTurn = false, // Init
-    this.isRevealedByDevin = false, // Init
+    this.hasReturnedThisTurn = false,
+    this.isRevealedByDevin = false,
+    this.pantinClutchTriggered = false,
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
@@ -227,7 +229,6 @@ class Player {
 
   bool get isWolf => team == "loups";
 
-  // --- LOGICIELS DE CAPTEURS ---
   void changeRole(String newRole, String newTeam) {
     debugPrint("🎭 LOG [RoleChange] : $name ($role) devient $newRole ($newTeam)");
     role = newRole;
@@ -246,18 +247,16 @@ class Player {
     role = null;
     team = "village";
     isAlive = true;
-    // Reset de tous les états...
     isProtectedByPokemon = false;
     isVillageProtected = false;
     isMutedDay = false;
     isEffectivelyAsleep = false;
-    hasReturnedThisTurn = false; // <--- RESET
+    hasReturnedThisTurn = false;
     isInHouse = false;
     isInTravel = false;
     canTravelAgain = true;
     travelerBullets = 0;
     somnifereUses = 2;
-    // ... (reset des autres compteurs si nécessaire)
     votes = 0;
   }
 
@@ -269,12 +268,10 @@ class Player {
     targetVote = null;
     isSelected = false;
     isSavedByTimeMaster = false;
-    // lastDresseurAction = null; // Optionnel selon persistance voulue
-    pokemonRevengeTarget = null; // Reset vengeance Pokemon
-    // isBombed et isRevealedByDevin persistent
+    pokemonRevengeTarget = null;
+    hasReturnedThisTurn = false;
   }
 
-  // --- GÉNÉRATEUR D'ICÔNES POUR LE MENU ---
   Widget buildStatusIcons() {
     if (!isAlive) return const SizedBox.shrink();
 
@@ -285,8 +282,6 @@ class Player {
     if (isProtectedByPokemon) icons.add(const Icon(Icons.bolt, size: 16, color: Colors.yellow));
     if (isEffectivelyAsleep) icons.add(const Icon(Icons.bedtime, size: 16, color: Colors.blueAccent));
 
-    // ICÔNE DEVIN (ŒIL)
-    // S'affiche UNIQUEMENT si le rôle a été révélé
     if (isRevealedByDevin) {
       icons.add(const Padding(
         padding: EdgeInsets.symmetric(horizontal: 2.0),
@@ -297,7 +292,6 @@ class Player {
     if (hasBeenHitByDart) icons.add(const Icon(Icons.colorize, size: 16, color: Colors.deepPurpleAccent));
     if (pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
 
-    // ICÔNE VICTIME DE BOMBE (BOMBE ROUGE)
     if (isBombed) {
       icons.add(const Padding(
         padding: EdgeInsets.symmetric(horizontal: 2.0),
@@ -327,7 +321,7 @@ class Player {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent), // Triangle comme balle
+            const Icon(Icons.change_history, size: 14, color: Colors.cyanAccent),
             Text(
               "$travelerBullets",
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
@@ -340,7 +334,6 @@ class Player {
     return Row(mainAxisSize: MainAxisSize.min, children: icons);
   }
 
-  // --- JSON SERIALIZATION ---
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -356,7 +349,7 @@ class Player {
       'isImmunizedFromVote': isImmunizedFromVote,
       'isProtectedByPokemon': isProtectedByPokemon,
       'isEffectivelyAsleep': isEffectivelyAsleep,
-      'isRevealedByDevin': isRevealedByDevin, // SAVE
+      'isRevealedByDevin': isRevealedByDevin,
       'hasBeenHitByDart': hasBeenHitByDart,
       'zookeeperEffectReady': zookeeperEffectReady,
       'powerActiveThisTurn': powerActiveThisTurn,
@@ -388,7 +381,6 @@ class Player {
       'pokemonWillResurrect': pokemonWillResurrect,
       'wasRevivedInThisGame': wasRevivedInThisGame,
       'hasUsedRevive': hasUsedRevive,
-      'lastDresseurAction': lastDresseurAction?.name,
       'concentrationNights': concentrationNights,
       'concentrationTargetName': concentrationTargetName,
       'lastRevealedPlayerName': lastRevealedPlayerName,
@@ -398,7 +390,7 @@ class Player {
       'protectedPlayersHistory': protectedPlayersHistory.toList(),
       'hasPlacedBomb': hasPlacedBomb,
       'hasUsedBombPower': hasUsedBombPower,
-      'isBombed': isBombed, // SAVE
+      'isBombed': isBombed,
       'bombTimer': bombTimer,
       'houstonApollo13Triggered': houstonApollo13Triggered,
       'somnifereUses': somnifereUses,
@@ -412,6 +404,11 @@ class Player {
       'hasHeardWolfSecrets': hasHeardWolfSecrets,
       'maxSimultaneousCurses': maxSimultaneousCurses,
       'canacleanPresent': canacleanPresent,
+      'travelerKilledWolf': travelerKilledWolf,
+      'hostedCountThisGame': hostedCountThisGame,
+      'timeMasterUsedPower': timeMasterUsedPower,
+      'tardosSuicide': tardosSuicide,
+      'pantinClutchTriggered': pantinClutchTriggered,
     };
   }
 
@@ -433,7 +430,7 @@ class Player {
       ..isImmunizedFromVote = map['isImmunizedFromVote'] ?? false
       ..isProtectedByPokemon = map['isProtectedByPokemon'] ?? false
       ..isEffectivelyAsleep = map['isEffectivelyAsleep'] ?? false
-      ..isRevealedByDevin = map['isRevealedByDevin'] ?? false // LOAD
+      ..isRevealedByDevin = map['isRevealedByDevin'] ?? false
       ..hasBeenHitByDart = map['hasBeenHitByDart'] ?? false
       ..zookeeperEffectReady = map['zookeeperEffectReady'] ?? false
       ..powerActiveThisTurn = map['powerActiveThisTurn'] ?? false
@@ -472,7 +469,7 @@ class Player {
       ..hasRevealedSamePlayerTwice = map['hasRevealedSamePlayerTwice'] ?? false
       ..hasPlacedBomb = map['hasPlacedBomb'] ?? false
       ..hasUsedBombPower = map['hasUsedBombPower'] ?? false
-      ..isBombed = map['isBombed'] ?? false // LOAD
+      ..isBombed = map['isBombed'] ?? false
       ..bombTimer = map['bombTimer'] ?? 0
       ..houstonApollo13Triggered = map['houstonApollo13Triggered'] ?? false
       ..somnifereUses = map['somnifereUses'] ?? 2
@@ -485,6 +482,11 @@ class Player {
       ..mutedPlayersCount = map['mutedPlayersCount'] ?? 0
       ..hasHeardWolfSecrets = map['hasHeardWolfSecrets'] ?? false
       ..maxSimultaneousCurses = map['maxSimultaneousCurses'] ?? 0
-      ..canacleanPresent = map['canacleanPresent'] ?? false;
+      ..canacleanPresent = map['canacleanPresent'] ?? false
+      ..travelerKilledWolf = map['travelerKilledWolf'] ?? false
+      ..hostedCountThisGame = map['hostedCountThisGame'] ?? 0
+      ..timeMasterUsedPower = map['timeMasterUsedPower'] ?? false
+      ..tardosSuicide = map['tardosSuicide'] ?? false
+      ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false;
   }
 }

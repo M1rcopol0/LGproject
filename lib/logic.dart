@@ -39,10 +39,6 @@ class GameLogic {
     debugPrint("--------------------------------------------------");
     debugPrint("🔄 LOG [GameLogic] : Initialisation du prochain tour...");
 
-    // --- CORRECTION VOTE ---
-    // ON NE RESET PAS hasVotedThisTurn ICI.
-    // On le fera dans GameMenuScreen au retour de la nuit (Matin).
-
     // Check Succès (null context car auto)
     AchievementLogic.checkCanacleanCondition(null, allPlayers);
 
@@ -132,7 +128,6 @@ class GameLogic {
   static void processVillageVote(BuildContext context, List<Player> allPlayers) {
     debugPrint("🗳️ LOG [Vote] : Calcul du résultat du vote.");
 
-    // C'est ICI qu'on valide que le vote a eu lieu pour ce jour
     hasVotedThisTurn = true;
 
     for (var p in allPlayers) {
@@ -140,10 +135,11 @@ class GameLogic {
     }
     for (var voter in allPlayers.where((p) => p.isAlive)) {
       if (voter.targetVote != null) {
+        // Le Pantin vote double
+        int weight = (voter.role?.toLowerCase() == "pantin") ? 2 : 1;
         try {
           var target = allPlayers.firstWhere((p) => p.name == voter.targetVote!.name);
-          target.votes++;
-          target.totalVotesReceivedDuringGame++;
+          target.votes += weight;
         } catch (e) {
           debugPrint("⚠️ Vote ignoré : Cible introuvable.");
         }
@@ -169,15 +165,6 @@ class GameLogic {
     Player first = votablePlayers[0];
     debugPrint("💀 LOG [Vote] : Cible désignée -> ${first.name} avec ${first.votes} voix.");
 
-    Player? second = votablePlayers.length > 1 ? votablePlayers[1] : null;
-
-    if (second != null && second.role?.toLowerCase() == "pantin") {
-      if ((first.votes - second.votes) < 2 && second.targetVote == first) {
-        pantinClutchSave = true;
-        debugPrint("🎭 LOG [Pantin] : Clutch save activé pour le Pantin !");
-      }
-    }
-
     for (var p in allPlayers.where((p) => p.isAlive && p.role?.toLowerCase() == "dingo")) {
       if (p.targetVote == first) {
         AchievementLogic.checkParkingShot(context, p, first, allPlayers);
@@ -185,15 +172,14 @@ class GameLogic {
     }
 
     AchievementLogic.checkEvolvedHunger(context, first);
-
-    eliminatePlayer(context, allPlayers, first, isVote: true);
+    // Note : Le MJ appelle eliminatePlayer manuellement via MJResultScreen.
   }
 
   // ==========================================================
   // 4. ÉLIMINATION
   // ==========================================================
   static Player eliminatePlayer(BuildContext context, List<Player> allPlayers, Player target,
-      {bool isVote = false}) {
+      {bool isVote = false, String reason = ""}) {
 
     Player realTarget = allPlayers.firstWhere((p) => p.name == target.name, orElse: () => target);
 
@@ -206,27 +192,69 @@ class GameLogic {
       return realTarget;
     }
 
-    if (!isVote && roleLower == "pantin") {
-      debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
-      return realTarget;
+    // --- LOGIQUE PANTIN ---
+    if (roleLower == "pantin") {
+      if (!isVote) {
+        debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
+        return realTarget;
+      } else {
+        if (!realTarget.hasSurvivedVote) {
+          // Check Clutch si le Pantin est la cible éliminée par le MJ
+          try {
+            List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
+            survivors.sort((a, b) => b.votes.compareTo(a.votes));
+            // Recherche du concurrent le plus proche (celui qui n'est pas le pantin)
+            Player competitor = survivors.firstWhere((p) => p.name != realTarget.name, orElse: () => realTarget);
+            int diff = (competitor.votes - realTarget.votes).abs();
+
+            // Si écart de 1 voix et que le Pantin a voté pour son concurrent direct
+            if (diff <= 1 && realTarget.targetVote?.name == competitor.name) {
+              realTarget.pantinClutchTriggered = true;
+              TrophyService.checkAndUnlockImmediate(
+                context: context,
+                playerName: realTarget.name,
+                achievementId: "pantin_clutch",
+                checkData: {'pantin_clutch_triggered': true},
+              );
+            }
+          } catch(e) {}
+
+          realTarget.hasSurvivedVote = true;
+          debugPrint("🎭 LOG [Pantin] : Le Pantin survit à son premier vote.");
+          return realTarget;
+        }
+      }
     }
 
-    if (isVote && roleLower == "pantin") {
-      if (!realTarget.hasSurvivedVote) {
-        realTarget.hasSurvivedVote = true;
-        debugPrint("🎭 LOG [Pantin] : Le Pantin survit à son premier vote.");
-        return realTarget;
-      }
+    // --- DETECTION CLUTCH SI LE MJ ELIMINE LA PERSONNE LA PLUS VOTÉE ---
+    if (isVote && roleLower != "pantin") {
+      try {
+        Player pantin = allPlayers.firstWhere((p) => p.isAlive && p.role?.toLowerCase() == "pantin");
+        List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
+        survivors.sort((a, b) => b.votes.compareTo(a.votes));
+
+        // RÈGLE : La victime doit être le premier au score et l'écart avec le Pantin doit être de 1
+        if (realTarget.name == survivors[0].name) {
+          int diff = (realTarget.votes - pantin.votes).abs();
+          if (diff <= 1 && pantin.targetVote?.name == realTarget.name) {
+            pantin.pantinClutchTriggered = true;
+            debugPrint("🎭 LOG [Pantin] : CLUTCH DÉTECTÉ pour ${pantin.name} !");
+
+            TrophyService.checkAndUnlockImmediate(
+              context: context,
+              playerName: pantin.name,
+              achievementId: "pantin_clutch",
+              checkData: {'pantin_clutch_triggered': true},
+            );
+          }
+        }
+      } catch (e) {}
     }
 
     if (isVote && realTarget.hasScapegoatPower) {
       realTarget.hasScapegoatPower = false;
       debugPrint("🐏 LOG [Archevêque] : Bouc émissaire utilisé.");
       return realTarget;
-    }
-
-    if (roleLower == "pantin" && isVote && realTarget.pantinCurseTimer == null) {
-      realTarget.pantinCurseTimer = 2;
     }
 
     if (roleLower == "voyageur" && realTarget.isInTravel) {
@@ -238,7 +266,8 @@ class GameLogic {
 
     Player victim = realTarget;
 
-    if (realTarget.isInHouse) {
+    // --- LOGIQUE MAISON (PROTECTION) ---
+    if (realTarget.isInHouse && !reason.contains("Malédiction")) {
       Player? houseOwner;
       try {
         houseOwner = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "maison" && p.isAlive && !p.isHouseDestroyed);
@@ -253,21 +282,20 @@ class GameLogic {
           for (var p in allPlayers) { p.isInHouse = false; }
           victim.isAlive = false;
           AchievementLogic.checkHouseCollapse(houseOwner);
+          debugPrint("🏠 LOG [Maison] : Effondrement ! Le propriétaire meurt à la place de ${realTarget.name}");
           return victim;
         }
       }
     }
     else if (roleLower == "ron-aldo") {
-      List<Player> allFans = allPlayers.where((p) => p.isFanOfRonAldo).toList();
+      List<Player> allFans = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
       allFans.sort((a, b) => a.fanJoinOrder.compareTo(b.fanJoinOrder));
 
       if (allFans.isNotEmpty) {
         Player firstFan = allFans.first;
-        if (firstFan.isAlive) {
-          victim = firstFan;
-          debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${victim.name}) se sacrifie !");
-          AchievementLogic.checkFanSacrifice(context, victim, realTarget);
-        }
+        victim = firstFan;
+        debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${victim.name}) se sacrifie !");
+        AchievementLogic.checkFanSacrifice(context, victim, realTarget);
       }
     }
 
@@ -281,16 +309,13 @@ class GameLogic {
     // --- VENGEANCE POKÉMON ---
     if ((victim.role?.toLowerCase() == "pokémon" || victim.role?.toLowerCase() == "pokemon") &&
         victim.pokemonRevengeTarget != null) {
-
       try {
         Player revengeTarget = allPlayers.firstWhere((p) => p.name == victim.pokemonRevengeTarget!.name);
         if (revengeTarget.isAlive) {
           debugPrint("⚡ LOG [Pokémon] : MORT ! Il emporte ${revengeTarget.name}.");
           eliminatePlayer(context, allPlayers, revengeTarget, isVote: false);
         }
-      } catch (e) {
-        debugPrint("⚠️ Erreur Vengeance Pokémon : Cible introuvable.");
-      }
+      } catch (e) {}
     }
 
     if (!anybodyDeadYet) {
@@ -331,6 +356,7 @@ class GameLogic {
     p.isAlive = true;
     p.votes = 0;
     p.pantinCurseTimer = null;
+    p.pantinClutchTriggered = false;
     p.roleChangesCount = 0;
     p.killsThisGame = 0;
     p.mutedPlayersCount = 0;
