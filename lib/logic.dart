@@ -399,6 +399,12 @@ class GameLogic {
   // 6. CONDITIONS DE VICTOIRE
   // ==========================================================
   static String? checkWinner(List<Player> players) {
+    // --- CORRECTION : VICTOIRE IMMÉDIATE DE L'EXORCISTE ---
+    if (exorcistWin) {
+      debugPrint("✝️ LOG [Fin] : L'EXORCISTE A RÉUSSI ! VICTOIRE DU VILLAGE.");
+      return "EXORCISTE";
+    }
+
     final alive = players.where((p) => p.isAlive).toList();
     if (alive.isEmpty && players.isNotEmpty) return "ÉGALITÉ_SANGUINAIRE";
     if (players.isEmpty) return null;
