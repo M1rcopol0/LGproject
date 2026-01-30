@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/player.dart';
 import 'trophy_service.dart';
 import 'globals.dart';
@@ -11,7 +12,7 @@ class AchievementLogic {
   // 1. ÉVÉNEMENTS DE FIN DE PARTIE (VICTOIRE)
   // ==========================================================
 
-  static void checkEndGameAchievements(List<Player> winners, List<Player> allPlayers) {
+  static void checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) {
     if (winners.isEmpty) return;
 
     for (var p in winners) {
@@ -40,6 +41,13 @@ class AchievementLogic {
         TrophyService.unlockAchievement(p.name, "parking_shot");
       }
     }
+
+    // Vérification spéciale Archiviste en fin de partie
+    for (var p in allPlayers) {
+      if (p.role?.toLowerCase() == "archiviste") {
+        checkArchivisteEndGame(context, p);
+      }
+    }
   }
 
   static void _safeUnlock(String name, String id) {
@@ -55,7 +63,6 @@ class AchievementLogic {
   static void checkDeathAchievements(BuildContext? context, Player victim, List<Player> allPlayers) {
     final roleLower = victim.role?.toLowerCase() ?? "";
 
-    // CORRECTION : On vérifie UNIQUEMENT si c'est le Pokémon qui meurt
     if ((roleLower == "pokémon" || roleLower == "pokemon") && globalTurnNumber == 1) {
       if (context != null) {
         TrophyService.checkAndUnlockImmediate(
@@ -240,6 +247,66 @@ class AchievementLogic {
         achievementId: "tardos_oups",
         checkData: {'tardos_suicide': true},
       );
+    }
+  }
+
+  // --- MÉTHODE SPÉCIALE CLUTCH PANTIN ---
+  static void checkClutchManual(BuildContext context, Player pantin) {
+    TrophyService.checkAndUnlockImmediate(
+      context: context,
+      playerName: pantin.name,
+      achievementId: "pantin_clutch",
+      checkData: {'pantin_clutch_triggered': true},
+    );
+  }
+
+  // --- ARCHIVISTE : ROI & PRINCE ---
+  static void checkArchivisteEndGame(BuildContext context, Player p) async {
+    if (p.role?.toLowerCase() != "archiviste") return;
+
+    // Liste des actions attendues
+    const Set<String> requiredPowers = {
+      "mute",
+      "cancel_vote",
+      "scapegoat",
+      "transcendance_start"
+    };
+
+    final Set<String> usedThisGame = p.archivisteActionsUsed.toSet();
+
+    // 1. LE ROI DU CDI
+    if (usedThisGame.containsAll(requiredPowers)) {
+      TrophyService.checkAndUnlockImmediate(
+        context: context,
+        playerName: p.name,
+        achievementId: "archiviste_king",
+        checkData: {'archiviste_king_qualified': true},
+      );
+    }
+
+    // 2. LE PRINCE DU CDI (Cumulatif)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      const String historyKey = "archiviste_powers_history";
+
+      List<String> historyList = prefs.getStringList(historyKey) ?? [];
+      Set<String> historySet = historyList.toSet();
+
+      // On ajoute les nouvelles actions
+      historySet.addAll(usedThisGame);
+      await prefs.setStringList(historyKey, historySet.toList());
+
+      // Vérification
+      if (historySet.containsAll(requiredPowers)) {
+        TrophyService.checkAndUnlockImmediate(
+          context: context,
+          playerName: p.name,
+          achievementId: "archiviste_prince",
+          checkData: {'archiviste_prince_qualified': true},
+        );
+      }
+    } catch (e) {
+      debugPrint("⚠️ Erreur check Prince du CDI : $e");
     }
   }
 

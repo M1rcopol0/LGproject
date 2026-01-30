@@ -202,8 +202,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     _checkGameStateIntegrity();
   }
 
-  // ... (Logique d'intégrité, Game Over et Elections identique au code précédent)
-
   void _checkGameStateIntegrity() {
     _checkGameOver();
     if (!_isGameOverProcessing && isDayTime && nightOnePassed) {
@@ -223,7 +221,9 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         (winner == "SOLO" && p.team == "solo")
     ).toList();
 
-    AchievementLogic.checkEndGameAchievements(winnersList, widget.players);
+    // CORRECTION ICI : Ajout du paramètre 'context'
+    AchievementLogic.checkEndGameAchievements(context, winnersList, widget.players);
+
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
     GameSaveService.clearSave();
@@ -292,8 +292,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     // OUVERTURE DU NOUVEAU MENU MJ
     _showPlayerAdminMenu(p);
   }
-
-  // ... (Navigation Nuit/Vote, Timer, AddPlayerDialog identiques)
 
   void _goToNight({bool force = false}) {
     bool isFirstNight = (globalTurnNumber == 1 && !nightOnePassed);

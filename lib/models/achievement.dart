@@ -49,9 +49,16 @@ class AchievementData {
     Achievement(
       id: "archiviste_king",
       title: "Le roi du CDI",
-      description: "Utilisez 4 pouvoirs différents en une seule partie.",
-      icon: "📚", rarity: 4,
-      checkCondition: (data) => data['archiviste_all_powers_used_in_game'] == true,
+      description: "Utilisez les 4 pouvoirs de l'Archiviste en une seule partie (Censure, Vote, Bouc, Transcendance).",
+      icon: "👑", rarity: 4,
+      checkCondition: (data) => data['archiviste_king_qualified'] == true,
+    ),
+    Achievement(
+      id: "archiviste_prince",
+      title: "Le prince du CDI",
+      description: "Utilisez les 4 pouvoirs différents de l'Archiviste au cours de votre carrière.",
+      icon: "📚", rarity: 2,
+      checkCondition: (data) => data['archiviste_prince_qualified'] == true,
     ),
 
     // --- Devin ---
@@ -253,7 +260,7 @@ class AchievementData {
     Achievement(
       id: "somni_blackout",
       title: "Nuit Éternelle",
-      description: "En tant que Somnifère, gagner après avoir utilisé vos deux potions.",
+      description: "En tant que Somnifère, gagner après avoir utilisé votre potion.",
       icon: "💤", rarity: 2,
       checkCondition: (data) =>
       data['player_role'] == "Somnifère" && data['winner_role'] == "LOUPS-GAROUS" && (data['somnifere_uses_left'] ?? 1) == 0,
@@ -329,7 +336,7 @@ class AchievementData {
     Achievement(
       id: "pantin_clutch",
       title: "Vote Décisif",
-      description: "En tant que Pantin, éliminez votre cible au vote avec seulement une voix d'écart alors que vous étiez visé.",
+      description: "En tant que Pantin, éliminez votre cible au vote avec seulement une voix d'écart.",
       icon: "🎭", rarity: 3,
       checkCondition: (data) => data['pantin_clutch_triggered'] == true,
     ),
@@ -459,12 +466,6 @@ class AchievementData {
         final roleWins = Map<String, dynamic>.from(data['roleWins'] ?? {});
         return (roleWins['VILLAGEOIS'] ?? 0) >= 5;
       },
-    ),
-    Achievement(
-      id: "archiviste_prince", title: "Le prince du CDI",
-      description: "Utilisez 4 pouvoirs différents au cours de votre carrière.",
-      icon: "📖", rarity: 2,
-      checkCondition: (data) => data['archiviste_all_powers_cumulated'] == true,
     ),
     Achievement(
       id: "veteran_wolf", title: "Vétéran de la Meute",

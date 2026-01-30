@@ -55,7 +55,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
           return role == "RON-ALDO" || p.isFanOfRonAldo;
         case "DRESSEUR":
         case "POKÉMON":
-        case "DRESSEUR_POKÉMON": // Cas ajouté pour sécurité
+        case "DRESSEUR_POKÉMON":
           return role == "DRESSEUR" || role == "POKÉMON";
         case "PHYL":
           return role == "PHYL";
@@ -73,13 +73,16 @@ class _GameOverScreenState extends State<GameOverScreen> {
     computedWinners = computedWinners.toSet().toList();
     if (mounted) setState(() => winners = computedWinners);
 
+    // APPEL DE ACHIEVEMENT LOGIC POUR LE CHECK FINAL
+    // (Inclut le check de l'Archiviste et les déblocages de trophées de victoire)
+    AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
+
     if (widget.winnerType != "ÉGALITÉ_SANGUINAIRE" && winners.isNotEmpty) {
       String roleGroup = "SOLO";
       if (widget.winnerType == "VILLAGE") roleGroup = "VILLAGE";
       if (widget.winnerType == "LOUPS-GAROUS") roleGroup = "LOUPS-GAROUS";
 
       // 3. Préparer les stats globales de la partie
-      // Ajout de 'exorcisme_success_win' basé sur la variable globale
       Map<String, dynamic> customStats = {
         'winner_role': widget.winnerType,
         'turn_count': globalTurnNumber,
@@ -102,16 +105,12 @@ class _GameOverScreenState extends State<GameOverScreen> {
       // 4. Enregistrer la victoire
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
 
-      // 5. Vérifier les succès pour CHAQUE vainqueur
+      // 5. Vérifier les succès pour CHAQUE vainqueur (Complémentaire à checkEndGameAchievements)
       for (var winner in winners) {
         Map<String, dynamic> stats = await TrophyService.getStats();
         Map<String, dynamic> playerStats = stats[winner.name] ?? {};
         Map<String, dynamic> counters = playerStats['counters'] ?? {};
 
-        List<dynamic> rawHistory = counters['archiviste_actions_all_time'] ?? [];
-        int uniquePowersCount = rawHistory.toSet().length;
-
-        // Préparation des données de vérification avec les NOUVEAUX CHAMPS
         Map<String, dynamic> checkData = {
           ...playerStats,
           ...counters,
@@ -134,14 +133,12 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'parking_shot_achieved': (winner.role?.toLowerCase() == "dingo" && winner.parkingShotUnlocked),
           'chaman_sniper_achieved': chamanSniperAchieved && (winner.role?.toLowerCase() == "loup-garou chaman"),
           'canaclean_present': winner.canacleanPresent,
-          'archiviste_all_powers_used_in_game': winner.archivisteActionsUsed.toSet().length >= 4,
-          'archiviste_all_powers_cumulated': uniquePowersCount >= 4,
+          // 'archiviste_all_powers_used_in_game': Géré via AchievementLogic.checkArchivisteEndGame
+          // 'archiviste_all_powers_cumulated': Géré via AchievementLogic.checkArchivisteEndGame
           'saved_by_own_quiche': winner.hasSavedSelfWithQuiche,
           'bled_protected_everyone': winner.protectedPlayersHistory.length >= (widget.players.length - 1),
           'devin_reveals_count': winner.devinRevealsCount,
           'devin_revealed_same_twice': winner.hasRevealedSamePlayerTwice,
-
-          // --- NOUVEAUX CHAMPS AJOUTÉS ---
           'traveler_killed_wolf': winner.travelerKilledWolf,
           'cumulative_hosted_count': winner.hostedCountThisGame,
           'time_master_used_power': winner.timeMasterUsedPower,
@@ -152,7 +149,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
         for (var ach in AchievementData.allAchievements) {
           try {
-            // CORRECTION IMPORTANTE : Appel avec context pour afficher le pop-up
             if (mounted) {
               await TrophyService.checkAndUnlockImmediate(
                 context: context,
@@ -165,11 +161,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
             debugPrint("❌ LOG [GameOver] : Erreur check succès ${ach.id}: $e");
           }
         }
-      }
-
-      // Check First Blood (hors vainqueurs)
-      if (firstDeadPlayerName != null) {
-        await TrophyService.unlockAchievement(firstDeadPlayerName!, "first_blood");
       }
     }
 
@@ -240,7 +231,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
         themeColor = Colors.blueGrey;
         icon = Icons.volume_off;
         break;
-      case "EXORCISTE": // Cas spécifique ajouté pour le fun
+      case "EXORCISTE":
         title = "PURIFICATION";
         message = "Le village a été lavé de tout soupçon.";
         themeColor = Colors.amber;
