@@ -51,6 +51,9 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
         .where((p) => p.isAlive && p.name != widget.player.name)
         .toList();
 
+    // AJOUT : Tri alphabétique pour faciliter la recherche
+    candidates.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
     // Adapter le texte du bouton
     String buttonText = "PASSER SON TOUR";
     Color buttonColor = Colors.grey;
@@ -141,8 +144,7 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
                   // 1. On marque que le pouvoir a été utilisé (pour le succès "Clean Hands")
                   widget.player.timeMasterUsedPower = true;
 
-                  // 2. CORRECTION CRITIQUE : On sauvegarde la liste des noms des cibles dans le profil du joueur.
-                  // C'est cette liste que NightActionsLogic va lire pour tuer les joueurs.
+                  // 2. On sauvegarde la liste des noms des cibles dans le profil du joueur.
                   widget.player.timeMasterTargets = _selectedTargets.map((p) => p.name).toList();
 
                   // 3. On envoie l'action pour fermer l'écran
