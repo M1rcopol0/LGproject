@@ -29,34 +29,14 @@ class _PantinInterfaceState extends State<PantinInterface> {
   }
 
   void _confirmSelection() {
-    if (_selectedTargets.length == 2) {
-      debugPrint("🎭 LOG [Pantin] : Début de l'application des malédictions.");
+    if (_selectedTargets.length == 2 || (widget.players.where((p) => p.isAlive && p.role?.toLowerCase() != "pantin" && p.pantinCurseTimer == null).length < 2 && _selectedTargets.length == widget.players.where((p) => p.isAlive && p.role?.toLowerCase() != "pantin" && p.pantinCurseTimer == null).length)) {
+      debugPrint("🎭 LOG [Pantin] : Application des malédictions directes.");
 
       for (var target in _selectedTargets) {
-        // --- LOGIQUE DE RICOCHET : LA MAISON ---
-        if (target.isInHouse) {
-          try {
-            // Si la cible est dans la maison, c'est le propriétaire qui reçoit la malédiction
-            Player houseOwner = widget.players.firstWhere(
-                    (p) => p.role?.toLowerCase() == "maison" && p.isAlive
-            );
-
-            // Si le propriétaire est déjà maudit, le ricochet ne prolonge pas sa malédiction
-            if (houseOwner.pantinCurseTimer != null) {
-              debugPrint("🏠 LOG [Pantin] : Ricochet annulé, le propriétaire ${houseOwner.name} est déjà maudit.");
-            } else {
-              debugPrint("🏠 LOG [Pantin] : La cible ${target.name} est à l'abri. Ricochet sur le propriétaire : ${houseOwner.name}");
-              houseOwner.pantinCurseTimer = 2;
-            }
-          } catch (e) {
-            debugPrint("🎭 LOG [Pantin] : Cible ${target.name} en maison, mais propriétaire introuvable. Malédiction directe.");
-            target.pantinCurseTimer = 2;
-          }
-        } else {
-          // Cible normale
-          debugPrint("🎭 LOG [Pantin] : Malédiction appliquée sur ${target.name}.");
-          target.pantinCurseTimer = 2;
-        }
+        // CORRECTION : Suppression du ricochet.
+        // La malédiction s'applique directement à l'habitant, même s'il est dans la maison.
+        debugPrint("🎭 LOG [Pantin] : Malédiction appliquée sur ${target.name}.");
+        target.pantinCurseTimer = 2;
       }
       widget.onTargetsSelected(_selectedTargets);
     }
@@ -97,7 +77,7 @@ class _PantinInterfaceState extends State<PantinInterface> {
                 return ListTile(
                   title: Text(p.name, style: const TextStyle(color: Colors.white)),
                   subtitle: p.isInHouse
-                      ? const Text("Est dans la Maison (Ricochet possible)", style: TextStyle(color: Colors.blueAccent, fontSize: 12))
+                      ? const Text("Dans la Maison", style: TextStyle(color: Colors.blueAccent, fontSize: 12))
                       : null,
                   leading: Icon(
                     isSelected ? Icons.whatshot : Icons.person_outline,
@@ -111,7 +91,6 @@ class _PantinInterfaceState extends State<PantinInterface> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: ElevatedButton(
-            // On désactive le bouton si on ne peut pas choisir 2 personnes (ex: il reste 1 survivant non maudit)
             onPressed: (_selectedTargets.length == 2)
                 ? _confirmSelection
                 : (availableTargets.length < 2 && _selectedTargets.length == availableTargets.length ? _handleForcePass : null),
@@ -130,10 +109,8 @@ class _PantinInterfaceState extends State<PantinInterface> {
   }
 
   void _handleForcePass() {
-    // Cas rare : Il reste moins de 2 cibles valides. On maudit ce qu'on peut et on passe.
     _confirmSelection();
     if (_selectedTargets.length < 2) {
-      // Si on n'avait pas assez de cibles, on force la fin
       widget.onTargetsSelected(_selectedTargets);
     }
   }

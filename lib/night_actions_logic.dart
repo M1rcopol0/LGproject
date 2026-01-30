@@ -238,9 +238,7 @@ class NightActionsLogic {
                 if (pokemonVictim.pokemonRevengeTarget != null && pokemonVictim.pokemonRevengeTarget!.isAlive) {
                   Player revenge = pokemonVictim.pokemonRevengeTarget!;
                   debugPrint("⚡ LOG [Pokémon] : MORT (Sacrifice)! Il emporte ${revenge.name} (${revenge.role}).");
-                  // ANNONCE SPECIALE
                   morningAnnouncements.add("⚡ Le Pokémon (Sacrifié) emporte ${revenge.name} (${revenge.role}) !");
-
                   GameLogic.eliminatePlayer(context, players, revenge, isVote: false);
                 }
               }
@@ -262,20 +260,15 @@ class NightActionsLogic {
         Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
         if (!finalVictim.isAlive) {
-          // CHECK DEATH ACHIEVEMENTS
           AchievementLogic.checkDeathAchievements(context, finalVictim, players);
 
-          // --- SUCCÈS VOYAGEUR ---
           if (reason.contains("Tir du Voyageur")) {
             try {
               Player voyageur = players.firstWhere((p) => p.role?.toLowerCase() == "voyageur");
-              if (finalVictim.team == "loups") {
-                voyageur.travelerKilledWolf = true;
-              }
+              if (finalVictim.team == "loups") voyageur.travelerKilledWolf = true;
             } catch (_) {}
           }
 
-          // --- SUCCÈS DINGO ---
           if (reason.contains("Tir du Dingo")) {
             try {
               Player dingo = players.firstWhere((p) => p.role?.toLowerCase() == "dingo");
@@ -283,15 +276,12 @@ class NightActionsLogic {
             } catch (e) {}
           }
 
-          // --- REVANCHE DU POKEMON ---
           if ((finalVictim.role?.toLowerCase() == "pokémon" || finalVictim.role?.toLowerCase() == "pokemon") &&
               finalVictim.pokemonRevengeTarget != null) {
 
             Player revengeTarget = finalVictim.pokemonRevengeTarget!;
             if (revengeTarget.isAlive) {
               debugPrint("⚡ LOG [Pokémon] : MORT ! Il emporte ${revengeTarget.name} dans la tombe (Vengeance).");
-
-              // ANNONCE SPECIALE POUR LA VENGEANCE AVEC ROLE
               morningAnnouncements.add("⚡ Le Pokémon emporte ${revengeTarget.name} (${revengeTarget.role}) dans sa chute !");
 
               Player revengeVictim = GameLogic.eliminatePlayer(context, players, revengeTarget, isVote: false);
@@ -326,9 +316,22 @@ class NightActionsLogic {
           quicheSavedThisNight++;
         } else {
           debugPrint("🎭 LOG [Pantin] : Mort de la malédiction : ${p.name}");
-          GameLogic.eliminatePlayer(context, players, p, isVote: false);
+
+          // CORRECTION : On tue le joueur directement sans passer par eliminatePlayer
+          // pour éviter que la Maison (le propriétaire) ne soit tué à sa place.
+          p.isAlive = false;
           AchievementLogic.checkDeathAchievements(context, p, players);
           finalDeathReasons[p.name] = "Malédiction du Pantin";
+
+          // Si c'est le Pokémon qui meurt de malédiction, il se venge quand même
+          if ((p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.pokemonRevengeTarget != null) {
+            Player rev = p.pokemonRevengeTarget!;
+            if (rev.isAlive) {
+              rev.isAlive = false;
+              finalDeathReasons[rev.name] = "Vengeance du Pokémon";
+              morningAnnouncements.add("⚡ Le Pokémon emporte ${rev.name} (${rev.role}) dans sa chute !");
+            }
+          }
         }
       }
 
@@ -347,7 +350,7 @@ class NightActionsLogic {
 
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
-      p.hasReturnedThisTurn = false; // Reset du flag Voyageur
+      p.hasReturnedThisTurn = false;
 
       if (!p.hasBeenHitByDart) p.isEffectivelyAsleep = false;
     }
