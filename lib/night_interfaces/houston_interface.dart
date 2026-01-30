@@ -17,8 +17,9 @@ class HoustonInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Filtrage et Tri Alphabétique
-    final eligibleTargets = players.where((p) => p.isAlive && p != actor).toList();
+    // 1. Filtrage : On exclut les morts ET le Houston lui-même (p != actor)
+    // On trie ensuite par ordre alphabétique.
+    final eligibleTargets = players.where((p) => p.isAlive && p.name != actor.name).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Column(
@@ -54,7 +55,7 @@ class HoustonInterface extends StatelessWidget {
             onTargetsSelected: (selected) {
               if (selected.length == 2) {
                 // --- 1. TRIGGER SUCCÈS APOLLO 13 ---
-                // CORRECTION : Ajout du context pour afficher le Toast immédiatement
+                // Ajout du context pour afficher le Toast immédiatement
                 AchievementLogic.checkApollo13(context, actor, selected[0], selected[1]);
 
                 // --- 2. LOGS DE CONSOLE ---
@@ -67,7 +68,7 @@ class HoustonInterface extends StatelessWidget {
                 // --- 4. NAVIGATION ---
                 onComplete(selected);
               } else {
-                // Cas où l'utilisateur passe son tour (normalement bloqué par minTargets, mais sécurité)
+                // Cas où l'utilisateur passe son tour (normalement bloqué par minTargets)
                 debugPrint("🛰️ LOG [Houston] : Action passée sans sélectionner 2 cibles complètes.");
                 onComplete([]);
               }
