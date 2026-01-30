@@ -11,6 +11,7 @@ import 'globals.dart';
 import 'backup_service.dart';
 import 'trophy_service.dart';
 import 'models/player.dart';
+import 'cloud_service.dart'; // AJOUT : Service Google Sheets
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,17 +21,19 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   double _volume = 1.0;
+  bool _autoCloudSync = false; // AJOUT : État du switch Cloud
 
   @override
   void initState() {
     super.initState();
-    _loadVolume();
+    _loadSettings(); // Modifié pour charger tout
   }
 
-  Future<void> _loadVolume() async {
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _volume = prefs.getDouble('app_volume') ?? 1.0;
+      _autoCloudSync = prefs.getBool('auto_cloud_sync') ?? false; // AJOUT
     });
   }
 
@@ -40,6 +43,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _volume = value;
       globalVolume = value; // Mise à jour globale
+    });
+  }
+
+  Future<void> _setAutoCloud(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_cloud_sync', value);
+    setState(() {
+      _autoCloudSync = value;
     });
   }
 
@@ -319,7 +330,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const Divider(color: Colors.white24, height: 40),
-          const Text("GESTION DE LA MÉMOIRE", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+
+          // --- AJOUT : SECTION CLOUD GOOGLE SHEETS ---
+          const Text("CLOUD (GOOGLE SHEETS)", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+
+          SwitchListTile(
+            title: const Text("Synchro Auto", style: TextStyle(color: Colors.white)),
+            subtitle: const Text("Mise à jour des stats après chaque partie", style: TextStyle(color: Colors.white38, fontSize: 12)),
+            value: _autoCloudSync,
+            activeColor: Colors.green,
+            onChanged: (val) => _setAutoCloud(val),
+          ),
+
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.withOpacity(0.2),
+              foregroundColor: Colors.greenAccent,
+              side: const BorderSide(color: Colors.greenAccent),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => CloudService.uploadData(context),
+            icon: const Icon(Icons.cloud_upload),
+            label: const Text("FORCER LA SYNCHRO"),
+          ),
+
+          const SizedBox(height: 25),
+
+          // --- GESTION MEMOIRE LOCALE ---
+          const Text("GESTION LOCALE", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           const SizedBox(height: 15),
 
           // --- BOUTONS EXPORT / IMPORT ---

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Nécessaire pour lire les prefs auto_cloud_sync
 import 'models/player.dart';
 import 'models/achievement.dart';
 import 'globals.dart';
 import 'trophy_service.dart';
 import 'achievement_logic.dart';
+import 'cloud_service.dart'; // Nécessaire pour la synchro
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class GameOverScreen extends StatefulWidget {
@@ -73,16 +75,17 @@ class _GameOverScreenState extends State<GameOverScreen> {
     computedWinners = computedWinners.toSet().toList();
     if (mounted) setState(() => winners = computedWinners);
 
-    // APPEL DE ACHIEVEMENT LOGIC POUR LE CHECK FINAL
-    // (Inclut le check de l'Archiviste et les déblocages de trophées de victoire)
-    AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
+    // 3. Vérifications des succès de Fin de Partie (Roi du CDI, Victoires, etc.)
+    if (mounted) {
+      AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
+    }
 
     if (widget.winnerType != "ÉGALITÉ_SANGUINAIRE" && winners.isNotEmpty) {
       String roleGroup = "SOLO";
       if (widget.winnerType == "VILLAGE") roleGroup = "VILLAGE";
       if (widget.winnerType == "LOUPS-GAROUS") roleGroup = "LOUPS-GAROUS";
 
-      // 3. Préparer les stats globales de la partie
+      // 4. Préparer les stats globales de la partie
       Map<String, dynamic> customStats = {
         'winner_role': widget.winnerType,
         'turn_count': globalTurnNumber,
@@ -102,10 +105,10 @@ class _GameOverScreenState extends State<GameOverScreen> {
         'exorcisme_success_win': exorcistWin,
       };
 
-      // 4. Enregistrer la victoire
+      // 5. Enregistrer la victoire dans la base locale
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
 
-      // 5. Vérifier les succès pour CHAQUE vainqueur (Complémentaire à checkEndGameAchievements)
+      // 6. Vérifier les succès individuels pour CHAQUE vainqueur
       for (var winner in winners) {
         Map<String, dynamic> stats = await TrophyService.getStats();
         Map<String, dynamic> playerStats = stats[winner.name] ?? {};
@@ -133,8 +136,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'parking_shot_achieved': (winner.role?.toLowerCase() == "dingo" && winner.parkingShotUnlocked),
           'chaman_sniper_achieved': chamanSniperAchieved && (winner.role?.toLowerCase() == "loup-garou chaman"),
           'canaclean_present': winner.canacleanPresent,
-          // 'archiviste_all_powers_used_in_game': Géré via AchievementLogic.checkArchivisteEndGame
-          // 'archiviste_all_powers_cumulated': Géré via AchievementLogic.checkArchivisteEndGame
           'saved_by_own_quiche': winner.hasSavedSelfWithQuiche,
           'bled_protected_everyone': winner.protectedPlayersHistory.length >= (widget.players.length - 1),
           'devin_reveals_count': winner.devinRevealsCount,
@@ -145,7 +146,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'tardos_suicide': winner.tardosSuicide,
         };
 
-        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> BledUnique=${winner.protectedPlayersHistory.length} | Hosted=${winner.hostedCountThisGame}");
+        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> BledUnique=${winner.protectedPlayersHistory.length}");
 
         for (var ach in AchievementData.allAchievements) {
           try {
@@ -162,6 +163,20 @@ class _GameOverScreenState extends State<GameOverScreen> {
           }
         }
       }
+    }
+
+    // 7. SYNCHRO CLOUD AUTOMATIQUE (NOUVEAU)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      bool autoSync = prefs.getBool('auto_cloud_sync') ?? false;
+
+      if (autoSync && mounted) {
+        debugPrint("☁️ LOG [GameOver] : Lancement de la sauvegarde automatique Google Sheets...");
+        // On n'attend pas (await) pour ne pas bloquer l'UI, le service gère les SnackBars
+        CloudService.uploadData(context);
+      }
+    } catch (e) {
+      debugPrint("⚠️ Erreur lors de la tentative de synchro auto : $e");
     }
 
     if (mounted) setState(() => _isLoading = false);
