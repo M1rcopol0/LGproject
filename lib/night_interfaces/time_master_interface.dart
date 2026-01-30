@@ -19,64 +19,134 @@ class TimeMasterInterface extends StatefulWidget {
 }
 
 class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
-  Player? _selectedTarget;
+  // On utilise une liste pour gérer jusqu'à 2 cibles
+  final List<Player> _selectedTargets = [];
+
+  void _toggleSelection(Player p) {
+    setState(() {
+      if (_selectedTargets.contains(p)) {
+        _selectedTargets.remove(p);
+      } else {
+        if (_selectedTargets.length < 2) {
+          _selectedTargets.add(p);
+        } else {
+          // Feedback si on essaie d'en sélectionner plus de 2
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Maximum 2 cibles autorisées."),
+              duration: Duration(milliseconds: 800),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // On retire le Maître du Temps lui-même de la liste (ne peut pas s'auto-cibler)
+    // Filtrer les candidats : Vivants et pas le Maître du Temps lui-même
     final candidates = widget.allPlayers
         .where((p) => p.isAlive && p.name != widget.player.name)
         .toList();
+
+    // Adapter le texte du bouton
+    String buttonText = "PASSER SON TOUR";
+    Color buttonColor = Colors.grey;
+    if (_selectedTargets.isNotEmpty) {
+      buttonText = "ÉLIMINER (${_selectedTargets.length})";
+      buttonColor = Colors.cyanAccent;
+    }
 
     return Column(
       children: [
         const Padding(
           padding: EdgeInsets.all(16.0),
-          child: Text(
-            "Choisis un joueur pour remonter le temps.\n(Sa mort sera annulée s'il meurt cette nuit)",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70),
+          child: Column(
+            children: [
+              Text(
+                "MAÎTRE DU TEMPS",
+                style: TextStyle(
+                  color: Colors.cyanAccent,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                "Leur temps est écoulé.\nChoisissez jusqu'à 2 joueurs à effacer de la chronologie.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
           ),
         ),
+
+        // Liste des candidats
         Expanded(
-          child: ListView.builder(
+          child: candidates.isEmpty
+              ? const Center(
+            child: Text("Personne d'autre n'est en vie...", style: TextStyle(color: Colors.white38)),
+          )
+              : ListView.builder(
             itemCount: candidates.length,
             itemBuilder: (context, index) {
               final p = candidates[index];
-              final isSelected = _selectedTarget == p;
-              return ListTile(
-                title: Text(p.name, style: const TextStyle(color: Colors.white)),
-                leading: Radio<Player>(
-                  value: p,
-                  groupValue: _selectedTarget,
-                  activeColor: Colors.orangeAccent,
-                  onChanged: (val) => setState(() => _selectedTarget = val),
+              final isSelected = _selectedTargets.contains(p);
+
+              return Card(
+                color: isSelected ? Colors.cyanAccent.withOpacity(0.2) : Colors.white10,
+                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: ListTile(
+                  leading: Icon(
+                    isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: isSelected ? Colors.cyanAccent : Colors.white54,
+                  ),
+                  title: Text(
+                    p.name,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    p.role != null && p.isFanOfRonAldo ? "Fan" : "Cible potentielle",
+                    style: const TextStyle(color: Colors.white30, fontSize: 10),
+                  ),
+                  onTap: () => _toggleSelection(p),
                 ),
-                onTap: () => setState(() => _selectedTarget = p),
               );
             },
           ),
         ),
+
+        // Bouton d'action
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: SizedBox(
             width: double.infinity,
+            height: 50,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: buttonColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               onPressed: () {
-                if (_selectedTarget == null) {
-                  // Permet de passer son tour explicitement
+                if (_selectedTargets.isEmpty) {
+                  // Action Passer
                   widget.onAction("SKIP", null);
                 } else {
-                  // --- SUIVI POUR SUCCÈS "TIME PERFECT" ---
+                  // Action Tuer
+                  // On marque que le pouvoir a été utilisé (pour le succès "Clean Hands")
                   widget.player.timeMasterUsedPower = true;
 
-                  widget.onAction("REWIND", _selectedTarget);
+                  // On envoie la liste des cibles
+                  widget.onAction("KILL", _selectedTargets);
                 }
               },
               child: Text(
-                _selectedTarget == null ? "PASSER SON TOUR" : "PROTÉGER ${_selectedTarget!.name.toUpperCase()}",
-                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                buttonText,
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ),
