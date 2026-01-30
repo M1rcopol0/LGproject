@@ -200,7 +200,7 @@ class Player {
     this.bombTimer = 0,
     this.houstonTargets = const [],
     this.houstonApollo13Triggered = false,
-    this.somnifereUses = 2,
+    this.somnifereUses = 1,
     this.lastQuicheTurn = -1,
     this.isVillageProtected = false,
     this.hasBakedQuiche = false,
@@ -256,7 +256,7 @@ class Player {
     isInTravel = false;
     canTravelAgain = true;
     travelerBullets = 0;
-    somnifereUses = 2;
+    somnifereUses = 1;
     votes = 0;
   }
 

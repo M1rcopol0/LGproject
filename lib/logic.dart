@@ -365,7 +365,7 @@ class GameLogic {
     p.hasUsedRevive = false;
     p.hasBetrayedRonAldo = false;
     p.travelerBullets = 0;
-    p.somnifereUses = (p.role?.toLowerCase() == "somnifère") ? 2 : 0;
+    p.somnifereUses = (p.role?.toLowerCase() == "somnifère") ? 1 : 0;
     p.bombTimer = 0;
     p.hasPlacedBomb = false;
     p.dingoStrikeCount = 0;
