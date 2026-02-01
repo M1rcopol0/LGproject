@@ -96,6 +96,7 @@ class Player {
 
   // Enculateur du bled
   Set<String> protectedPlayersHistory; // Historique pour "Sortez couvert"
+  String? lastBledTarget;
 
   // Tardos
   Player? tardosTarget;

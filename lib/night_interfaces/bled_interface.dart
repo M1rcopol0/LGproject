@@ -16,6 +16,16 @@ class BledInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // AJOUT : Récupération de la dernière cible protégée
+    final String? forbiddenTargetName = actor.lastBledTarget;
+
+    // Filtrage des cibles éligibles
+    final eligiblePlayers = players.where((p) =>
+    p.isAlive &&
+        p != actor &&
+        p.name != forbiddenTargetName // Ne peut pas cibler la personne protégée la veille
+    ).toList();
+
     return Column(
       children: [
         const Padding(
@@ -38,11 +48,18 @@ class BledInterface extends StatelessWidget {
             style: TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic),
           ),
         ),
+        if (forbiddenTargetName != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              "🚫 ${Player.formatName(forbiddenTargetName)} ne peut pas être protégé(e) deux fois de suite.",
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
         const SizedBox(height: 10),
         Expanded(
           child: TargetSelectorInterface(
-            // On exclut l'acteur de la liste des cibles (il ne peut pas se protéger lui-même)
-            players: players.where((p) => p.isAlive && p != actor).toList(),
+            players: eligiblePlayers, // Liste filtrée
             maxTargets: 1,
             isProtective: true, // Thème vert pour la protection
             onTargetsSelected: (selected) {
@@ -55,8 +72,10 @@ class BledInterface extends StatelessWidget {
                 // 1. Application de l'immunité immédiate pour le vote de demain
                 target.isImmunizedFromVote = true;
 
-                // 2. TRACKING SUCCÈS (Sortez Couvert)
-                // On ajoute le nom au Set d'historique. Comme c'est un Set, les doublons sont gérés automatiquement.
+                // 2. Mise à jour de la dernière cible pour interdire au prochain tour
+                actor.lastBledTarget = target.name;
+
+                // 3. TRACKING SUCCÈS (Sortez Couvert)
                 actor.protectedPlayersHistory.add(target.name);
                 debugPrint("📊 LOG [Bled] : Historique protections uniques: ${actor.protectedPlayersHistory.length}");
 
