@@ -9,7 +9,7 @@ import 'globals.dart';
 
 class CloudService {
   // ⚠️ VOTRE URL
-  static const String _scriptUrl = "https://script.google.com/macros/s/AKfycbx2SY1cb7KgX9yf5ubAxsX76FaH_qvOCucXWknuvFANCBPbs8fVOgraSU0yRGO-73I/exec";
+  static const String _scriptUrl = "https://script.google.com/macros/s/AKfycbwwZHAFLcOU0liI-MbLifSFc2EZ0qxGFOpe0aipnd32NWiguM5_FLWuPoocgj6TajLQ/exec";
 
   // =========================================================================
   // A. SYNCHRONISATION INTELLIGENTE (PULL + MERGE + PUSH)

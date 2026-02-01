@@ -8,7 +8,7 @@ import 'package:talker_flutter/talker_flutter.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GÉNÉRALE ---
-String globalGameVersion = "1.5.1 - Debug";
+String globalGameVersion = "1.5.1 - Release";
 late Talker globalTalker;
 
 // --- PARAMÈTRES AUDIO ---
