@@ -73,7 +73,6 @@ class AchievementLogic {
           checkData: {'pokemon_died_t1': true, 'player_role': 'Pokémon'},
         );
       } else {
-        // En cas d'appel hors contexte UI (ex: console), on tente le déblocage silencieux
         _safeUnlock(victim.name, "pokemon_fail");
       }
     }
@@ -157,16 +156,11 @@ class AchievementLogic {
     checkParkingShot(null, dingo, victim, allPlayers);
   }
 
-  // CORRECTION MAJEURE : FAN SACRIFICE
   static void checkFanSacrifice(BuildContext context, Player victim, Player savedPlayer) {
-    // victim = Le Fan qui meurt
-    // savedPlayer = Ron-Aldo qui est sauvé
-
     bool isFan = victim.isFanOfRonAldo;
     bool isRonAldoSaved = savedPlayer.role?.toLowerCase() == "ron-aldo";
 
     if (isFan && isRonAldoSaved) {
-      // Condition 1 : "Supporter jusqu'au bout" (Juste mourir pour lui n'importe quand)
       TrophyService.checkAndUnlockImmediate(
         context: context,
         playerName: victim.name,
@@ -174,8 +168,6 @@ class AchievementLogic {
         checkData: {'sacrificed': true},
       );
 
-      // Condition 2 : "Sacrifice Ultime" (Nouveau)
-      // Condition : Ron-Aldo a voté pour lui-même, entraînant la mort du fan
       bool ronAldoSelfVoted = false;
       if (savedPlayer.targetVote != null && savedPlayer.targetVote!.name == savedPlayer.name) {
         ronAldoSelfVoted = true;
@@ -193,11 +185,11 @@ class AchievementLogic {
     }
   }
 
+  // --- CORRECTION FRINGALE NOCTURNE ---
   static void checkEvolvedHunger(BuildContext? context, Player votedPlayer) {
-    if (nightWolvesTarget != null &&
-        votedPlayer.name == nightWolvesTarget!.name &&
-        nightWolvesTargetSurvived) {
-      evolvedHungerAchieved = true;
+    // Si la personne votée a survécu à une morsure la nuit précédente
+    if (votedPlayer.hasSurvivedWolfBite) {
+      evolvedHungerAchieved = true; // Flag global pour succès loup
     }
   }
 
@@ -274,7 +266,6 @@ class AchievementLogic {
     }
   }
 
-  // --- MÉTHODE SPÉCIALE CLUTCH PANTIN ---
   static void checkClutchManual(BuildContext context, Player pantin) {
     TrophyService.checkAndUnlockImmediate(
       context: context,
@@ -284,11 +275,10 @@ class AchievementLogic {
     );
   }
 
-  // --- ARCHIVISTE : ROI & PRINCE ---
+  // --- CORRECTION ARCHIVISTE (CLÉ PAR JOUEUR) ---
   static Future<void> checkArchivisteEndGame(BuildContext context, Player p) async {
     if (p.role?.toLowerCase() != "archiviste") return;
 
-    // Liste des actions attendues
     const Set<String> requiredPowers = {
       "mute",
       "cancel_vote",
@@ -308,19 +298,19 @@ class AchievementLogic {
       );
     }
 
-    // 2. LE PRINCE DU CDI (Cumulatif)
+    // 2. LE PRINCE DU CDI
     try {
       final prefs = await SharedPreferences.getInstance();
-      const String historyKey = "archiviste_powers_history";
+
+      // CLÉ UNIQUE : archiviste_powers_history_PSEUDO
+      String historyKey = "archiviste_powers_history_${p.name}";
 
       List<String> historyList = prefs.getStringList(historyKey) ?? [];
       Set<String> historySet = historyList.toSet();
 
-      // On ajoute les nouvelles actions
       historySet.addAll(usedThisGame);
       await prefs.setStringList(historyKey, historySet.toList());
 
-      // Vérification
       if (historySet.containsAll(requiredPowers)) {
         await TrophyService.checkAndUnlockImmediate(
           context: context,
@@ -334,7 +324,7 @@ class AchievementLogic {
     }
   }
 
-  // --- UTILITAIRES SANS POP-UP IMMÉDIAT (Stats) ---
+  // --- UTILITAIRES ---
 
   static void updateVoyageur(Player voyageur) {
     if (voyageur.isInTravel) {
@@ -359,10 +349,6 @@ class AchievementLogic {
   static void recordPhylChange(Player phyl) {
     phyl.roleChangesCount++;
   }
-
-  // ==========================================================
-  // 4. LOGIQUE DE TRANSITION ET RESET
-  // ==========================================================
 
   static void clearTurnData() {
     _traitorsThisTurn.clear();

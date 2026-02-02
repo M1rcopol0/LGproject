@@ -11,7 +11,7 @@ class GameSaveService {
   static Future<void> saveGame() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. Convertir les joueurs
+    // 1. Convertir les joueurs (inclut tous les nouveaux champs via toJson)
     List<Map<String, dynamic>> playersJson = globalPlayers.map((p) => p.toJson()).toList();
 
     // 2. Créer l'objet de sauvegarde
@@ -34,6 +34,7 @@ class GameSaveService {
       'evolvedHungerAchieved': evolvedHungerAchieved,
       'fanSacrificeAchieved': fanSacrificeAchieved,
       'nightWolvesTargetSurvived': nightWolvesTargetSurvived,
+      // 'exorcistWin' n'a pas besoin d'être sauvegardé car la partie finit immédiatement
     };
 
     // 3. Écrire
@@ -58,7 +59,7 @@ class GameSaveService {
 
       // 1. Restaurer les variables globales
       globalTurnNumber = data['turn'];
-      isDayTime = data['isDayTime']; // Normalement true si on sauvegarde le matin
+      isDayTime = data['isDayTime'];
       nightOnePassed = data['nightOnePassed'] ?? false;
       globalRolesDistributed = data['rolesDistributed'] ?? false;
 
@@ -73,11 +74,11 @@ class GameSaveService {
       fanSacrificeAchieved = data['fanSacrificeAchieved'] ?? false;
       nightWolvesTargetSurvived = data['nightWolvesTargetSurvived'] ?? false;
 
-      // 2. Reconstruire les Joueurs (PASSE 1 : Création)
+      // 2. Reconstruire les Joueurs (PASSE 1 : Création avec champs simples)
       List<dynamic> playersData = data['players'];
       List<Player> loadedPlayers = playersData.map((map) => Player.fromMap(map)).toList();
 
-      // 3. Reconnecter les Références (PASSE 2 : Liaison)
+      // 3. Reconnecter les Références (PASSE 2 : Liaison des objets Player)
       // On a besoin de retrouver les objets Player à partir de leurs noms sauvegardés
       for (int i = 0; i < loadedPlayers.length; i++) {
         Player p = loadedPlayers[i];
@@ -99,7 +100,7 @@ class GameSaveService {
           p.houstonTargets = (map['houstonTargets'] as List).map((n) => find(n.toString())).whereType<Player>().toList();
         }
 
-        // Reconnexion Vote
+        // Reconnexion Vote (si sauvegarde en pleine journée)
         p.targetVote = find(map['targetVote']);
       }
 

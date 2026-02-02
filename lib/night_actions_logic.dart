@@ -101,16 +101,31 @@ class NightActionsLogic {
     for (var p in players) {
       if (p.role?.toLowerCase() == "maître du temps" && p.isAlive && p.timeMasterTargets.isNotEmpty) {
         debugPrint("⏳ LOG [TimeMaster] : Exécution des cibles : ${p.timeMasterTargets}");
+
+        // CORRECTION PARADOXE TEMPOREL : Détection ici
+        List<Player> killedByTime = [];
+
         for (var targetName in p.timeMasterTargets) {
           try {
             Player target = players.firstWhere((t) => t.name == targetName);
             if (target.isAlive) {
               pendingDeathsMap[target] = "Effacé du temps (Maître du Temps)";
+              killedByTime.add(target);
             }
           } catch (e) {
             debugPrint("⚠️ Erreur cible Time Master: $targetName introuvable.");
           }
         }
+
+        // Vérification du succès Paradoxe
+        if (killedByTime.length >= 2) {
+          Set<String> teams = killedByTime.map((kp) => kp.team).toSet();
+          if (teams.length >= 2) {
+            debugPrint("⏳ LOG [Succès] : Paradoxe Temporel détecté !");
+            paradoxAchieved = true;
+          }
+        }
+
         p.timeMasterTargets.clear();
       }
     }
@@ -230,7 +245,8 @@ class NightActionsLogic {
           return;
         }
 
-        // CORRECTION : "Temps" (Maître du Temps) n'est plus imparable (la quiche le bloque)
+        // CORRECTION : RETRAIT DE "Temps" DANS LES CAUSES IMPARABLES
+        // Le Maître du Temps sera désormais bloqué par la Quiche.
         bool isUnstoppable = reason.contains("accidentelle") || // Suicide Tardos
             reason.contains("Bombe") ||        // Explosion Tardos
             reason.contains("Tardos") ||       // Explosion Tardos
@@ -243,6 +259,13 @@ class NightActionsLogic {
             debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
           }
           debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
+
+          // Gestion Succès Fringale Nocturne (Si attaque loup bloquée)
+          if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
+            target.hasSurvivedWolfBite = true;
+            nightWolvesTargetSurvived = true;
+          }
+
           return;
         }
 
@@ -272,6 +295,10 @@ class NightActionsLogic {
 
         if (target.isProtectedByPokemon && !reason.contains("Tardos") && !reason.contains("Temps")) {
           debugPrint("🛡️ LOG [Pokémon] : ${target.name} protégé.");
+          if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
+            target.hasSurvivedWolfBite = true;
+            nightWolvesTargetSurvived = true;
+          }
           return;
         }
 
@@ -317,11 +344,21 @@ class NightActionsLogic {
               !reason.contains("Tardos") && !reason.contains("Temps")) {
             debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
+
+            // La cible originale a survécu
+            if (reason.contains("Attaque des Loups")) target.hasSurvivedWolfBite = true;
+
           } else {
             debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
             finalDeathReasons[finalVictim.name] = reason;
           }
           if (reason.contains("Morsure")) wolvesNightKills++;
+        } else {
+          // Survie (ex: Pantin Immunisé, Voyageur)
+          if (reason.contains("Attaque des Loups")) {
+            target.hasSurvivedWolfBite = true;
+            nightWolvesTargetSurvived = true;
+          }
         }
       });
     }

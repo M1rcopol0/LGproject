@@ -26,6 +26,9 @@ class Player {
   bool tardosSuicide; // Pour 'tardos_oups'
   bool pantinClutchTriggered; // Pour le succès Clutch
 
+  // --- NOUVEAU : Succès Fringale Nocturne ---
+  bool hasSurvivedWolfBite;
+
   // --- NOUVEAU : Cible du Devin ---
   bool isRevealedByDevin;
 
@@ -146,6 +149,7 @@ class Player {
     this.hasReturnedThisTurn = false,
     this.isRevealedByDevin = false,
     this.pantinClutchTriggered = false,
+    this.hasSurvivedWolfBite = false, // Init
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
@@ -265,6 +269,7 @@ class Player {
     votes = 0;
     timeMasterTargets = [];
     lastBledTarget = null; // Reset complet
+    hasSurvivedWolfBite = false; // Reset
   }
 
   void resetTemporaryStates() {
@@ -278,6 +283,7 @@ class Player {
     pokemonRevengeTarget = null;
     hasReturnedThisTurn = false;
     // Note: On ne reset pas timeMasterTargets ni lastBledTarget ici car ils doivent persister
+    // hasSurvivedWolfBite est persistant jusqu'à la fin de la partie pour le succès, ne pas reset ici.
   }
 
   Widget buildStatusIcons() {
@@ -396,7 +402,7 @@ class Player {
       'revealedPlayersHistory': revealedPlayersHistory,
       'hasRevealedSamePlayerTwice': hasRevealedSamePlayerTwice,
       'protectedPlayersHistory': protectedPlayersHistory.toList(),
-      'lastBledTarget': lastBledTarget, // AJOUT : Sauvegarde de la dernière cible Bled
+      'lastBledTarget': lastBledTarget,
       'hasPlacedBomb': hasPlacedBomb,
       'hasUsedBombPower': hasUsedBombPower,
       'isBombed': isBombed,
@@ -418,7 +424,8 @@ class Player {
       'timeMasterUsedPower': timeMasterUsedPower,
       'tardosSuicide': tardosSuicide,
       'pantinClutchTriggered': pantinClutchTriggered,
-      'timeMasterTargets': timeMasterTargets, // Sauvegarde cibles Maître du Temps
+      'timeMasterTargets': timeMasterTargets,
+      'hasSurvivedWolfBite': hasSurvivedWolfBite, // AJOUTÉ
     };
   }
 
@@ -498,7 +505,8 @@ class Player {
       ..timeMasterUsedPower = map['timeMasterUsedPower'] ?? false
       ..tardosSuicide = map['tardosSuicide'] ?? false
       ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false
-      ..lastBledTarget = map['lastBledTarget'] // Chargement de la dernière cible Bled
-      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? []); // Chargement cibles Maître du Temps
+      ..lastBledTarget = map['lastBledTarget'] // AJOUTÉ
+      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? []) // AJOUTÉ
+      ..hasSurvivedWolfBite = map['hasSurvivedWolfBite'] ?? false; // AJOUTÉ
   }
 }
