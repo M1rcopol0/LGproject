@@ -37,7 +37,7 @@ class NightActionsLogic {
       // --- LOGIQUE BOMBE TARDOS (PROJECTILE AUTONOME) ---
       if (p.hasPlacedBomb && p.tardosTarget != null && p.bombTimer > 0) {
         p.bombTimer--;
-        debugPrint("💣 LOG [Tardos] : La bombe posée par ${p.name} tic-tac... (T-Minus: ${p.bombTimer})");
+        debugPrint("💣 LOG [Tardos] : La bombe de ${p.name} tic-tac... (T-Minus: ${p.bombTimer})");
       }
 
       // --- LOGIQUE VOYAGEUR (Munitions & Stats) ---
@@ -97,8 +97,7 @@ class NightActionsLogic {
       );
     }
 
-    // --- 0. INTÉGRATION ACTIONS MAÎTRE DU TEMPS (CORRECTIF CRUCIAL) ---
-    // On vérifie si le Maître du Temps a marqué des cibles dans son profil
+    // --- 0. INTÉGRATION ACTIONS MAÎTRE DU TEMPS ---
     for (var p in players) {
       if (p.role?.toLowerCase() == "maître du temps" && p.isAlive && p.timeMasterTargets.isNotEmpty) {
         debugPrint("⏳ LOG [TimeMaster] : Exécution des cibles : ${p.timeMasterTargets}");
@@ -106,14 +105,12 @@ class NightActionsLogic {
           try {
             Player target = players.firstWhere((t) => t.name == targetName);
             if (target.isAlive) {
-              // On ajoute la mort à la liste des morts en attente
               pendingDeathsMap[target] = "Effacé du temps (Maître du Temps)";
             }
           } catch (e) {
             debugPrint("⚠️ Erreur cible Time Master: $targetName introuvable.");
           }
         }
-        // On vide la liste pour ne pas les retuer la nuit suivante
         p.timeMasterTargets.clear();
       }
     }
@@ -233,11 +230,11 @@ class NightActionsLogic {
           return;
         }
 
-        bool isUnstoppable = reason.contains("accidentelle") ||
-            reason.contains("Bombe") ||
-            reason.contains("Tardos") ||
-            reason.contains("Maison") ||
-            reason.contains("Temps"); // Le Maître du Temps est imparable
+        // CORRECTION : "Temps" (Maître du Temps) n'est plus imparable (la quiche le bloque)
+        bool isUnstoppable = reason.contains("accidentelle") || // Suicide Tardos
+            reason.contains("Bombe") ||        // Explosion Tardos
+            reason.contains("Tardos") ||       // Explosion Tardos
+            reason.contains("Maison");         // Effondrement Maison
 
         if (quicheIsActive && !isUnstoppable) {
           quicheSavedThisNight++;
