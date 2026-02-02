@@ -118,6 +118,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       exorcistSuccess: (_exorcismeResult == "success"),
     );
 
+    // --- CORRECTION : DÉTECTION VICTOIRE EXORCISTE ---
     if (result.exorcistVictory) {
       debugPrint("🏆 LOG [NightScreen] : L'exorciste a réussi son mime !");
       exorcistWin = true; // Variable globale pour le succès
@@ -312,12 +313,23 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 else ...[
                   const Text("💀 DÉCÈS :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
-                  ...result.deadPlayers.map((p) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Text(
-                        "- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}",
-                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                  )),
+                  ...result.deadPlayers.map((p) {
+                    // --- NOUVEAU : AJOUT INFO POKÉMON ---
+                    String info = "- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}";
+
+                    if ((p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.pokemonRevengeTarget != null) {
+                      var target = p.pokemonRevengeTarget!;
+                      // Si la cible est aussi dans la liste des morts de cette nuit
+                      if (result.deadPlayers.any((dead) => dead.name == target.name)) {
+                        info += "\n  ⚡ A emporté ${target.name} !";
+                      }
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(info, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    );
+                  }),
                 ],
               ],
             ],
@@ -328,7 +340,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
               if (result.exorcistVictory) {
+                // CORRECTION : Déblocage du succès Mime Win ici (sécurité doublée)
                 exorcistWin = true;
+
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)),

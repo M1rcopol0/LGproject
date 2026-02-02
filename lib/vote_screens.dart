@@ -407,27 +407,42 @@ class MJResultScreen extends StatelessWidget {
       return;
     }
 
-    // Capture du rôle avant élimination potentielle (bien que eliminatePlayer conserve le rôle)
     String roleReveal = target.role?.toUpperCase() ?? "INCONNU";
 
-    // Toute la logique complexe (Pantin, Maison, etc.) est gérée ici
+    // Élimination principale (Gère aussi la cascade de morts : Pokémon, Maison, etc.)
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
 
     String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${Player.formatName(deceased.name)} est éliminé.";
 
-    // Messages contextuels importants
+    // --- GESTION DES MESSAGES CONTEXTUELS ---
+
     if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) {
       message = "🃏 Le Pantin a survécu (Immunité unique).";
-    } else if (deceased.role?.toLowerCase() == "voyageur" && deceased.isAlive) {
+    }
+    else if (deceased.role?.toLowerCase() == "voyageur" && deceased.isAlive) {
       message = "✈️ Le Voyageur revient au village (Survit).";
-    } else if (!deceased.isAlive) {
-      // Si quelqu'un est vraiment mort, on prépare le message détaillé avec rôle
+    }
+    else if (!deceased.isAlive) {
+      // 1. Cas Sacrifice Ron-Aldo
       if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
         message = "🛡️ SACRIFICE : ${Player.formatName(deceased.name)} s'est sacrifié !\nSon rôle était : FAN DE RON-ALDO";
-      } else if (target.role?.toLowerCase() == "maison" && deceased != target) {
+      }
+      // 2. Cas Maison Effondrée
+      else if (target.role?.toLowerCase() == "maison" && deceased != target) {
         message = "🏠 La Maison s'est effondrée sur ${Player.formatName(deceased.name)} !\nSon rôle était : ${deceased.role?.toUpperCase()}";
-      } else {
+      }
+      // 3. Cas Standard
+      else {
         message = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : $roleReveal";
+
+        // --- NOUVEAU : AJOUT INFO POKÉMON ---
+        if ((deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") && deceased.pokemonRevengeTarget != null) {
+          Player revengeTarget = deceased.pokemonRevengeTarget!;
+          // On vérifie qu'elle est bien morte (GameLogic l'a tuée juste avant)
+          if (!revengeTarget.isAlive) {
+            message += "\n\n⚡ VENGEANCE !\nLe Pokémon a foudroyé ${revengeTarget.name} (${revengeTarget.role?.toUpperCase()}) !";
+          }
+        }
       }
     }
 
