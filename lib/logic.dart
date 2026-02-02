@@ -130,24 +130,32 @@ class GameLogic {
 
     hasVotedThisTurn = true;
 
-    // 1. Reset des compteurs
+    // 1. Reset des compteurs (CRITIQUE POUR ÉVITER LE CUMUL)
     for (var p in allPlayers) {
       p.votes = 0;
     }
 
     // 2. Identification du bloc Ron-Aldo
     Player? ronAldo;
-    List<Player> livingFans = [];
+    int fanCount = 0;
+
     try {
       ronAldo = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
-      livingFans = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
-    } catch (_) {}
+
+      // On compte les fans vivants pour le bonus
+      fanCount = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).length;
+
+      debugPrint("⚽ LOG [Ron-Aldo] : Fans actifs détectés : $fanCount");
+    } catch (_) {
+      debugPrint("⚽ LOG [Ron-Aldo] : Pas de Ron-Aldo vivant.");
+    }
 
     // 3. Application des votes
     for (var voter in allPlayers.where((p) => p.isAlive)) {
 
       // CAS SPÉCIAL : FAN DE RON-ALDO
-      // Si Ron-Aldo est vivant, le fan ne vote pas individuellement (c'est Ron-Aldo qui porte le poids)
+      // Si Ron-Aldo est vivant, le fan NE VOTE PAS individuellement.
+      // Sa "force" est transférée à Ron-Aldo.
       if (ronAldo != null && voter.isFanOfRonAldo) {
         continue;
       }
@@ -156,21 +164,22 @@ class GameLogic {
         // Poids de base
         int weight = 1;
 
-        // Bonus Pantin
+        // Bonus Pantin (x2)
         if (voter.role?.toLowerCase() == "pantin") {
           weight = 2;
         }
 
-        // Bonus Ron-Aldo (Lui-même + ses fans)
+        // Bonus Ron-Aldo (Lui-même [1] + ses fans [fanCount])
         if (voter.role?.toLowerCase() == "ron-aldo") {
-          weight += livingFans.length;
-          debugPrint("⚽ LOG [Ron-Aldo] : Vote avec un poids de $weight (dont ${livingFans.length} fans).");
+          weight += fanCount;
+          debugPrint("⚽ LOG [Ron-Aldo] : Vote avec un poids de $weight (dont $fanCount fans).");
         }
 
         // Application du vote
         try {
           var target = allPlayers.firstWhere((p) => p.name == voter.targetVote!.name);
           target.votes += weight;
+          debugPrint("🗳️ LOG [Vote] : ${voter.name} (+${weight}) -> ${target.name} (Total: ${target.votes})");
         } catch (e) {
           debugPrint("⚠️ Vote ignoré : Cible introuvable.");
         }
@@ -178,6 +187,8 @@ class GameLogic {
     }
 
     validateVoteStats(context, allPlayers);
+
+    // ... (Le reste : Tri, Dingo, etc.) ...
 
     List<Player> votablePlayers =
     allPlayers.where((p) => p.isAlive && !p.isImmunizedFromVote).toList();
@@ -203,7 +214,6 @@ class GameLogic {
     }
 
     AchievementLogic.checkEvolvedHunger(context, first);
-    // Note : Le MJ appelle eliminatePlayer manuellement via MJResultScreen.
   }
 
   // ==========================================================
