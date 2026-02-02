@@ -227,11 +227,19 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   }
 
   void _showMorningPopup(NightResult result) {
-    // --- CORRECTION : DÉTECTION DES JOUEURS MUETS (ARCHIVISTE) ---
+    // 1. DÉTECTION DES JOUEURS MUETS (ARCHIVISTE)
     List<String> mutedPlayers = widget.players
         .where((p) => p.isMutedDay && p.isAlive)
         .map((p) => p.name)
         .toList();
+
+    // 2. DÉTECTION RETOUR FORCÉ VOYAGEUR
+    bool voyageurIntercepte = widget.players.any((p) =>
+    p.role?.toLowerCase() == "voyageur" &&
+        p.isAlive &&
+        !p.canTravelAgain &&
+        !p.isInTravel
+    );
 
     showDialog(
       context: context,
@@ -253,7 +261,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
 
-              // 1. VICTOIRE EXORCISTE
+              // VICTOIRE EXORCISTE
               if (result.exorcistVictory)
                 const Column(
                   children: [
@@ -269,7 +277,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                   ],
                 ),
 
-              // 2. ANNONCES SPÉCIALES (HOUSTON / DEVIN)
+              // ANNONCES SPÉCIALES
               if (!result.exorcistVictory && result.announcements.isNotEmpty) ...[
                 const Text("📢 ANNONCES SPÉCIALES :", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
@@ -287,7 +295,17 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              // --- 3. ANNONCE DES MUETS (ARCHIVISTE) - NOUVEAU ---
+              // RETOUR FORCÉ VOYAGEUR (NOUVEAU)
+              if (!result.exorcistVictory && voyageurIntercepte) ...[
+                const Text("🛑 RETOUR FORCÉ :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                const Text(
+                    "Le Voyageur a été attaqué durant son périple !\nIl a survécu mais a dû rentrer en urgence. Il ne pourra plus repartir.",
+                    style: TextStyle(color: Colors.white70, fontSize: 13, fontStyle: FontStyle.italic)),
+                const Divider(color: Colors.white24, height: 20),
+              ],
+
+              // SILENCE ARCHIVISTE (NOUVEAU)
               if (!result.exorcistVictory && mutedPlayers.isNotEmpty) ...[
                 const Text("🤐 SILENCE IMPOSÉ :", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
@@ -300,7 +318,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              // 4. MORTS ET NARCOLEPSIE
+              // MORTS ET NARCOLEPSIE
               if (!result.exorcistVictory && result.villageIsNarcoleptic)
                 const Text("💤 Village KO (Somnifère) !\nPersonne n'est mort, mais personne ne pourra parler.",
                     style: TextStyle(
@@ -314,7 +332,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                   const Text("💀 DÉCÈS :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   ...result.deadPlayers.map((p) {
-                    // --- NOUVEAU : AJOUT INFO POKÉMON ---
+                    // --- AJOUT INFO POKÉMON ---
                     String info = "- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}";
 
                     if ((p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.pokemonRevengeTarget != null) {
@@ -340,9 +358,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
               if (result.exorcistVictory) {
-                // CORRECTION : Déblocage du succès Mime Win ici (sécurité doublée)
                 exorcistWin = true;
-
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)),
@@ -351,13 +367,12 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 return;
               }
 
-              // --- MISE À JOUR ÉTATS DEVIN (ICÔNE) ---
               if (result.revealedPlayerNames.isNotEmpty) {
                 debugPrint("👁️ LOG [Devin] : Mise à jour des icônes pour ${result.revealedPlayerNames}");
                 for (String name in result.revealedPlayerNames) {
                   try {
                     var p = widget.players.firstWhere((pl) => pl.name == name);
-                    p.isRevealedByDevin = true; // L'icône apparaîtra au menu
+                    p.isRevealedByDevin = true;
                   } catch (_) {}
                 }
               }
