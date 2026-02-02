@@ -156,7 +156,8 @@ class AchievementData {
       title: "Assurance Tous Risques",
       description: "Votre maison s'est effondrée pour protéger un invité d'une attaque mortelle.",
       icon: "🧱", rarity: 1,
-      checkCondition: (data) => false, // Déclenché manuellement par Logic.eliminatePlayer
+      // CORRECTION : Utilisation du flag explicite envoyé par AchievementLogic
+      checkCondition: (data) => data['house_collapsed'] == true,
     ),
 
     Achievement(
@@ -366,7 +367,7 @@ class AchievementData {
       title: "Fan Ultime",
       description: "Votez contre Ron-Aldo mais mourez pour le sauver.",
       icon: "💔", rarity: 3,
-      // Condition mise à jour pour réagir au déclencheur immédiat
+      // CORRECTION : Utilisation du flag explicite
       checkCondition: (data) => data['ultimate_fan_action'] == true,
     ),
     Achievement(
@@ -374,7 +375,7 @@ class AchievementData {
       title: "Garde du Corps",
       description: "Se sacrifier pour Ron-Aldo.",
       icon: "🧡", rarity: 1,
-      checkCondition: (data) => data['is_fan_sacrifice'] == true,
+      checkCondition: (data) => data['sacrificed'] == true || data['is_fan_sacrifice'] == true,
     ),
     Achievement(
       id: "siuuu_win",
@@ -428,13 +429,16 @@ class AchievementData {
         return (roles['LOUPS-GAROUS'] ?? 0) >= 1;
       },
     ),
+
+    // CORRECTION : Condition explicite pour déclencheur manuel
     Achievement(
       id: "first_blood",
       title: "Premier Sang",
       description: "Être le premier joueur à mourir dans la partie.",
       icon: "🩸", rarity: 1,
-      checkCondition: (data) => false,
+      checkCondition: (data) => data['is_first_blood'] == true,
     ),
+
     Achievement(
       id: "first_win",
       title: "Première Victoire",

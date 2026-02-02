@@ -141,10 +141,8 @@ class GameLogic {
 
     try {
       ronAldo = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
-
       // On compte les fans vivants pour le bonus
       fanCount = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).length;
-
       debugPrint("⚽ LOG [Ron-Aldo] : Fans actifs détectés : $fanCount");
     } catch (_) {
       debugPrint("⚽ LOG [Ron-Aldo] : Pas de Ron-Aldo vivant.");
@@ -155,7 +153,6 @@ class GameLogic {
 
       // CAS SPÉCIAL : FAN DE RON-ALDO
       // Si Ron-Aldo est vivant, le fan NE VOTE PAS individuellement.
-      // Sa "force" est transférée à Ron-Aldo.
       if (ronAldo != null && voter.isFanOfRonAldo) {
         continue;
       }
@@ -322,7 +319,8 @@ class GameLogic {
           houseOwner.isHouseDestroyed = true;
           for (var p in allPlayers) { p.isInHouse = false; }
           victim.isAlive = false;
-          AchievementLogic.checkHouseCollapse(houseOwner);
+          // CORRECTION : Appel avec context pour le pop-up
+          AchievementLogic.checkHouseCollapse(context, houseOwner);
           debugPrint("🏠 LOG [Maison] : Effondrement ! Le propriétaire meurt à la place de ${realTarget.name}");
           return victim;
         }
@@ -372,7 +370,8 @@ class GameLogic {
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
       firstDeadPlayerName = victim.name;
-      AchievementLogic.checkFirstBlood(victim);
+      // CORRECTION : Appel avec context pour le pop-up
+      AchievementLogic.checkFirstBlood(context, victim);
     }
 
     if (roleLower == "pokémon" && globalTurnNumber == 1 && !isDayTime) {

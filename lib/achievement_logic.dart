@@ -89,14 +89,26 @@ class AchievementLogic {
     }
   }
 
-  static void checkHouseCollapse(Player houseOwner) {
-    _safeUnlock(houseOwner.name, "house_collapse");
+  // CORRECTION : Ajout du context pour affichage immédiat
+  static void checkHouseCollapse(BuildContext context, Player houseOwner) {
+    TrophyService.checkAndUnlockImmediate(
+      context: context,
+      playerName: houseOwner.name,
+      achievementId: "house_collapse",
+      checkData: {'house_collapsed': true},
+    );
   }
 
-  static void checkFirstBlood(Player victim) {
+  // CORRECTION : Ajout du context pour affichage immédiat
+  static void checkFirstBlood(BuildContext context, Player victim) {
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
-      _safeUnlock(victim.name, "first_blood");
+      TrophyService.checkAndUnlockImmediate(
+        context: context,
+        playerName: victim.name,
+        achievementId: "first_blood",
+        checkData: {'is_first_blood': true},
+      );
     }
   }
 
