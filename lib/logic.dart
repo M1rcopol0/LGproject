@@ -287,15 +287,25 @@ class GameLogic {
         }
       }
     }
+    // --- CORRECTION RON-ALDO (Sacrifice UNIQUE) ---
     else if (roleLower == "ron-aldo") {
-      List<Player> allFans = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
-      allFans.sort((a, b) => a.fanJoinOrder.compareTo(b.fanJoinOrder));
+      try {
+        // On cherche spécifiquement le Fan n°1 (Order = 1)
+        Player firstFan = allPlayers.firstWhere(
+              (p) => p.isFanOfRonAldo && p.fanJoinOrder == 1,
+          orElse: () => Player(name: "None"),
+        );
 
-      if (allFans.isNotEmpty) {
-        Player firstFan = allFans.first;
-        victim = firstFan;
-        debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${victim.name}) se sacrifie !");
-        AchievementLogic.checkFanSacrifice(context, victim, realTarget);
+        // Seul lui peut se sacrifier, s'il est vivant.
+        if (firstFan.name != "None" && firstFan.isAlive) {
+          victim = firstFan;
+          debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${victim.name}) se sacrifie !");
+          AchievementLogic.checkFanSacrifice(context, victim, realTarget);
+        } else {
+          debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan est mort. Pas de sacrifice possible.");
+        }
+      } catch (e) {
+        debugPrint("⚠️ Erreur logique Ron-Aldo : $e");
       }
     }
 
