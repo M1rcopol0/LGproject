@@ -157,29 +157,38 @@ class AchievementLogic {
     checkParkingShot(null, dingo, victim, allPlayers);
   }
 
-  static void checkFanSacrifice(BuildContext context, Player deadFan, Player ronAldo) {
-    if (deadFan.isFanOfRonAldo) {
-      if (ronAldo.isAlive) {
-        fanSacrificeAchieved = true;
+  // CORRECTION MAJEURE : FAN SACRIFICE
+  static void checkFanSacrifice(BuildContext context, Player victim, Player savedPlayer) {
+    // victim = Le Fan qui meurt
+    // savedPlayer = Ron-Aldo qui est sauvé
 
-        // 1. Succès Standard : Garde du Corps
+    bool isFan = victim.isFanOfRonAldo;
+    bool isRonAldoSaved = savedPlayer.role?.toLowerCase() == "ron-aldo";
+
+    if (isFan && isRonAldoSaved) {
+      // Condition 1 : "Supporter jusqu'au bout" (Juste mourir pour lui n'importe quand)
+      TrophyService.checkAndUnlockImmediate(
+        context: context,
+        playerName: victim.name,
+        achievementId: "fan_sacrifice",
+        checkData: {'sacrificed': true},
+      );
+
+      // Condition 2 : "Sacrifice Ultime" (Nouveau)
+      // Condition : Ron-Aldo a voté pour lui-même, entraînant la mort du fan
+      bool ronAldoSelfVoted = false;
+      if (savedPlayer.targetVote != null && savedPlayer.targetVote!.name == savedPlayer.name) {
+        ronAldoSelfVoted = true;
+      }
+
+      if (ronAldoSelfVoted) {
+        debugPrint("⚽ LOG [Succès] : Condition Sacrifice Ultime remplie (Ron-Aldo s'est auto-voté).");
         TrophyService.checkAndUnlockImmediate(
           context: context,
-          playerName: deadFan.name,
-          achievementId: "fan_sacrifice",
-          checkData: {'is_fan_sacrifice': true},
+          playerName: victim.name,
+          achievementId: "ultimate_fan",
+          checkData: {'ultimate_fan_action': true},
         );
-
-        // 2. Succès Fan Ultime : Trahison ET Sacrifice
-        if (deadFan.targetVote != null && deadFan.targetVote!.name == ronAldo.name) {
-          debugPrint("💔 LOG [Achievement] : SACRIFICE ULTIME détecté pour ${deadFan.name} !");
-          TrophyService.checkAndUnlockImmediate(
-            context: context,
-            playerName: deadFan.name,
-            achievementId: "ultimate_fan",
-            checkData: {'ultimate_fan_action': true},
-          );
-        }
       }
     }
   }

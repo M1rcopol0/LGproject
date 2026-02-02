@@ -4,11 +4,12 @@ import 'globals.dart';
 import 'logic.dart';
 import 'achievement_logic.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'night_interfaces/target_selector_interface.dart';
 
 // =============================================================================
 // 1. ÉCRAN DE TRANSITION (PASSE LE TÉLÉPHONE)
 // =============================================================================
-class PassScreen extends StatelessWidget {
+class PassScreen extends StatefulWidget {
   final List<Player> voters;
   final List<Player> allPlayers;
   final int index;
@@ -23,12 +24,23 @@ class PassScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // SÉCURITÉ : On s'assure que l'ordre est alphabétique pour l'appel
-    final List<Player> sortedVoters = List.from(voters);
-    sortedVoters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  State<PassScreen> createState() => _PassScreenState();
+}
 
-    bool isLastVoter = index >= sortedVoters.length;
+class _PassScreenState extends State<PassScreen> {
+  // SÉCURITÉ : On copie et on trie la liste une seule fois
+  late List<Player> sortedVoters;
+
+  @override
+  void initState() {
+    super.initState();
+    sortedVoters = List.from(widget.voters);
+    sortedVoters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isLastVoter = widget.index >= sortedVoters.length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
@@ -42,7 +54,7 @@ class PassScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              isLastVoter ? "MAÎTRE DU JEU" : Player.formatName(sortedVoters[index].name),
+              isLastVoter ? "MAÎTRE DU JEU" : Player.formatName(sortedVoters[widget.index].name),
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 38,
@@ -65,14 +77,14 @@ class PassScreen extends StatelessWidget {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
 
                     // CORRECTION : Passage du context pour les Pop-ups de succès immédiats
-                    GameLogic.validateVoteStats(context, allPlayers);
+                    GameLogic.validateVoteStats(context, widget.allPlayers);
 
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (_) => MJResultScreen(
-                          allPlayers: allPlayers,
-                          onComplete: onComplete,
+                          allPlayers: widget.allPlayers,
+                          onComplete: widget.onComplete,
                         ),
                       ),
                     );
@@ -81,11 +93,11 @@ class PassScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) => IndividualVoteScreen(
-                          voter: sortedVoters[index],
+                          voter: sortedVoters[widget.index],
                           voters: sortedVoters,
-                          allPlayers: allPlayers,
-                          index: index,
-                          onComplete: onComplete,
+                          allPlayers: widget.allPlayers,
+                          index: widget.index,
+                          onComplete: widget.onComplete,
                         ),
                       ),
                     );
@@ -105,7 +117,7 @@ class PassScreen extends StatelessWidget {
 }
 
 // =============================================================================
-// 2. ÉCRAN DE VOTE INDIVIDUEL
+// 2. ÉCRAN DE VOTE INDIVIDUEL (Avec Blocage Voyageur/Fan)
 // =============================================================================
 class IndividualVoteScreen extends StatefulWidget {
   final Player voter;
@@ -134,6 +146,29 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   Widget build(BuildContext context) {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
+    // --- DICTATURE RON-ALDO ---
+    // Si le joueur est fan et que Ron-Aldo est vivant, il ne vote pas.
+    bool ronAldoAlive = widget.allPlayers.any((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
+    bool isFanBlocked = widget.voter.isFanOfRonAldo && ronAldoAlive;
+
+    if (voterIsTraveling) {
+      return _buildSkippedScreen(
+          "ABSENT DU VILLAGE",
+          "Vous êtes en voyage. Vous ne pouvez pas voter ce soir.",
+          Icons.flight_takeoff,
+          Colors.purpleAccent
+      );
+    }
+
+    if (isFanBlocked) {
+      return _buildSkippedScreen(
+          "DÉVOTION TOTALE",
+          "Ron-Aldo décide pour vous.\nVotre voix compte automatiquement pour son choix.",
+          Icons.star, // Étoile de fan
+          Colors.amber
+      );
+    }
+
     // TRI ALPHABÉTIQUE DES CIBLES
     final eligibleTargets = widget.allPlayers.where((p) => p.isAlive).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -145,22 +180,58 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
         automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
       ),
-      body: voterIsTraveling
-          ? _buildTravelingView()
-          : _buildVoteList(eligibleTargets),
+      body: _buildVoteList(eligibleTargets),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-              backgroundColor: voterIsTraveling ? Colors.blueGrey : Colors.green[700],
+              backgroundColor: Colors.green[700],
               minimumSize: const Size(double.infinity, 60),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
           ),
-          onPressed: (voterIsTraveling || selectedTarget != null) ? _submitVote : null,
-          child: Text(
-              voterIsTraveling ? "PASSER (EN VOYAGE)" : "VALIDER MON VOTE",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
+          onPressed: (selectedTarget != null) ? _submitVote : null,
+          child: const Text(
+              "VALIDER MON VOTE",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
           ),
+        ),
+      ),
+    );
+  }
+
+  // --- ÉCRANS BLOQUANTS (Voyageur / Fan) ---
+  Widget _buildSkippedScreen(String title, String desc, IconData icon, Color color) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0E21),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 80, color: color),
+            const SizedBox(height: 20),
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: Text(
+                desc,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            ),
+            const SizedBox(height: 30),
+            SizedBox(
+              width: 200,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+                onPressed: () {
+                  widget.voter.targetVote = null; // Vote nul forcé
+                  _goToNext();
+                },
+                child: const Text("SUIVANT", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -173,7 +244,6 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
       int weight = (widget.voter.role?.toLowerCase() == "pantin") ? 2 : 1;
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
 
-      // CORRECTION : Passage du context pour le succès "Trahison" immédiat
       AchievementLogic.checkTraitorFan(context, widget.voter, selectedTarget!);
 
       if (!widget.voter.isVoteCancelled) {
@@ -183,7 +253,10 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
         }
       }
     }
+    _goToNext();
+  }
 
+  void _goToNext() {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -197,57 +270,49 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     );
   }
 
-  Widget _buildTravelingView() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.flight_takeoff, size: 80, color: Colors.purpleAccent),
-          SizedBox(height: 20),
-          Text("ABSENT DU VILLAGE", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          Padding(
-            padding: EdgeInsets.all(30.0),
-            child: Text(
-              "Vous êtes actuellement en voyage. Vous ne pouvez pas voter ce soir.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildVoteList(List<Player> targets) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(10),
-      itemCount: targets.length,
-      itemBuilder: (context, i) {
-        final target = targets[i];
-        bool isSelected = selectedTarget == target;
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            "Qui souhaitez-vous éliminer ?",
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(10),
+            itemCount: targets.length,
+            itemBuilder: (context, i) {
+              final target = targets[i];
+              bool isSelected = selectedTarget == target;
 
-        return Card(
-          color: isSelected ? Colors.orangeAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: isSelected ? Colors.orangeAccent : Colors.transparent),
+              return Card(
+                color: isSelected ? Colors.orangeAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: isSelected ? Colors.orangeAccent : Colors.transparent),
+                ),
+                child: ListTile(
+                  onTap: () => setState(() => selectedTarget = target),
+                  leading: Icon(Icons.person, color: isSelected ? Colors.orangeAccent : Colors.white24),
+                  title: Text(
+                      Player.formatName(target.name),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)
+                  ),
+                  trailing: Radio<Player>(
+                    activeColor: Colors.orangeAccent,
+                    value: target,
+                    groupValue: selectedTarget,
+                    onChanged: (val) => setState(() => selectedTarget = val),
+                  ),
+                ),
+              );
+            },
           ),
-          child: ListTile(
-            onTap: () => setState(() => selectedTarget = target),
-            leading: Icon(Icons.person, color: isSelected ? Colors.orangeAccent : Colors.white24),
-            title: Text(
-                Player.formatName(target.name),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)
-            ),
-            trailing: Radio<Player>(
-              activeColor: Colors.orangeAccent,
-              value: target,
-              groupValue: selectedTarget,
-              onChanged: (val) => setState(() => selectedTarget = val),
-            ),
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

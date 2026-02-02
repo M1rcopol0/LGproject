@@ -130,13 +130,44 @@ class GameLogic {
 
     hasVotedThisTurn = true;
 
+    // 1. Reset des compteurs
     for (var p in allPlayers) {
       p.votes = 0;
     }
+
+    // 2. Identification du bloc Ron-Aldo
+    Player? ronAldo;
+    List<Player> livingFans = [];
+    try {
+      ronAldo = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
+      livingFans = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
+    } catch (_) {}
+
+    // 3. Application des votes
     for (var voter in allPlayers.where((p) => p.isAlive)) {
+
+      // CAS SPÉCIAL : FAN DE RON-ALDO
+      // Si Ron-Aldo est vivant, le fan ne vote pas individuellement (c'est Ron-Aldo qui porte le poids)
+      if (ronAldo != null && voter.isFanOfRonAldo) {
+        continue;
+      }
+
       if (voter.targetVote != null) {
-        // Le Pantin vote double
-        int weight = (voter.role?.toLowerCase() == "pantin") ? 2 : 1;
+        // Poids de base
+        int weight = 1;
+
+        // Bonus Pantin
+        if (voter.role?.toLowerCase() == "pantin") {
+          weight = 2;
+        }
+
+        // Bonus Ron-Aldo (Lui-même + ses fans)
+        if (voter.role?.toLowerCase() == "ron-aldo") {
+          weight += livingFans.length;
+          debugPrint("⚽ LOG [Ron-Aldo] : Vote avec un poids de $weight (dont ${livingFans.length} fans).");
+        }
+
+        // Application du vote
         try {
           var target = allPlayers.firstWhere((p) => p.name == voter.targetVote!.name);
           target.votes += weight;
@@ -409,7 +440,7 @@ class GameLogic {
   // 6. CONDITIONS DE VICTOIRE
   // ==========================================================
   static String? checkWinner(List<Player> players) {
-    // --- CORRECTION : VICTOIRE IMMÉDIATE DE L'EXORCISTE ---
+    // --- VICTOIRE IMMÉDIATE DE L'EXORCISTE ---
     if (exorcistWin) {
       debugPrint("✝️ LOG [Fin] : L'EXORCISTE A RÉUSSI ! VICTOIRE DU VILLAGE.");
       return "EXORCISTE";
