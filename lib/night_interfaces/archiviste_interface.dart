@@ -33,15 +33,11 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
 
   // --- LOGIQUE DU DÉPÔT DU DESTIN ---
   void _generateDestinyNumber() {
-    // Si on a déjà généré un chiffre pour cette session d'écran, on ne le change pas (évite la triche par re-clic)
+    // Si on a déjà généré un chiffre pour cette session d'écran, on ne le change pas
     if (_generatedDestinyNumber != null) return;
 
-    // Incrémentation du compteur de nuits en exil (si pas déjà fait ce tour)
-    // Note: Idéalement, cela devrait être géré dans la logique globale, mais pour l'affichage ici on calcule la range.
-    // On utilise mjNightsCount stocké dans le joueur.
-
     int maxRange = 15;
-    if (widget.actor.mjNightsCount >= 2) maxRange = 3;      // 3ème nuit et + (index commence à 0 donc >=2 signifie 3ème passage)
+    if (widget.actor.mjNightsCount >= 2) maxRange = 3;      // 3ème nuit et +
     else if (widget.actor.mjNightsCount == 1) maxRange = 7; // 2ème nuit
     else maxRange = 15;                                     // 1ère nuit
 
@@ -60,7 +56,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   }
 
   void _handleMjFailure() {
-    widget.actor.mjNightsCount++; // On augmente le compteur pour réduire la difficulté la prochaine fois
+    widget.actor.mjNightsCount++;
     debugPrint("📖 LOG [Archiviste] : Le MJ a échoué. L'exil continue (Compteur: ${widget.actor.mjNightsCount}).");
     widget.onComplete("Le MJ n'a pas trouvé le chiffre caché. L'exil continue jusqu'à la prochaine nuit.");
   }
@@ -98,7 +94,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   @override
   Widget build(BuildContext context) {
     if (widget.actor.needsToChooseTeam) return _buildTeamSelectionView();
-    if (widget.actor.isAwayAsMJ) return _buildDestinyView(); // Nouvelle vue interactive
+    if (widget.actor.isAwayAsMJ) return _buildDestinyView();
     if (_currentView != null) return _buildPlayerSelector();
 
     return _buildMainPowerMenu();
@@ -235,7 +231,10 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   }
 
   Widget _buildPlayerSelector() {
+    // CORRECTION : TRI ALPHABÉTIQUE
     final list = widget.players.where((p) => p.isAlive).toList();
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
     return Column(
       children: [
         Padding(
