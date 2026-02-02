@@ -55,7 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ===========================================================================
-  // 1. LOGIQUE D'EXPORTATION DES LOGS
+  // 1. LOGIQUE D'EXPORTATION DES LOGS (CORRIGÉE)
   // ===========================================================================
   Future<void> _generateAndSendLogs() async {
     try {
@@ -63,15 +63,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       sb.writeln("=== LOUP GAROU 3.0 - RAPPORT DE BUG ===");
       sb.writeln("Date: ${DateTime.now()}");
       sb.writeln("Version: $globalGameVersion");
+      sb.writeln("\n--------------------------------------------------\n");
 
-      // ... (Reste de la logique logs inchangée) ...
+      // CORRECTION : Récupération réelle des logs depuis l'historique Talker
+      final history = globalTalker.history;
 
+      if (history.isEmpty) {
+        sb.writeln("Aucun log enregistré en mémoire.");
+      } else {
+        // On parcourt l'historique pour l'écrire dans le buffer
+        for (var log in history) {
+          sb.writeln(log.generateTextMessage());
+        }
+      }
+
+      // Création du fichier temporaire
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/debug_logs_lg3.txt');
+
+      // Écriture
       await file.writeAsString(sb.toString());
+
+      // Partage
       await Share.shareXFiles([XFile(file.path)], text: 'Rapport Bug Loup Garou 3.0');
+
     } catch (e) {
-      debugPrint("Erreur logs: $e");
+      debugPrint("Erreur lors de l'export des logs: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Erreur lors de la création du rapport de bug."), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
