@@ -118,7 +118,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       exorcistSuccess: (_exorcismeResult == "success"),
     );
 
-    // --- CORRECTION : DÉTECTION VICTOIRE EXORCISTE ---
     if (result.exorcistVictory) {
       debugPrint("🏆 LOG [NightScreen] : L'exorciste a réussi son mime !");
       exorcistWin = true; // Variable globale pour le succès
@@ -227,6 +226,12 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   }
 
   void _showMorningPopup(NightResult result) {
+    // --- CORRECTION : DÉTECTION DES JOUEURS MUETS (ARCHIVISTE) ---
+    List<String> mutedPlayers = widget.players
+        .where((p) => p.isMutedDay && p.isAlive)
+        .map((p) => p.name)
+        .toList();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -281,7 +286,20 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              // 3. MORTS ET NARCOLEPSIE
+              // --- 3. ANNONCE DES MUETS (ARCHIVISTE) - NOUVEAU ---
+              if (!result.exorcistVictory && mutedPlayers.isNotEmpty) ...[
+                const Text("🤐 SILENCE IMPOSÉ :", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                ...mutedPlayers.map((name) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Text(
+                      "- $name ne peut pas parler aujourd'hui.",
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, fontStyle: FontStyle.italic)),
+                )),
+                const Divider(color: Colors.white24, height: 20),
+              ],
+
+              // 4. MORTS ET NARCOLEPSIE
               if (!result.exorcistVictory && result.villageIsNarcoleptic)
                 const Text("💤 Village KO (Somnifère) !\nPersonne n'est mort, mais personne ne pourra parler.",
                     style: TextStyle(
@@ -310,9 +328,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
               if (result.exorcistVictory) {
-                // CORRECTION : Déblocage du succès Mime Win ici (sécurité doublée)
                 exorcistWin = true;
-
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)),
