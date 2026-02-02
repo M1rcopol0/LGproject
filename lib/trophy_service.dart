@@ -19,14 +19,13 @@ class TrophyService {
   static final List<_AchievementTask> _achievementQueue = [];
   static bool _isDisplaying = false;
 
-  // Cache RAM pour éviter le double affichage immédiat (spam visuel en < 5 sec)
+  // Cache RAM pour éviter le double affichage immédiat
   static final Map<String, DateTime> _recentlyShownToasts = {};
 
-  // Sécurité anti-doublon pour l'enregistrement des victoires
   static DateTime? _lastWinRecordTime;
 
   // ==========================================================
-  // 1. DÉVERROUILLAGE IMMÉDIAT (COEUR DU SYSTÈME)
+  // 1. DÉVERROUILLAGE IMMÉDIAT
   // ==========================================================
   static Future<void> checkAndUnlockImmediate({
     required BuildContext context,
@@ -34,53 +33,40 @@ class TrophyService {
     required String achievementId,
     required Map<String, dynamic> checkData,
   }) async {
-    // 1. Récupération du succès
     Achievement? ach;
     try {
       ach = AchievementData.allAchievements.firstWhere((a) => a.id == achievementId);
     } catch (e) {
-      // ID inconnu, on arrête
       return;
     }
 
-    // 2. Vérification de la condition du jeu
     if (ach.checkCondition(checkData)) {
-
-      // 3. Tentative de déblocage en base de données
-      // Returns true = C'est une première fois.
-      // Returns false = C'était déjà acquis.
       bool isBrandNew = await unlockAchievement(playerName, achievementId);
       bool shouldShowPopup = false;
 
       if (isBrandNew) {
-        // C'est nouveau -> On affiche !
         shouldShowPopup = true;
         debugPrint("🏆 LOG [Trophy] : Nouveau succès débloqué : ${ach.title}");
       } else {
-        // C'est déjà acquis -> On vérifie la date pour voir si c'est "tout frais" (< 1m30s)
         String? storedDateStr = await _getAchievementDate(playerName, achievementId);
         if (storedDateStr != null) {
           DateTime? storedDate = _parseCustomDate(storedDateStr);
           if (storedDate != null) {
             final diff = DateTime.now().difference(storedDate);
-            // Si obtenu il y a moins de 90 secondes, on considère que c'est l'action actuelle
             if (diff.inSeconds < 90) {
               shouldShowPopup = true;
               debugPrint("♻️ LOG [Trophy] : Succès existant mais RÉCENT (${diff.inSeconds}s) -> Affichage autorisé.");
             } else {
-              // C'est un vieux succès, on ne spamme pas
               debugPrint("⏳ LOG [Trophy] : Succès ancien (${storedDateStr}) -> Pas de pop-up.");
             }
           }
         }
       }
 
-      // 4. Affichage avec sécurité anti-spam RAM (éviter double affichage en 1 sec)
       if (shouldShowPopup && context.mounted) {
         String ramKey = "${playerName}_$achievementId";
         DateTime? lastShownRAM = _recentlyShownToasts[ramKey];
 
-        // Si on l'a déjà montré il y a moins de 10 secondes (RAM), on bloque
         if (lastShownRAM == null || DateTime.now().difference(lastShownRAM).inSeconds > 10) {
           _recentlyShownToasts[ramKey] = DateTime.now();
           debugPrint("🔔 LOG [Trophy] : Affichage POP-UP pour '${ach.title}' !");
@@ -91,8 +77,10 @@ class TrophyService {
   }
 
   // ==========================================================
-  // 2. GESTION BASE DE DONNÉES (UNLOCK)
+  // 2. GESTION BASE DE DONNÉES (UNLOCK / REMOVE)
   // ==========================================================
+
+  // Méthode pour ajouter un succès
   static Future<bool> unlockAchievement(String playerName, String achievementId) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> stats = await getStats();
@@ -104,14 +92,11 @@ class TrophyService {
     var pData = Map<String, dynamic>.from(stats[playerName]);
     var achievements = Map<String, dynamic>.from(pData['achievements'] ?? {});
 
-    // Si déjà présent, on ne touche PAS à la date d'origine et on renvoie false
     if (achievements.containsKey(achievementId)) {
       return false;
     }
 
-    // Nouveau -> On enregistre la date actuelle
     final now = DateTime.now();
-    // Format sans les secondes (limitation actuelle conservée pour compatibilité)
     String timestamp = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} à ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
     achievements[achievementId] = timestamp;
@@ -122,7 +107,25 @@ class TrophyService {
     return true;
   }
 
-  // Helper pour récupérer la date stockée
+  // --- CELLE QUI MANQUAIT : SUPPRESSION D'UN SUCCÈS ---
+  static Future<void> removeAchievement(String playerName, String achievementId) async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> stats = await getStats();
+
+    if (stats.containsKey(playerName)) {
+      var pData = Map<String, dynamic>.from(stats[playerName]);
+      var achievements = Map<String, dynamic>.from(pData['achievements'] ?? {});
+
+      if (achievements.containsKey(achievementId)) {
+        achievements.remove(achievementId);
+        pData['achievements'] = achievements;
+        stats[playerName] = pData;
+        await prefs.setString(_keyPlayers, jsonEncode(stats));
+        debugPrint("🗑️ LOG [Trophy] : Succès '$achievementId' retiré manuellement pour $playerName.");
+      }
+    }
+  }
+
   static Future<String?> _getAchievementDate(String playerName, String achievementId) async {
     final stats = await getStats();
     if (!stats.containsKey(playerName)) return null;
@@ -133,24 +136,19 @@ class TrophyService {
     return null;
   }
 
-  // Helper pour parser le format "dd/MM/yyyy à HH:mm"
   static DateTime? _parseCustomDate(String dateStr) {
     try {
-      // Ex: "29/01/2026 à 16:33"
-      final parts = dateStr.split(' à '); // ["29/01/2026", "16:33"]
+      final parts = dateStr.split(' à ');
       if (parts.length != 2) return null;
-
-      final dateParts = parts[0].split('/'); // ["29", "01", "2026"]
-      final timeParts = parts[1].split(':'); // ["16", "33"]
-
+      final dateParts = parts[0].split('/');
+      final timeParts = parts[1].split(':');
       if (dateParts.length != 3 || timeParts.length != 2) return null;
-
       return DateTime(
-        int.parse(dateParts[2]), // Année
-        int.parse(dateParts[1]), // Mois
-        int.parse(dateParts[0]), // Jour
-        int.parse(timeParts[0]), // Heure
-        int.parse(timeParts[1]), // Minute
+        int.parse(dateParts[2]),
+        int.parse(dateParts[1]),
+        int.parse(dateParts[0]),
+        int.parse(timeParts[0]),
+        int.parse(timeParts[1]),
       );
     } catch (e) {
       return null;
@@ -172,22 +170,19 @@ class TrophyService {
     final task = _achievementQueue.removeAt(0);
 
     if (context.mounted) {
-      // CORRECTION : Appel avec 3 arguments (context, achievement, playerName)
       AchievementToast.show(context, task.achievement, task.playerName);
     }
 
-    // On laisse le temps au toast de s'afficher et disparaître
-    await Future.delayed(const Duration(seconds: 4)); // Réglé à 4s pour une bonne lecture
+    await Future.delayed(const Duration(seconds: 4));
     _isDisplaying = false;
 
-    // Suite de la file
     if (context.mounted && _achievementQueue.isNotEmpty) {
       _processQueue(context);
     }
   }
 
   // ==========================================================
-  // 4. AUTRES MÉTHODES (Stats, Getters...)
+  // 4. AUTRES MÉTHODES
   // ==========================================================
 
   static Future<List<String>> getUnlockedAchievements(String playerName) async {
@@ -292,7 +287,6 @@ class TrophyService {
     }
   }
 
-  // --- NOUVEAU : NETTOYAGE COMPLET DES SUCCÈS ---
   static Future<void> resetAllStats() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyPlayers);

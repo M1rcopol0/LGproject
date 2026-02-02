@@ -13,6 +13,10 @@ import 'fin.dart';
 import 'game_save_service.dart';
 import 'achievement_logic.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+// IMPORTS AJOUTÉS POUR LA GESTION DES SUCCÈS
+import 'models/achievement.dart';
+import 'trophy_service.dart';
+import 'cloud_service.dart';
 
 class GameMenuScreen extends StatefulWidget {
   final List<Player> players;
@@ -111,7 +115,17 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               },
             ),
 
-            // 4. RETOUR
+            // 4. GESTION SUCCÈS (NOUVEAU)
+            ListTile(
+              leading: const Icon(Icons.emoji_events, color: Colors.purpleAccent),
+              title: const Text("GÉRER LES SUCCÈS (MJ)", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showAchievementManager(p);
+              },
+            ),
+
+            // 5. RETOUR
             ListTile(
               leading: const Icon(Icons.arrow_back, color: Colors.white54),
               title: const Text("RETOUR AU VILLAGE", style: TextStyle(color: Colors.white54)),
@@ -119,6 +133,68 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // --- MANAGER DE SUCCÈS IN-GAME ---
+  void _showAchievementManager(Player p) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: Text("Succès de ${p.name}", style: const TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: FutureBuilder<List<String>>(
+            future: TrophyService.getUnlockedAchievements(p.name),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Colors.purpleAccent));
+              }
+
+              List<String> unlocked = List.from(snapshot.data ?? []);
+
+              return StatefulBuilder(
+                  builder: (context, setStateInner) {
+                    return ListView.builder(
+                      itemCount: AchievementData.allAchievements.length,
+                      itemBuilder: (context, index) {
+                        final ach = AchievementData.allAchievements[index];
+                        final isUnlocked = unlocked.contains(ach.id);
+
+                        return CheckboxListTile(
+                          title: Text(ach.title, style: TextStyle(color: isUnlocked ? Colors.white : Colors.white54, fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal)),
+                          subtitle: Text(ach.description, style: const TextStyle(color: Colors.white30, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          secondary: Text(ach.icon, style: const TextStyle(fontSize: 24)),
+                          value: isUnlocked,
+                          activeColor: ach.color,
+                          onChanged: (val) async {
+                            if (val == true) {
+                              await TrophyService.unlockAchievement(p.name, ach.id);
+                              unlocked.add(ach.id);
+                            } else {
+                              await TrophyService.removeAchievement(p.name, ach.id);
+                              unlocked.remove(ach.id);
+                              // FORCE UPLOAD pour éviter que le cloud ne remette le succès
+                              if (context.mounted) {
+                                CloudService.forceUploadData(context);
+                              }
+                            }
+                            setStateInner(() {});
+                          },
+                        );
+                      },
+                    );
+                  }
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER"))
+        ],
       ),
     );
   }
@@ -221,7 +297,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         (winner == "SOLO" && p.team == "solo")
     ).toList();
 
-    // CORRECTION ICI : Ajout du paramètre 'context'
     AchievementLogic.checkEndGameAchievements(context, winnersList, widget.players);
 
     setState(() => _isGameOverProcessing = true);
@@ -289,7 +364,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     }
     if (!p.isPlaying) return;
 
-    // OUVERTURE DU NOUVEAU MENU MJ
+    // OUVERTURE DU MENU MJ (AVEC SUCCÈS)
     _showPlayerAdminMenu(p);
   }
 
@@ -387,10 +462,12 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER")),
           ElevatedButton(onPressed: () {
-            String cleanName = currentNameInput.trim();
+            // CORRECTION: Formatage du nom pour éviter les doublons
+            String cleanName = Player.formatName(currentNameInput);
+
             if (cleanName.isNotEmpty) {
               setState(() {
-                int idx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
+                int idx = widget.players.indexWhere((p) => p.name == cleanName);
                 String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
                 String team = role != null ? GameLogic.getTeamForRole(role) : "village";
 

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'trophy_service.dart';
 import 'globals.dart';
 import 'models/achievement.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'models/player.dart'; // Nécessaire pour le type Player
+import 'cloud_service.dart'; // Ajout pour le Force Upload
 
 class TrophyHubScreen extends StatefulWidget {
   const TrophyHubScreen({super.key});
@@ -13,8 +15,190 @@ class TrophyHubScreen extends StatefulWidget {
 }
 
 class _TrophyHubScreenState extends State<TrophyHubScreen> {
+  Map<String, dynamic> _stats = {};
+  Map<String, int> _globalStats = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final stats = await TrophyService.getStats();
+    final global = await TrophyService.getGlobalStats();
+    if (mounted) {
+      setState(() {
+        _stats = stats;
+        _globalStats = global;
+        _isLoading = false;
+      });
+    }
+  }
+
+  // ===========================================================================
+  // 1. SÉLECTION DU JOUEUR (Annuaire Complet pour Admin)
+  // ===========================================================================
+  void _showPlayerPicker() async {
+    final prefs = await SharedPreferences.getInstance();
+    // On récupère tous les noms bruts (Annuaire + Stats)
+    List<String> rawList = prefs.getStringList('saved_players_list') ?? [];
+    rawList.addAll(_stats.keys);
+
+    // NETTOYAGE ET DÉ-DOUBLONNAGE
+    // On utilise un Set pour éliminer les doublons
+    // On formate chaque nom pour que "claude" devienne "Claude"
+    Set<String> cleanNames = {};
+    for (String name in rawList) {
+      if (name.trim().isNotEmpty) {
+        cleanNames.add(Player.formatName(name));
+      }
+    }
+
+    // Conversion en liste et tri
+    List<String> allPlayers = cleanNames.toList();
+    allPlayers.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("Choisir un joueur", style: TextStyle(color: Colors.orangeAccent)),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: allPlayers.isEmpty
+              ? const Center(child: Text("Aucun joueur enregistré.", style: TextStyle(color: Colors.white54)))
+              : ListView.builder(
+            itemCount: allPlayers.length,
+            itemBuilder: (context, index) {
+              final name = allPlayers[index];
+              return ListTile(
+                leading: const Icon(Icons.person, color: Colors.white70),
+                title: Text(name, style: const TextStyle(color: Colors.white)),
+                trailing: const Icon(Icons.edit, color: Colors.blueAccent),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showAchievementManager(name);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER")),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 2. GESTIONNAIRE DE SUCCÈS (ON/OFF)
+  // ===========================================================================
+  void _showAchievementManager(String playerName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Ajuster les succès", style: TextStyle(color: Colors.white54, fontSize: 12)),
+            Text(playerName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 500,
+          child: FutureBuilder<List<String>>(
+            // On récupère la liste des succès actuels du joueur
+            future: TrophyService.getUnlockedAchievements(playerName),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Colors.orangeAccent));
+              }
+
+              // Copie locale pour modification instantanée
+              List<String> unlocked = List.from(snapshot.data ?? []);
+
+              // StatefulBuilder permet de rafraîchir la liste sans fermer la popup
+              return StatefulBuilder(
+                builder: (context, setStateInner) {
+                  return ListView.builder(
+                    itemCount: AchievementData.allAchievements.length,
+                    itemBuilder: (context, index) {
+                      final ach = AchievementData.allAchievements[index];
+                      final isUnlocked = unlocked.contains(ach.id);
+
+                      return CheckboxListTile(
+                        activeColor: ach.color,
+                        checkColor: Colors.black,
+                        title: Text(
+                            ach.title,
+                            style: TextStyle(
+                                color: isUnlocked ? Colors.white : Colors.white38,
+                                fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal
+                            )
+                        ),
+                        subtitle: Text(
+                            ach.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white24, fontSize: 10)
+                        ),
+                        secondary: Text(ach.icon, style: const TextStyle(fontSize: 24)),
+                        value: isUnlocked,
+                        onChanged: (bool? value) async {
+                          if (value == true) {
+                            // ACTIVER
+                            await TrophyService.unlockAchievement(playerName, ach.id);
+                            unlocked.add(ach.id);
+                          } else {
+                            // DÉSACTIVER
+                            await TrophyService.removeAchievement(playerName, ach.id);
+                            unlocked.remove(ach.id);
+
+                            // CORRECTION : Forcer l'envoi au Cloud pour supprimer là-bas aussi
+                            if (context.mounted) {
+                              CloudService.forceUploadData(context);
+                            }
+                          }
+                          // Rafraîchir l'interface locale
+                          setStateInner(() {});
+                          // Rafraîchir l'écran parent en arrière-plan
+                          _loadData();
+                        },
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("FERMER", style: TextStyle(color: Colors.white))
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Préparation de la liste triée pour l'affichage principal
+    List<String> sortedPlayerNames = _stats.keys.toList();
+    sortedPlayerNames.sort((a, b) {
+      int winsA = (_stats[a]?['totalWins'] ?? 0) as int;
+      int winsB = (_stats[b]?['totalWins'] ?? 0) as int;
+      return winsB.compareTo(winsA); // Décroissant
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
@@ -23,70 +207,54 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
         elevation: 0,
         centerTitle: true,
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: TrophyService.getStats(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Colors.orangeAccent));
-          }
 
-          final allStats = snapshot.data ?? {};
+      // LE BOUTON D'ADMINISTRATION
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.orangeAccent,
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.build),
+        label: const Text("AJUSTER SUCCÈS", style: TextStyle(fontWeight: FontWeight.bold)),
+        onPressed: _showPlayerPicker,
+      ),
 
-          // --- CORRECTION : TRI DES JOUEURS ---
-          // On crée une copie de la liste globale pour ne pas perturber l'ordre du jeu ailleurs
-          List<Player> sortedPlayers = List.from(globalPlayers);
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.orangeAccent))
+          : Column(
+        children: [
+          // Header Global (Sans le Top Player)
+          _buildGlobalHeader(_globalStats),
 
-          // On trie par nombre de victoires décroissant (du plus grand au plus petit)
-          sortedPlayers.sort((a, b) {
-            int winsA = (allStats[a.name]?['totalWins'] ?? 0) as int;
-            int winsB = (allStats[b.name]?['totalWins'] ?? 0) as int;
-            return winsB.compareTo(winsA); // B comparé à A = Décroissant
-          });
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text("CLASSEMENT DES JOUEURS",
+                style: TextStyle(color: Colors.white24, letterSpacing: 1.2, fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+          Expanded(
+            child: sortedPlayerNames.isEmpty
+                ? const Center(child: Text("Aucun joueur dans le classement", style: TextStyle(color: Colors.white38)))
+                : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              itemCount: sortedPlayerNames.length,
+              itemBuilder: (context, index) {
+                final name = sortedPlayerNames[index];
+                final pData = Map<String, dynamic>.from(_stats[name] ?? {});
 
-          return FutureBuilder<Map<String, int>>(
-            future: TrophyService.getGlobalStats(),
-            builder: (context, globalSnapshot) {
-              final global = globalSnapshot.data ?? {'VILLAGE': 0, 'LOUPS-GAROUS': 0, 'SOLO': 0};
-
-              // Calcul du total des parties pour affichage
-              int totalGames = (global['VILLAGE'] ?? 0) + (global['LOUPS-GAROUS'] ?? 0) + (global['SOLO'] ?? 0);
-
-              return Column(
-                children: [
-                  _buildGlobalHeader(global, totalGames),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    child: Text("CLASSEMENT DES JOUEURS", // Changé de "RÉPERTOIRE" à "CLASSEMENT"
-                        style: TextStyle(color: Colors.white24, letterSpacing: 1.2, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                  Expanded(
-                    child: sortedPlayers.isEmpty
-                        ? const Center(child: Text("Aucun joueur dans le répertoire", style: TextStyle(color: Colors.white38)))
-                        : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      itemCount: sortedPlayers.length,
-                      itemBuilder: (context, index) {
-                        final player = sortedPlayers[index];
-                        final rawData = allStats[player.name];
-                        final Map<String, dynamic> pData = rawData != null
-                            ? Map<String, dynamic>.from(rawData)
-                            : {'totalWins': 0, 'roles': {}, 'achievements': {}};
-
-                        // On passe l'index pour afficher le rang (1er, 2ème...)
-                        return _buildPlayerCard(player.name, pData, index + 1);
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+                // On passe l'index pour afficher le rang (1er, 2ème...)
+                return _buildPlayerCard(name, pData, index + 1);
+              },
+            ),
+          ),
+          // Espace pour ne pas que le FAB cache le dernier élément
+          const SizedBox(height: 80),
+        ],
       ),
     );
   }
 
-  Widget _buildGlobalHeader(Map<String, int> global, int totalGames) {
+  // Header simplifié (sans top player)
+  Widget _buildGlobalHeader(Map<String, int> global) {
+    int totalGames = (global['VILLAGE'] ?? 0) + (global['LOUPS-GAROUS'] ?? 0) + (global['SOLO'] ?? 0);
+
     return Container(
       margin: const EdgeInsets.all(15),
       padding: const EdgeInsets.all(20),
@@ -94,10 +262,11 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
         color: const Color(0xFF1D1E33),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.orangeAccent.withOpacity(0.2)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         children: [
-          Text("PARTIES TERMINÉES : $totalGames",
+          Text("PARTIES JOUÉES : $totalGames",
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 20),
           Row(
@@ -158,7 +327,7 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
         title: Row(
           children: [
             Text("#$rank ", style: TextStyle(color: rankColor, fontWeight: FontWeight.bold, fontSize: 12)),
-            Text(formatPlayerName(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(Player.formatName(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
         subtitle: Text("V : ${roles['VILLAGE'] ?? 0} | L : ${roles['LOUPS-GAROUS'] ?? 0} | S : ${roles['SOLO'] ?? 0}",
@@ -187,7 +356,7 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
             children: [
               Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
               const SizedBox(height: 20),
-              Text(formatPlayerName(name), style: const TextStyle(color: Colors.orangeAccent, fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(Player.formatName(name), style: const TextStyle(color: Colors.orangeAccent, fontSize: 22, fontWeight: FontWeight.bold)),
               const Text("PALMARÈS DES SUCCÈS", style: TextStyle(color: Colors.white38, fontSize: 12, letterSpacing: 1.5)),
               const Divider(height: 30, color: Colors.white10),
               Expanded(

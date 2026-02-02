@@ -52,48 +52,89 @@ class CloudService {
         'SOLO': _max(localGlobalStats['SOLO'] ?? 0, cloudGlobalStats['SOLO'] ?? 0),
       };
 
-      // Fusion des stats joueurs
-      Set<String> allPlayerNames = {};
-      allPlayerNames.addAll(localPlayerStats.keys);
-      allPlayerNames.addAll(cloudPlayerStats.keys);
-
+      // --- FUSION DES JOUEURS AVEC NORMALISATION DES NOMS ---
+      // Cette étape permet de fusionner "claude" et "Claude" en une seule entrée
       Map<String, dynamic> mergedPlayerStats = {};
 
-      for (String name in allPlayerNames) {
-        var local = localPlayerStats[name] != null ? Map<String, dynamic>.from(localPlayerStats[name] as Map) : {};
-        var cloud = cloudPlayerStats[name] != null ? Map<String, dynamic>.from(cloudPlayerStats[name] as Map) : {};
+      // Fonction d'aide pour fusionner un paquet de données dans le résultat final
+      void mergeIntoFinal(String rawName, Map<String, dynamic> sourceData) {
+        // 1. Nettoyage du nom (ex: "claude " -> "Claude")
+        String cleanName = Player.formatName(rawName);
+        if (cleanName.isEmpty) return;
 
-        int wins = _max(local['totalWins'] ?? 0, cloud['totalWins'] ?? 0);
+        // 2. Initialisation si nouveau
+        if (!mergedPlayerStats.containsKey(cleanName)) {
+          mergedPlayerStats[cleanName] = {
+            'totalWins': 0, 'roles': {}, 'roleWins': {}, 'achievements': {}, 'counters': {}
+          };
+        }
 
-        // --- CORRECTION : FUSION DES STATS DE GROUPE (VILLAGE/LOUPS) ---
-        // On prend celui qui a le plus de victoires totales pour être cohérent
-        Map<String, dynamic> finalRolesGroups = (local['totalWins'] ?? 0) >= (cloud['totalWins'] ?? 0)
-            ? Map<String, dynamic>.from(local['roles'] ?? {})
-            : Map<String, dynamic>.from(cloud['roles'] ?? {});
+        var existing = mergedPlayerStats[cleanName];
+        var source = sourceData;
 
-        Map<String, dynamic> finalRolesSpecific = (local['totalWins'] ?? 0) >= (cloud['totalWins'] ?? 0)
-            ? Map<String, dynamic>.from(local['roleWins'] ?? {})
-            : Map<String, dynamic>.from(cloud['roleWins'] ?? {});
+        // 3. Fusion des Victoires (MAX)
+        existing['totalWins'] = _max(existing['totalWins'], source['totalWins'] ?? 0);
 
-        Map<String, dynamic> mergedAch = Map<String, dynamic>.from(local['achievements'] ?? {});
-        Map<String, dynamic> cloudAch = Map<String, dynamic>.from(cloud['achievements'] ?? {});
-        cloudAch.forEach((key, val) {
-          if (!mergedAch.containsKey(key)) mergedAch[key] = val;
+        // 4. Fusion des Groupes de Rôles (MAX par clé)
+        Map<String, dynamic> sourceRoles = Map<String, dynamic>.from(source['roles'] ?? {});
+        Map<String, dynamic> existingRoles = Map<String, dynamic>.from(existing['roles'] ?? {});
+        sourceRoles.forEach((k, v) {
+          existingRoles[k] = _max(existingRoles[k] ?? 0, v);
         });
+        existing['roles'] = existingRoles;
 
-        mergedPlayerStats[name] = {
-          'totalWins': wins,
-          'roles': finalRolesGroups, // AJOUTÉ : Préserve les stats par équipe
-          'roleWins': finalRolesSpecific,
-          'achievements': mergedAch,
-          'counters': local['counters'] ?? cloud['counters'] ?? {},
-        };
+        // 5. Fusion des Rôles Spécifiques (MAX par clé)
+        Map<String, dynamic> sourceRoleWins = Map<String, dynamic>.from(source['roleWins'] ?? {});
+        Map<String, dynamic> existingRoleWins = Map<String, dynamic>.from(existing['roleWins'] ?? {});
+        sourceRoleWins.forEach((k, v) {
+          existingRoleWins[k] = _max(existingRoleWins[k] ?? 0, v);
+        });
+        existing['roleWins'] = existingRoleWins;
+
+        // 6. Fusion des Succès (UNION)
+        // On garde l'ancienneté si conflit
+        Map<String, dynamic> sourceAch = Map<String, dynamic>.from(source['achievements'] ?? {});
+        Map<String, dynamic> existingAch = Map<String, dynamic>.from(existing['achievements'] ?? {});
+        sourceAch.forEach((k, v) {
+          if (!existingAch.containsKey(k)) existingAch[k] = v;
+        });
+        existing['achievements'] = existingAch;
+
+        // 7. Fusion des Compteurs (MAX)
+        Map<String, dynamic> sourceCounters = Map<String, dynamic>.from(source['counters'] ?? {});
+        Map<String, dynamic> existingCounters = Map<String, dynamic>.from(existing['counters'] ?? {});
+        sourceCounters.forEach((k, v) {
+          // Pour les compteurs simples (int)
+          if (v is int) {
+            existingCounters[k] = _max(existingCounters[k] ?? 0, v);
+          }
+          // Pour les listes (ex: archiviste), on fait l'union
+          else if (v is List && (existingCounters[k] is List || existingCounters[k] == null)) {
+            List currentList = List.from(existingCounters[k] ?? []);
+            for (var item in v) {
+              if (!currentList.contains(item)) currentList.add(item);
+            }
+            existingCounters[k] = currentList;
+          }
+        });
+        existing['counters'] = existingCounters;
       }
+
+      // A. Traitement LOCAL
+      localPlayerStats.forEach((key, val) {
+        if (val is Map) mergeIntoFinal(key, Map<String, dynamic>.from(val));
+      });
+
+      // B. Traitement CLOUD
+      cloudPlayerStats.forEach((key, val) {
+        if (val is Map) mergeIntoFinal(key, Map<String, dynamic>.from(val));
+      });
 
       // 3. SAUVEGARDER EN LOCAL
       await prefs.setString('global_faction_stats', jsonEncode(mergedGlobalStats));
       await prefs.setString('saved_trophies_v2', jsonEncode(mergedPlayerStats));
 
+      // Mise à jour de l'annuaire (Liste des joueurs pour l'auto-complétion)
       List<String> currentDirectory = globalPlayers.map((p) => p.name).toList();
       bool directoryChanged = false;
       for (String name in mergedPlayerStats.keys) {
@@ -107,7 +148,8 @@ class CloudService {
         await prefs.setStringList('saved_players_list', currentDirectory);
       }
 
-      // 4. ENVOYER AU CLOUD (PUSH) via la méthode commune
+      // 4. ENVOYER AU CLOUD (PUSH)
+      // On envoie la version propre et fusionnée
       await _pushToCloud(context, mergedGlobalStats, mergedPlayerStats, "Synchro terminée");
 
     } catch (e) {

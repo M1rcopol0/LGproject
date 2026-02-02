@@ -54,7 +54,7 @@ class Player {
 
   // --- MAÎTRE DU TEMPS ---
   bool isSavedByTimeMaster;
-  List<String> timeMasterTargets; // AJOUT : Liste des cibles à tuer (Correction Bug)
+  List<String> timeMasterTargets; // Cibles choisies par le Maître du Temps
 
   // --- STATS DE SESSION ---
   int votes;
@@ -96,7 +96,7 @@ class Player {
 
   // Enculateur du bled
   Set<String> protectedPlayersHistory; // Historique pour "Sortez couvert"
-  String? lastBledTarget;
+  String? lastBledTarget; // Nom de la dernière personne protégée
 
   // Tardos
   Player? tardosTarget;
@@ -162,7 +162,7 @@ class Player {
     this.archivisteActionsUsed = const [],
     this.phylTargets = const [],
     this.isSavedByTimeMaster = false,
-    this.timeMasterTargets = const [], // Initialisation vide
+    this.timeMasterTargets = const [],
     this.votes = 0,
     this.isVoteCancelled = false,
     this.travelerKilledWolf = false,
@@ -193,6 +193,7 @@ class Player {
     this.devinRevealsCount = 0,
     List<String>? revealedPlayersHistory,
     Set<String>? protectedPlayersHistory,
+    this.lastBledTarget,
     this.hasRevealedSamePlayerTwice = false,
     this.tardosTarget,
     this.hasPlacedBomb = false,
@@ -217,11 +218,14 @@ class Player {
         revealedPlayersHistory = revealedPlayersHistory ?? [],
         protectedPlayersHistory = protectedPlayersHistory ?? {};
 
+  // CORRECTION : Formatage robuste pour éviter les doublons (ex: "claude" vs "Claude")
   static String formatName(String input) {
     if (input.trim().isEmpty) return input;
-    return input.trim().toLowerCase().split(' ').map((word) {
-      if (word.isEmpty) return "";
-      return word.split('-').map((part) {
+    // Sépare par espace, enlève les vides, formate chaque mot
+    return input.trim().split(' ').where((word) => word.isNotEmpty).map((word) {
+      String cleanWord = word.toLowerCase();
+      // Gestion des noms composés (ex: Jean-Pierre)
+      return cleanWord.split('-').map((part) {
         if (part.isEmpty) return "";
         return part[0].toUpperCase() + part.substring(1);
       }).join('-');
@@ -259,7 +263,8 @@ class Player {
     travelerBullets = 0;
     somnifereUses = 1;
     votes = 0;
-    timeMasterTargets = []; // Reset complet
+    timeMasterTargets = [];
+    lastBledTarget = null; // Reset complet
   }
 
   void resetTemporaryStates() {
@@ -272,7 +277,7 @@ class Player {
     isSavedByTimeMaster = false;
     pokemonRevengeTarget = null;
     hasReturnedThisTurn = false;
-    // Note: On ne reset pas timeMasterTargets ici car elles sont traitées à la fin de la nuit
+    // Note: On ne reset pas timeMasterTargets ni lastBledTarget ici car ils doivent persister
   }
 
   Widget buildStatusIcons() {
@@ -391,6 +396,7 @@ class Player {
       'revealedPlayersHistory': revealedPlayersHistory,
       'hasRevealedSamePlayerTwice': hasRevealedSamePlayerTwice,
       'protectedPlayersHistory': protectedPlayersHistory.toList(),
+      'lastBledTarget': lastBledTarget, // AJOUT : Sauvegarde de la dernière cible Bled
       'hasPlacedBomb': hasPlacedBomb,
       'hasUsedBombPower': hasUsedBombPower,
       'isBombed': isBombed,
@@ -412,7 +418,7 @@ class Player {
       'timeMasterUsedPower': timeMasterUsedPower,
       'tardosSuicide': tardosSuicide,
       'pantinClutchTriggered': pantinClutchTriggered,
-      'timeMasterTargets': timeMasterTargets, // AJOUTÉ POUR SAUVEGARDE
+      'timeMasterTargets': timeMasterTargets, // Sauvegarde cibles Maître du Temps
     };
   }
 
@@ -492,6 +498,7 @@ class Player {
       ..timeMasterUsedPower = map['timeMasterUsedPower'] ?? false
       ..tardosSuicide = map['tardosSuicide'] ?? false
       ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false
-      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? []); // AJOUTÉ POUR CHARGEMENT
+      ..lastBledTarget = map['lastBledTarget'] // Chargement de la dernière cible Bled
+      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? []); // Chargement cibles Maître du Temps
   }
 }
