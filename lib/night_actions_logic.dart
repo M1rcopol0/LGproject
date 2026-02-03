@@ -3,7 +3,7 @@ import 'models/player.dart';
 import 'logic.dart';
 import 'globals.dart';
 import 'achievement_logic.dart';
-import 'trophy_service.dart'; // Added import for TrophyService
+import 'trophy_service.dart'; // Import nécessaire pour les succès immédiats
 
 class NightResult {
   final List<Player> deadPlayers;
@@ -35,10 +35,17 @@ class NightActionsLogic {
     debugPrint("🌙 LOG [Logic] : Préparation de la Nuit $globalTurnNumber");
 
     for (var p in players) {
-      // --- LOGIQUE BOMBE TARDOS (PROJECTILE AUTONOME) ---
+      // --- LOGIQUE BOMBE TARDOS (PROJECTILE AUTONOME - VIA RÔLE) ---
       if (p.hasPlacedBomb && p.tardosTarget != null && p.bombTimer > 0) {
         p.bombTimer--;
         debugPrint("💣 LOG [Tardos] : La bombe de ${p.name} tic-tac... (T-Minus: ${p.bombTimer})");
+      }
+
+      // --- LOGIQUE BOMBE MANUELLE (VIA MENU MJ) ---
+      // Gestion du timer pour une bombe ajoutée manuellement par le MJ
+      if (p.isBombed && p.attachedBombTimer > 0) {
+        p.attachedBombTimer--;
+        debugPrint("🧨 LOG [MJ] : Bombe manuelle sur ${p.name} tic-tac... (T-Minus: ${p.attachedBombTimer})");
       }
 
       // --- LOGIQUE VOYAGEUR (Munitions & Stats) ---
@@ -178,37 +185,21 @@ class NightActionsLogic {
       }
     } catch (e) {}
 
-    // --- 2. LOGIQUE EXPLOSION BOMBE TARDOS (PRIORITAIRE) ---
+    // --- 2. LOGIQUE EXPLOSION BOMBE (TARDOS & MANUELLE) ---
+
+    // A. Bombe Tardos (Liée à l'attaquant via rôle)
     for (var p in players) {
       if (p.hasPlacedBomb && p.bombTimer == 0 && p.tardosTarget != null) {
-        Player target = p.tardosTarget!;
-        debugPrint("💥 LOG [Explosion] : La bombe de ${p.name} EXPLOSE sur ${target.name} !");
-
-        // Suicide Tardos (Succès Oups)
-        if (target == p) {
-          p.tardosSuicide = true;
-          AchievementLogic.checkTardosOups(context, p);
-        }
-
-        if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
-          debugPrint("🏠💥 LOG [Tardos] : La bombe détruit la Maison et ses occupants !");
-          try {
-            Player houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
-            pendingDeathsMap[houseOwner] = "Explosion Maison (Tardos)";
-          } catch(e) { }
-
-          for (var occupant in players.where((o) => o.isInHouse)) {
-            pendingDeathsMap[occupant] = "Effondrement Maison (Tardos)";
-          }
-        }
-        else if (target.isAlive) {
-          pendingDeathsMap[target] = "Explosion Bombe (Tardos)";
-        } else {
-          debugPrint("🌬️ LOG [Tardos] : La bombe explose sur un cadavre.");
-        }
-
-        target.isBombed = false;
+        _handleExplosion(context, players, p.tardosTarget!, pendingDeathsMap, "Explosion Bombe (Tardos)", p);
         p.tardosTarget = null;
+      }
+    }
+
+    // B. Bombe Manuelle (Liée à la victime via menu MJ)
+    for (var p in players) {
+      if (p.isBombed && p.attachedBombTimer == 0) {
+        _handleExplosion(context, players, p, pendingDeathsMap, "Explosion Bombe (Manuelle)", null);
+        // Note : isBombed sera reset dans _handleExplosion
       }
     }
 
@@ -233,7 +224,7 @@ class NightActionsLogic {
 
     final List<Player> aliveBefore = players.where((p) => p.isAlive).toList();
 
-    // --- 4. RÉSOLUTION DES MORTS (Morsures, Tirs, Bombes, MAÎTRE DU TEMPS) ---
+    // --- 4. RÉSOLUTION DES MORTS ---
     if (somnifereActive) {
       debugPrint("💤 LOG [Somnifère] : Sommeil général. Aucune mort physique n'est appliquée.");
       pendingDeathsMap.clear();
@@ -255,11 +246,13 @@ class NightActionsLogic {
 
         if (quicheIsActive && !isUnstoppable) {
           quicheSavedThisNight++;
+
+          // --- CORRECTION SUCCÈS "LE PETIT CHAPERON ROUGE" ---
           if (target.role?.toLowerCase() == "grand-mère") {
             target.hasSavedSelfWithQuiche = true;
             debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
 
-            // CORRECTION: Déclenchement immédiat du succès "Le petit chaperon rouge"
+            // Déclenchement immédiat du succès
             TrophyService.checkAndUnlockImmediate(
                 context: context,
                 playerName: target.name,
@@ -267,6 +260,7 @@ class NightActionsLogic {
                 checkData: {'saved_by_own_quiche': true, 'player_role': 'grand-mère'}
             );
           }
+
           debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
 
           // Gestion Succès Fringale Nocturne (Si attaque loup bloquée)
@@ -302,7 +296,7 @@ class NightActionsLogic {
           }
         }
 
-        if (target.isProtectedByPokemon && !reason.contains("Tardos") && !reason.contains("Temps")) {
+        if (target.isProtectedByPokemon && !reason.contains("Tardos") && !reason.contains("Temps") && !reason.contains("Bombe")) {
           debugPrint("🛡️ LOG [Pokémon] : ${target.name} protégé.");
           if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
             target.hasSurvivedWolfBite = true;
@@ -350,7 +344,7 @@ class NightActionsLogic {
           if (targetWasInHouse &&
               finalVictim.role?.toLowerCase() == "maison" &&
               finalVictim != target &&
-              !reason.contains("Tardos") && !reason.contains("Temps")) {
+              !reason.contains("Tardos") && !reason.contains("Temps") && !reason.contains("Bombe")) {
             debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
 
@@ -427,5 +421,33 @@ class NightActionsLogic {
       villageIsNarcoleptic: somnifereActive,
       revealedPlayerNames: playersToReveal,
     );
+  }
+
+  // --- HELPER EXPLOSION ---
+  static void _handleExplosion(BuildContext context, List<Player> players, Player target, Map<Player, String> pendingDeathsMap, String reason, Player? attacker) {
+    debugPrint("💥 LOG [Explosion] : BOUM sur ${target.name} !");
+
+    if (attacker != null && target == attacker) {
+      attacker.tardosSuicide = true;
+      AchievementLogic.checkTardosOups(context, attacker);
+    }
+
+    if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
+      debugPrint("🏠💥 LOG [Explosion] : Dégâts collatéraux (Maison).");
+      try {
+        Player houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
+        pendingDeathsMap[houseOwner] = reason;
+      } catch(e) { }
+
+      for (var occupant in players.where((o) => o.isInHouse)) {
+        pendingDeathsMap[occupant] = "Effondrement Maison (Explosion)";
+      }
+    }
+    else if (target.isAlive) {
+      pendingDeathsMap[target] = reason;
+    }
+
+    target.isBombed = false;
+    target.attachedBombTimer = 0;
   }
 }

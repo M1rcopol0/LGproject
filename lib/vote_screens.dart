@@ -33,7 +33,6 @@ class _PassScreenState extends State<PassScreen> {
   @override
   void initState() {
     super.initState();
-    // On copie la liste pour éviter les problèmes de modification concurrente
     sortedVoters = List.from(widget.voters);
     sortedVoters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
@@ -75,10 +74,7 @@ class _PassScreenState extends State<PassScreen> {
                 onPressed: () {
                   if (isLastVoter) {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
-
-                    // Calcul centralisé des votes (Poids, Fans, etc.) + Check succès immédiats
                     GameLogic.processVillageVote(context, widget.allPlayers);
-
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -117,7 +113,7 @@ class _PassScreenState extends State<PassScreen> {
 }
 
 // =============================================================================
-// 2. ÉCRAN DE VOTE INDIVIDUEL (Avec Blocage Voyageur/Fan)
+// 2. ÉCRAN DE VOTE INDIVIDUEL
 // =============================================================================
 class IndividualVoteScreen extends StatefulWidget {
   final Player voter;
@@ -146,8 +142,14 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   Widget build(BuildContext context) {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
-    // --- DICTATURE RON-ALDO ---
-    // Si le joueur est fan et que Ron-Aldo est vivant, il ne vote pas librement.
+    // CORRECTION : Si l'Archiviste est absent (Transcendance), il ne vote pas.
+    // On passe directement au suivant.
+    if (widget.voter.isAwayAsMJ) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _goToNext());
+      // Écran temporaire noir pendant le skip automatique
+      return const Scaffold(backgroundColor: Color(0xFF0A0E21));
+    }
+
     bool ronAldoAlive = widget.allPlayers.any((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
     bool isFanBlocked = widget.voter.isFanOfRonAldo && ronAldoAlive;
 
@@ -164,12 +166,12 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
       return _buildSkippedScreen(
           "DÉVOTION TOTALE",
           "Ron-Aldo décide pour vous.\nVotre voix compte automatiquement pour son choix.",
-          Icons.star, // Étoile de fan
+          Icons.star,
           Colors.amber
       );
     }
 
-    // TRI ALPHABÉTIQUE DES CIBLES + FILTRE ARCHIVISTE TRANSCENDANT
+    // CORRECTION : L'Archiviste absent est retiré des cibles
     final eligibleTargets = widget.allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -199,7 +201,6 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     );
   }
 
-  // --- ÉCRANS BLOQUANTS (Voyageur / Fan) ---
   Widget _buildSkippedScreen(String title, String desc, IconData icon, Color color) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
@@ -225,7 +226,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
                 onPressed: () {
-                  widget.voter.targetVote = null; // Vote nul forcé
+                  widget.voter.targetVote = null;
                   _goToNext();
                 },
                 child: const Text("SUIVANT", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -240,14 +241,8 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   void _submitVote() {
     if (selectedTarget != null) {
       widget.voter.targetVote = selectedTarget;
-
-      // Note: Le calcul des votes (+=) se fait dans GameLogic.processVillageVote désormais pour éviter les doublons
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
-
-      // Check Succès "Fan Traître"
       AchievementLogic.checkTraitorFan(context, widget.voter, selectedTarget!);
-
-      // Check Succès "Friendly Fire"
       if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
         wolfVotedWolf = true;
       }
@@ -327,10 +322,9 @@ class MJResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // FILTRE : On n'affiche pas l'Archiviste Transcendant dans la liste du MJ
+    // CORRECTION : On n'affiche pas l'Archiviste Transcendant dans la liste de décision
     final sortedPlayers = allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
 
-    // TRI : Par votes décroissant, puis Alphabétique
     sortedPlayers.sort((a, b) {
       int voteComp = b.votes.compareTo(a.votes);
       if (voteComp != 0) return voteComp;
@@ -360,7 +354,6 @@ class MJResultScreen extends StatelessWidget {
               itemBuilder: (context, i) {
                 final p = sortedPlayers[i];
                 bool isImmunized = p.isImmunizedFromVote || p.isInHouse;
-                // Immunité Ron-Aldo (si fans vivants)
                 if (p.role?.toLowerCase() == "ron-aldo") {
                   if (allPlayers.any((f) => f.isFanOfRonAldo && f.isAlive)) isImmunized = true;
                 }
@@ -408,13 +401,9 @@ class MJResultScreen extends StatelessWidget {
     }
 
     String roleReveal = target.role?.toUpperCase() ?? "INCONNU";
-
-    // Élimination principale (Gère aussi la cascade de morts : Pokémon, Maison, etc.)
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
 
     String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${Player.formatName(deceased.name)} est éliminé.";
-
-    // --- GESTION DES MESSAGES CONTEXTUELS ---
 
     if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) {
       message = "🃏 Le Pantin a survécu (Immunité unique).";
@@ -423,22 +412,16 @@ class MJResultScreen extends StatelessWidget {
       message = "✈️ Le Voyageur revient au village (Survit).";
     }
     else if (!deceased.isAlive) {
-      // 1. Cas Sacrifice Ron-Aldo
       if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
         message = "🛡️ SACRIFICE : ${Player.formatName(deceased.name)} s'est sacrifié !\nSon rôle était : FAN DE RON-ALDO";
       }
-      // 2. Cas Maison Effondrée
       else if (target.role?.toLowerCase() == "maison" && deceased != target) {
         message = "🏠 La Maison s'est effondrée sur ${Player.formatName(deceased.name)} !\nSon rôle était : ${deceased.role?.toUpperCase()}";
       }
-      // 3. Cas Standard
       else {
         message = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : $roleReveal";
-
-        // --- NOUVEAU : AJOUT INFO POKÉMON ---
         if ((deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") && deceased.pokemonRevengeTarget != null) {
           Player revengeTarget = deceased.pokemonRevengeTarget!;
-          // On vérifie qu'elle est bien morte (GameLogic l'a tuée juste avant)
           if (!revengeTarget.isAlive) {
             message += "\n\n⚡ VENGEANCE !\nLe Pokémon a foudroyé ${revengeTarget.name} (${revengeTarget.role?.toUpperCase()}) !";
           }
@@ -468,11 +451,8 @@ class MJResultScreen extends StatelessWidget {
   }
 
   void _finalize(BuildContext context, String message, bool noOne) async {
-    // --- AJOUT : Vérification des succès AVANT le reset du tour ---
     await AchievementLogic.checkMidGameAchievements(context, allPlayers);
-
     GameLogic.nextTurn(allPlayers);
-
     if (!context.mounted) return;
     showDialog(
       context: context,

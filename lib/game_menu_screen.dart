@@ -538,31 +538,24 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 String cleanName = Player.formatName(currentNameInput);
 
                 if (cleanName.isNotEmpty) {
-                  // CORRECTION : VÉRIFICATION STRICTE DE DOUBLONS
-                  // On vérifie si un joueur avec ce nom existe DÉJÀ (insensible à la casse)
-                  bool exists = widget.players.any((p) => p.name.toLowerCase() == cleanName.toLowerCase());
-
-                  if (exists) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Le joueur $cleanName existe déjà !", style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red)
-                    );
-                    return; // On arrête ici, on ne ferme pas la modale
-                  }
+                  // CORRECTION : VÉRIFICATION STRICTE DE DOUBLONS (Case-insensitive)
+                  int existingIdx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
 
                   setState(() {
-                    int idx = widget.players.indexWhere((p) => p.name == cleanName);
                     String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
                     String team = role != null ? GameLogic.getTeamForRole(role) : "village";
 
-                    if (idx != -1) {
-                      widget.players[idx].isPlaying = true;
-                      widget.players[idx].isAlive = true;
+                    if (existingIdx != -1) {
+                      // MISE À JOUR (Pas de duplication)
+                      widget.players[existingIdx].isPlaying = true;
+                      widget.players[existingIdx].isAlive = true;
                       if (role != null) {
-                        widget.players[idx].role = role;
-                        widget.players[idx].team = team;
-                        widget.players[idx].isRoleLocked = true;
+                        widget.players[existingIdx].role = role;
+                        widget.players[existingIdx].team = team;
+                        widget.players[existingIdx].isRoleLocked = true;
                       }
                     } else {
+                      // CRÉATION
                       Player newP = Player(name: cleanName, isPlaying: true);
                       if (role != null) {
                         newP.role = role;
@@ -571,6 +564,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                       }
                       widget.players.add(newP);
                     }
+
                     if (!savedNames.contains(cleanName)) {
                       savedNames.add(cleanName);
                       prefs.setStringList("saved_players_list", savedNames);
