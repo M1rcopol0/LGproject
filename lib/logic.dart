@@ -118,8 +118,6 @@ class GameLogic {
 
       if (p.votes > 0) {
         p.totalVotesReceivedDuringGame += p.votes;
-        // On vérifie Fringale Nocturne si quelqu'un a reçu des votes (potentiellement mortel)
-        // Mais le vrai check se fait après désignation de la cible
       }
     }
   }
@@ -219,10 +217,6 @@ class GameLogic {
         AchievementLogic.checkParkingShot(context, p, first, allPlayers);
       }
     }
-
-    // --- CHECK FRINGALE NOCTURNE ---
-    // C'est ici qu'on vérifie si la victime du vote a survécu à une morsure.
-    AchievementLogic.checkEvolvedHunger(context, first, allPlayers);
   }
 
   // ==========================================================
@@ -391,6 +385,13 @@ class GameLogic {
     }
 
     AchievementLogic.checkDeathAchievements(context, victim, allPlayers);
+
+    // --- CORRECTION FRINGALE NOCTURNE ---
+    // Si c'est un vote, que la victime meurt et qu'elle avait survécu à une morsure
+    if (isVote && victim.hasSurvivedWolfBite) {
+      // On lance le scan global pour attribuer le succès aux loups
+      AchievementLogic.checkEvolvedHunger(context, victim, allPlayers);
+    }
 
     return victim;
   }

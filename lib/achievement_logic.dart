@@ -288,13 +288,26 @@ class AchievementLogic {
     }
   }
 
-  // --- CORRECTION : POP-UP IMMÉDIAT POUR FRINGALE NOCTURNE ---
+  // --- CORRECTION FRINGALE NOCTURNE ---
+  // Modification : On boucle sur tous les joueurs pour attribuer le succès
+  // immédiatement à tous les loups vivants, sans attendre le scan générique.
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
     if (votedPlayer.hasSurvivedWolfBite) {
       evolvedHungerAchieved = true;
       debugPrint("🩸 LOG [Achievement] : Condition Fringale Nocturne remplie.");
 
-      // On lance le scan global pour que tous les loups reçoivent le succès
+      for (var p in allPlayers) {
+        if (p.team == "loups" && p.isAlive) {
+          TrophyService.checkAndUnlockImmediate(
+            context: context,
+            playerName: p.name,
+            achievementId: "evolved_hunger",
+            checkData: {'evolved_hunger_achieved': true},
+          );
+        }
+      }
+
+      // On garde le scan générique en sécurité
       _evaluateGenericAchievements(context, allPlayers);
     }
   }

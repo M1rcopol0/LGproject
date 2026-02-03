@@ -131,6 +131,15 @@ class NightActionsLogic {
           if (teams.length >= 2) {
             debugPrint("⏳ LOG [Succès] : Paradoxe Temporel détecté !");
             paradoxAchieved = true;
+
+            // --- CORRECTION : Déblocage immédiat ---
+            TrophyService.checkAndUnlockImmediate(
+              context: context,
+              playerName: p.name,
+              achievementId: "time_paradox",
+              checkData: {'paradox_achieved': true},
+            );
+            // ---------------------------------------
           }
         }
 
@@ -348,8 +357,11 @@ class NightActionsLogic {
             debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
 
-            // La cible originale a survécu
-            if (reason.contains("Attaque des Loups")) target.hasSurvivedWolfBite = true;
+            // CORRECTION CRITIQUE : La cible originale a survécu à une morsure (si c'était des loups)
+            // C'est ce qui permet d'activer le flag pour Fringale Nocturne
+            if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
+              target.hasSurvivedWolfBite = true;
+            }
 
           } else {
             debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
@@ -358,7 +370,7 @@ class NightActionsLogic {
           if (reason.contains("Morsure")) wolvesNightKills++;
         } else {
           // Survie (ex: Pantin Immunisé, Voyageur)
-          if (reason.contains("Attaque des Loups")) {
+          if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
             target.hasSurvivedWolfBite = true;
             nightWolvesTargetSurvived = true;
           }
