@@ -107,6 +107,7 @@ class Player {
   bool hasUsedBombPower;   // Vrai si le pouvoir a été consommé définitivement
   bool isBombed;           // Marqueur visuel sur la victime
   int bombTimer;
+  int attachedBombTimer;   // Timer manuel (posé par MJ via Dev Mode)
 
   // Houston
   List<Player> houstonTargets;
@@ -149,7 +150,7 @@ class Player {
     this.hasReturnedThisTurn = false,
     this.isRevealedByDevin = false,
     this.pantinClutchTriggered = false,
-    this.hasSurvivedWolfBite = false, // Init
+    this.hasSurvivedWolfBite = false,
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
@@ -204,6 +205,7 @@ class Player {
     this.hasUsedBombPower = false,
     this.isBombed = false,
     this.bombTimer = 0,
+    this.attachedBombTimer = 0, // Init
     this.houstonTargets = const [],
     this.houstonApollo13Triggered = false,
     this.somnifereUses = 1,
@@ -222,13 +224,10 @@ class Player {
         revealedPlayersHistory = revealedPlayersHistory ?? [],
         protectedPlayersHistory = protectedPlayersHistory ?? {};
 
-  // CORRECTION : Formatage robuste pour éviter les doublons (ex: "claude" vs "Claude")
   static String formatName(String input) {
     if (input.trim().isEmpty) return input;
-    // Sépare par espace, enlève les vides, formate chaque mot
     return input.trim().split(' ').where((word) => word.isNotEmpty).map((word) {
       String cleanWord = word.toLowerCase();
-      // Gestion des noms composés (ex: Jean-Pierre)
       return cleanWord.split('-').map((part) {
         if (part.isEmpty) return "";
         return part[0].toUpperCase() + part.substring(1);
@@ -268,8 +267,11 @@ class Player {
     somnifereUses = 1;
     votes = 0;
     timeMasterTargets = [];
-    lastBledTarget = null; // Reset complet
-    hasSurvivedWolfBite = false; // Reset
+    lastBledTarget = null;
+    hasSurvivedWolfBite = false;
+    isBombed = false;
+    attachedBombTimer = 0;
+    pantinCurseTimer = null;
   }
 
   void resetTemporaryStates() {
@@ -282,8 +284,6 @@ class Player {
     isSavedByTimeMaster = false;
     pokemonRevengeTarget = null;
     hasReturnedThisTurn = false;
-    // Note: On ne reset pas timeMasterTargets ni lastBledTarget ici car ils doivent persister
-    // hasSurvivedWolfBite est persistant jusqu'à la fin de la partie pour le succès, ne pas reset ici.
   }
 
   Widget buildStatusIcons() {
@@ -407,6 +407,7 @@ class Player {
       'hasUsedBombPower': hasUsedBombPower,
       'isBombed': isBombed,
       'bombTimer': bombTimer,
+      'attachedBombTimer': attachedBombTimer, // AJOUTÉ
       'houstonApollo13Triggered': houstonApollo13Triggered,
       'somnifereUses': somnifereUses,
       'lastQuicheTurn': lastQuicheTurn,
@@ -425,7 +426,7 @@ class Player {
       'tardosSuicide': tardosSuicide,
       'pantinClutchTriggered': pantinClutchTriggered,
       'timeMasterTargets': timeMasterTargets,
-      'hasSurvivedWolfBite': hasSurvivedWolfBite, // AJOUTÉ
+      'hasSurvivedWolfBite': hasSurvivedWolfBite,
     };
   }
 
@@ -488,6 +489,7 @@ class Player {
       ..hasUsedBombPower = map['hasUsedBombPower'] ?? false
       ..isBombed = map['isBombed'] ?? false
       ..bombTimer = map['bombTimer'] ?? 0
+      ..attachedBombTimer = map['attachedBombTimer'] ?? 0 // AJOUTÉ
       ..houstonApollo13Triggered = map['houstonApollo13Triggered'] ?? false
       ..somnifereUses = map['somnifereUses'] ?? 2
       ..lastQuicheTurn = map['lastQuicheTurn'] ?? -1
@@ -505,8 +507,8 @@ class Player {
       ..timeMasterUsedPower = map['timeMasterUsedPower'] ?? false
       ..tardosSuicide = map['tardosSuicide'] ?? false
       ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false
-      ..lastBledTarget = map['lastBledTarget'] // AJOUTÉ
-      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? []) // AJOUTÉ
-      ..hasSurvivedWolfBite = map['hasSurvivedWolfBite'] ?? false; // AJOUTÉ
+      ..lastBledTarget = map['lastBledTarget']
+      ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? [])
+      ..hasSurvivedWolfBite = map['hasSurvivedWolfBite'] ?? false;
   }
 }

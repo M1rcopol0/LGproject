@@ -208,7 +208,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(20),
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
         child: Column(
           children: [
             const Text("MODIFIER LES ÉTATS", style: TextStyle(color: Colors.blueAccent, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -222,10 +222,49 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   _effectSwitch("Censuré (Muet)", p.isMutedDay, (v) => p.isMutedDay = v),
                   _effectSwitch("Immunisé Vote (Bled)", p.isImmunizedFromVote, (v) => p.isImmunizedFromVote = v),
                   _effectSwitch("Révélé (Devin)", p.isRevealedByDevin, (v) => p.isRevealedByDevin = v),
-                  _effectSwitch("Marqué par Tardos (Bombe)", p.isBombed, (v) => p.isBombed = v),
-                  _effectSwitch("Maudit par Pantin", p.pantinCurseTimer != null, (v) {
-                    p.pantinCurseTimer = v ? 2 : null;
-                  }),
+
+                  // --- BOMBE MANUELLE ---
+                  ListTile(
+                    title: const Text("Porteur de Bombe", style: TextStyle(color: Colors.white)),
+                    trailing: Switch(
+                      value: p.isBombed,
+                      activeColor: Colors.redAccent,
+                      onChanged: (val) {
+                        setState(() {
+                          p.isBombed = val;
+                          if (!val) p.attachedBombTimer = 0;
+                        });
+                        // Si activé, on demande le timer
+                        if (val) _askIntDialog("Temps avant explosion (tours)", 2, (t) => setState(() => p.attachedBombTimer = t));
+                      },
+                    ),
+                    subtitle: p.isBombed ? Text("Explosion dans ${p.attachedBombTimer} tours", style: const TextStyle(color: Colors.redAccent, fontSize: 12)) : null,
+                  ),
+
+                  // --- MALÉDICTION PANTIN ---
+                  ListTile(
+                    title: const Text("Maudit (Pantin)", style: TextStyle(color: Colors.white)),
+                    trailing: Switch(
+                      value: p.pantinCurseTimer != null,
+                      activeColor: Colors.purple,
+                      onChanged: (val) {
+                        setState(() {
+                          p.pantinCurseTimer = val ? 2 : null;
+                        });
+                        if (val) _askIntDialog("Temps avant mort (tours)", 2, (t) => setState(() => p.pantinCurseTimer = t));
+                      },
+                    ),
+                    subtitle: p.pantinCurseTimer != null ? Text("Mort dans ${p.pantinCurseTimer} tours", style: const TextStyle(color: Colors.purpleAccent, fontSize: 12)) : null,
+                  ),
+
+                  // --- VOYAGEUR ---
+                  _effectSwitch("En Voyage", p.isInTravel, (v) => p.isInTravel = v),
+
+                  // --- FAN RON-ALDO ---
+                  _effectSwitch("Fan de Ron-Aldo", p.isFanOfRonAldo, (v) => p.isFanOfRonAldo = v),
+
+                  // --- ABSENCE ARCHIVISTE ---
+                  _effectSwitch("Transcendance (Absent)", p.isAwayAsMJ, (v) => p.isAwayAsMJ = v),
                 ],
               ),
             ),
@@ -240,6 +279,31 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // Petit helper pour demander un entier
+  void _askIntDialog(String title, int defaultVal, Function(int) onVal) {
+    TextEditingController ctrl = TextEditingController(text: defaultVal.toString());
+    showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1D1E33),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(suffixText: "tours"),
+          ),
+          actions: [
+            TextButton(onPressed: () {
+              int? v = int.tryParse(ctrl.text);
+              if (v != null) onVal(v);
+              Navigator.pop(ctx);
+            }, child: const Text("OK"))
+          ],
+        )
     );
   }
 
