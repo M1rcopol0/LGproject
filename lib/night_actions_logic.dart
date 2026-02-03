@@ -43,9 +43,19 @@ class NightActionsLogic {
 
       // --- LOGIQUE BOMBE MANUELLE (VIA MENU MJ) ---
       // Gestion du timer pour une bombe ajoutée manuellement par le MJ
+      // CORRECTION : On ne décrémente que si ce n'est PAS une bombe de Tardos active sur ce joueur
       if (p.isBombed && p.attachedBombTimer > 0) {
-        p.attachedBombTimer--;
-        debugPrint("🧨 LOG [MJ] : Bombe manuelle sur ${p.name} tic-tac... (T-Minus: ${p.attachedBombTimer})");
+        // Double sécurité : si un Tardos vise ce joueur, on ignore le timer manuel pour éviter les conflits
+        bool targetedByTardos = players.any((attacker) =>
+        attacker.role?.toLowerCase() == "tardos" &&
+            attacker.hasPlacedBomb &&
+            attacker.tardosTarget == p
+        );
+
+        if (!targetedByTardos) {
+          p.attachedBombTimer--;
+          debugPrint("🧨 LOG [MJ] : Bombe manuelle sur ${p.name} tic-tac... (T-Minus: ${p.attachedBombTimer})");
+        }
       }
 
       // --- LOGIQUE VOYAGEUR (Munitions & Stats) ---
@@ -138,7 +148,7 @@ class NightActionsLogic {
               playerName: p.name,
               achievementId: "time_paradox",
               checkData: {
-                'player_role': 'Maître du temps',
+                'player_role': 'Maître du temps', // Force le rôle pour matcher la condition
                 'paradox_achieved': true
               },
             );
@@ -152,9 +162,6 @@ class NightActionsLogic {
 
     // --- 0.5 ANALYSE MAISON (EPSTEIN & RON-ALDO) ---
     try {
-      // On cherche la maison vivante OU morte ce tour (pour vérifier ses invités avant sa mort)
-      // Note: Si elle est morte avant (tours précédents), elle n'est plus active.
-      // On cherche le joueur qui A le rôle maison actuellement.
       Player maison = players.firstWhere((p) => p.role?.toLowerCase() == "maison" && p.isAlive);
 
       // Reset des compteurs temporaires
@@ -247,8 +254,15 @@ class NightActionsLogic {
     }
 
     // B. Bombe Manuelle (Liée à la victime via menu MJ)
+    // CORRECTION CRITIQUE : Vérifier que ce n'est PAS une bombe de Tardos active
     for (var p in players) {
-      if (p.isBombed && p.attachedBombTimer == 0) {
+      bool targetedByTardos = players.any((attacker) =>
+      attacker.role?.toLowerCase() == "tardos" &&
+          attacker.hasPlacedBomb &&
+          attacker.tardosTarget == p
+      );
+
+      if (p.isBombed && p.attachedBombTimer == 0 && !targetedByTardos) {
         _handleExplosion(context, players, p, pendingDeathsMap, "Explosion Bombe (Manuelle)", null);
         // Note : isBombed sera reset dans _handleExplosion
       }
