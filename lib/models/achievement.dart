@@ -60,6 +60,16 @@ class AchievementData {
       icon: "📚", rarity: 2,
       checkCondition: (data) => data['archiviste_prince_qualified'] == true,
     ),
+    Achievement(
+      id: "cha_cha_smooth",
+      title: "Cha cha real smooth",
+      description: "Gagnez seul en tant qu'Archiviste (Switch vers Solo).",
+      icon: "🕺", rarity: 3,
+      checkCondition: (data) =>
+      data['player_role']?.toLowerCase() == "archiviste" &&
+          (data['winner_role'] == "ARCHIVISTE" || data['winner_role'] == "SOLO") &&
+          data['team'] == "solo",
+    ),
 
     // --- Devin ---
     Achievement(
@@ -156,8 +166,15 @@ class AchievementData {
       title: "Assurance Tous Risques",
       description: "Votre maison s'est effondrée pour protéger un invité d'une attaque mortelle.",
       icon: "🧱", rarity: 1,
-      // CORRECTION : Utilisation du flag explicite
       checkCondition: (data) => data['house_collapsed'] == true,
+    ),
+
+    Achievement(
+      id: "assurance_habitation",
+      title: "Assurance habitation",
+      description: "Survivez car votre maison s'est effondrée à votre place.",
+      icon: "📝", rarity: 2,
+      checkCondition: (data) => data['assurance_habitation_triggered'] == true,
     ),
 
     Achievement(
@@ -175,6 +192,15 @@ class AchievementData {
       checkCondition: (data) => data['maison_hosted_wolf'] == true,
     ),
     Achievement(
+      id: "epstein_house",
+      title: "Epstein House",
+      description: "Accueillez 2 ennemis du village en une partie.",
+      icon: "🏝️", rarity: 3,
+      checkCondition: (data) =>
+      data['player_role']?.toLowerCase() == "maison" &&
+          (data['hosted_enemies_count'] ?? 0) >= 2,
+    ),
+    Achievement(
       id: "house_fast_death",
       title: "Vous auriez pu toquer !",
       description: "En tant que maison, mourrez dès la première nuit.",
@@ -189,6 +215,20 @@ class AchievementData {
       description: "Faites exploser votre propre bombe à la figure.",
       icon: "💥", rarity: 2,
       checkCondition: (data) => data['tardos_suicide'] == true,
+    ),
+    Achievement(
+      id: "11_septembre",
+      title: "11 septembre",
+      description: "Faites exploser la maison ET tous ses occupants.",
+      icon: "✈️", rarity: 4,
+      checkCondition: (data) => data['11_septembre_triggered'] == true,
+    ),
+    Achievement(
+      id: "self_destruct",
+      title: "Self-destruct",
+      description: "Mourez dans votre propre explosion en emportant la maison.",
+      icon: "💣", rarity: 2,
+      checkCondition: (data) => data['self_destruct_triggered'] == true,
     ),
 
     // --- Voyageur ---
@@ -220,6 +260,14 @@ class AchievementData {
       icon: "🐾", rarity: 3,
       checkCondition: (data) =>
       data['is_wolf_faction'] == true && data['winner_role'] == "LOUPS-GAROUS" && data['no_friendly_fire_vote'] == true,
+    ),
+    Achievement(
+      id: "8_morts_6_blesses",
+      title: "8 morts, 6 blessés",
+      description: "La meute a dévoré 8 joueurs cumulés dans la partie.",
+      icon: "🍖", rarity: 3,
+      checkCondition: (data) =>
+      data['is_wolf_faction'] == true && (data['wolves_night_kills'] ?? 0) >= 8,
     ),
 
     // --- Loup-garou chaman ---
@@ -394,6 +442,13 @@ class AchievementData {
           data['is_fan'] == false &&
           data['winner_role'] == "RON-ALDO",
     ),
+    Achievement(
+      id: "coupe_maison",
+      title: "Ramenez la coupe à la maison",
+      description: "Convertissez la maison qui vous héberge en fan, et faites-la mourir pour vous la même nuit.",
+      icon: "🏆", rarity: 4,
+      checkCondition: (data) => data['ramenez_la_coupe'] == true,
+    ),
 
     // ==========================================
     // STATS GLOBALES ET SPÉCIFIQUES
@@ -436,6 +491,13 @@ class AchievementData {
         return (roles['LOUPS-GAROUS'] ?? 0) >= 1;
       },
     ),
+    Achievement(
+      id: "choix_cornelien",
+      title: "Un choix cornélien",
+      description: "Finissez vivant sans jamais voter 2 fois pour la même personne.",
+      icon: "⚖️", rarity: 4,
+      checkCondition: (data) => data['choix_cornelien_valid'] == true,
+    ),
 
     // CORRECTION : Condition explicite pour déclencheur manuel
     Achievement(
@@ -452,6 +514,13 @@ class AchievementData {
       description: "Gagner une partie pour la première fois.",
       icon: "🏆", rarity: 1,
       checkCondition: (data) => (data['totalWins'] ?? 0) >= 1,
+    ),
+    Achievement(
+      id: "louis_croix_v",
+      title: "Louis croix V bâton",
+      description: "Roi exécuté par son peuple au vote.",
+      icon: "👑", rarity: 3,
+      checkCondition: (data) => data['louis_croix_v_triggered'] == true,
     ),
 
     // --- Cumulatifs et Vétérans ---

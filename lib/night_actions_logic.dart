@@ -137,7 +137,10 @@ class NightActionsLogic {
               context: context,
               playerName: p.name,
               achievementId: "time_paradox",
-              checkData: {'paradox_achieved': true},
+              checkData: {
+                'player_role': 'Maître du temps',
+                'paradox_achieved': true
+              },
             );
             // ---------------------------------------
           }
@@ -146,6 +149,45 @@ class NightActionsLogic {
         p.timeMasterTargets.clear();
       }
     }
+
+    // --- 0.5 ANALYSE MAISON (EPSTEIN & RON-ALDO) ---
+    try {
+      // On cherche la maison vivante OU morte ce tour (pour vérifier ses invités avant sa mort)
+      // Note: Si elle est morte avant (tours précédents), elle n'est plus active.
+      // On cherche le joueur qui A le rôle maison actuellement.
+      Player maison = players.firstWhere((p) => p.role?.toLowerCase() == "maison" && p.isAlive);
+
+      // Reset des compteurs temporaires
+      maison.hostedEnemiesCount = 0;
+      maison.hostedRonAldoThisTurn = false;
+
+      for (var invite in players.where((p) => p.isInHouse)) {
+        // Epstein House : Compter les ennemis
+        if (invite.team != "village") {
+          maison.hostedEnemiesCount++;
+        }
+
+        // Ramenez la coupe : Repérer Ron-Aldo
+        if (invite.role?.toLowerCase() == "ron-aldo") {
+          maison.hostedRonAldoThisTurn = true;
+          // Propager l'info sur l'invité aussi, au cas où la maison change de rôle (devient Fan)
+          invite.hostedRonAldoThisTurn = true;
+        }
+      }
+
+      // Trigger immédiat Epstein House
+      if (maison.hostedEnemiesCount >= 2) {
+        TrophyService.checkAndUnlockImmediate(
+            context: context,
+            playerName: maison.name,
+            achievementId: "epstein_house",
+            checkData: {
+              'player_role': 'maison',
+              'hosted_enemies_count': maison.hostedEnemiesCount
+            }
+        );
+      }
+    } catch (_) {}
 
     // --- 1. GÉNÉRATION DES ANNONCES (HOUSTON / DEVIN / VOYAGEUR) ---
 
@@ -357,6 +399,15 @@ class NightActionsLogic {
             debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
 
+            // --- SUCCÈS : ASSURANCE HABITATION ---
+            // Le joueur target a survécu car la maison est morte à sa place
+            TrophyService.checkAndUnlockImmediate(
+                context: context,
+                playerName: target.name,
+                achievementId: "assurance_habitation",
+                checkData: {'assurance_habitation_triggered': true}
+            );
+
             // CORRECTION CRITIQUE : La cible originale a survécu à une morsure (si c'était des loups)
             // C'est ce qui permet d'activer le flag pour Fringale Nocturne
             if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
@@ -366,6 +417,22 @@ class NightActionsLogic {
           } else {
             debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
             finalDeathReasons[finalVictim.name] = reason;
+
+            // --- SUCCÈS : RAMENEZ LA COUPE À LA MAISON ---
+            // Si la victime est un fan (ex-Maison) qui se sacrifie (ou meurt) alors qu'elle hébergeait Ron-Aldo
+            if (finalVictim.isFanOfRonAldo && finalVictim.hostedRonAldoThisTurn) {
+              // On cherche Ron-Aldo pour lui donner le succès
+              try {
+                Player ron = players.firstWhere((p) => p.role?.toLowerCase() == "ron-aldo");
+                // On suppose ici que si le fan meurt et hébergeait Ron-Aldo, c'est suite à une attaque
+                TrophyService.checkAndUnlockImmediate(
+                    context: context,
+                    playerName: ron.name,
+                    achievementId: "coupe_maison",
+                    checkData: {'ramenez_la_coupe': true}
+                );
+              } catch (_) {}
+            }
           }
           if (reason.contains("Morsure")) wolvesNightKills++;
         } else {
@@ -420,6 +487,7 @@ class NightActionsLogic {
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
       p.hasReturnedThisTurn = false;
+      p.hostedRonAldoThisTurn = false; // Reset pour le tour suivant
 
       if (!p.hasBeenHitByDart) p.isEffectivelyAsleep = false;
     }
@@ -446,13 +514,46 @@ class NightActionsLogic {
 
     if (target.role?.toLowerCase() == "maison" || target.isInHouse) {
       debugPrint("🏠💥 LOG [Explosion] : Dégâts collatéraux (Maison).");
+      Player? houseOwner;
       try {
-        Player houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
+        houseOwner = players.firstWhere((h) => h.role?.toLowerCase() == "maison");
         pendingDeathsMap[houseOwner] = reason;
       } catch(e) { }
 
-      for (var occupant in players.where((o) => o.isInHouse)) {
+      var occupants = players.where((o) => o.isInHouse).toList();
+      for (var occupant in occupants) {
         pendingDeathsMap[occupant] = "Effondrement Maison (Explosion)";
+      }
+
+      // --- SUCCÈS : 11 SEPTEMBRE & SELF-DESTRUCT ---
+      // On vérifie si la maison ET tous les occupants sont morts
+      // (Note: pendingDeathsMap contient les morts de CETTE phase d'explosion)
+      if (houseOwner != null && occupants.isNotEmpty) {
+        // On considère "réussi" si le propriétaire et tous les occupants sont dans la liste des décès
+        bool houseDead = pendingDeathsMap.containsKey(houseOwner);
+        bool allOccupantsDead = occupants.every((o) => pendingDeathsMap.containsKey(o));
+
+        if (houseDead && allOccupantsDead) {
+          if (attacker != null && attacker.role?.toLowerCase() == "tardos") {
+            // 11 Septembre
+            TrophyService.checkAndUnlockImmediate(
+                context: context,
+                playerName: attacker.name,
+                achievementId: "11_septembre",
+                checkData: {'11_septembre_triggered': true}
+            );
+
+            // Self-destruct : Si Tardos meurt aussi dans l'explosion
+            if (pendingDeathsMap.containsKey(attacker)) {
+              TrophyService.checkAndUnlockImmediate(
+                  context: context,
+                  playerName: attacker.name,
+                  achievementId: "self_destruct",
+                  checkData: {'self_destruct_triggered': true}
+              );
+            }
+          }
+        }
       }
     }
     else if (target.isAlive) {

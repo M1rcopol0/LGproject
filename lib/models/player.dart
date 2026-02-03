@@ -12,6 +12,13 @@ class Player {
   bool isVillageChief;
   bool isRoleLocked;
 
+  // --- NOUVEAUX CHAMPS SUCCÈS ---
+  Set<String> votedAgainstHistory; // Pour "Un choix cornélien"
+  bool hostedRonAldoThisTurn;      // Pour "Ramenez la coupe à la maison"
+  bool wasMaisonConverted;         // Pour "Ramenez la coupe à la maison"
+  int hostedEnemiesCount;          // Pour "Epstein House"
+  bool isRoi;                      // Pour "Louis croix V bâton"
+
   // --- ÉTATS DE JEU ---
   bool isInHouse;
   bool isHouseDestroyed;
@@ -205,7 +212,7 @@ class Player {
     this.hasUsedBombPower = false,
     this.isBombed = false,
     this.bombTimer = 0,
-    this.attachedBombTimer = 0, // Init
+    this.attachedBombTimer = 0,
     this.houstonTargets = const [],
     this.houstonApollo13Triggered = false,
     this.somnifereUses = 1,
@@ -220,9 +227,18 @@ class Player {
     this.maxSimultaneousCurses = 0,
     this.canacleanPresent = false,
     this.isSelected = false,
+
+    // NOUVEAUX CHAMPS (Initialisation)
+    Set<String>? votedAgainstHistory,
+    this.hostedRonAldoThisTurn = false,
+    this.wasMaisonConverted = false,
+    this.hostedEnemiesCount = 0,
+    this.isRoi = false,
+
   }) : name = formatName(name),
         revealedPlayersHistory = revealedPlayersHistory ?? [],
-        protectedPlayersHistory = protectedPlayersHistory ?? {};
+        protectedPlayersHistory = protectedPlayersHistory ?? {},
+        votedAgainstHistory = votedAgainstHistory ?? {};
 
   static String formatName(String input) {
     if (input.trim().isEmpty) return input;
@@ -272,6 +288,13 @@ class Player {
     isBombed = false;
     attachedBombTimer = 0;
     pantinCurseTimer = null;
+
+    // RESET NOUVEAUX CHAMPS
+    votedAgainstHistory = {};
+    hostedRonAldoThisTurn = false;
+    wasMaisonConverted = false;
+    hostedEnemiesCount = 0;
+    isRoi = false;
   }
 
   void resetTemporaryStates() {
@@ -284,6 +307,9 @@ class Player {
     isSavedByTimeMaster = false;
     pokemonRevengeTarget = null;
     hasReturnedThisTurn = false;
+
+    // RESET TEMPORAIRE
+    hostedRonAldoThisTurn = false;
   }
 
   Widget buildStatusIcons() {
@@ -292,6 +318,7 @@ class Player {
     List<Widget> icons = [];
 
     if (isVillageChief) icons.add(const Icon(Icons.workspace_premium, size: 16, color: Colors.amber));
+    if (isRoi) icons.add(const Icon(FontAwesomeIcons.crown, size: 14, color: Colors.amberAccent)); // Icône Roi
     if (isInHouse) icons.add(const Icon(Icons.home, size: 16, color: Colors.orangeAccent));
     if (isProtectedByPokemon) icons.add(const Icon(Icons.bolt, size: 16, color: Colors.yellow));
     if (isEffectivelyAsleep) icons.add(const Icon(Icons.bedtime, size: 16, color: Colors.blueAccent));
@@ -407,7 +434,7 @@ class Player {
       'hasUsedBombPower': hasUsedBombPower,
       'isBombed': isBombed,
       'bombTimer': bombTimer,
-      'attachedBombTimer': attachedBombTimer, // AJOUTÉ
+      'attachedBombTimer': attachedBombTimer,
       'houstonApollo13Triggered': houstonApollo13Triggered,
       'somnifereUses': somnifereUses,
       'lastQuicheTurn': lastQuicheTurn,
@@ -427,6 +454,13 @@ class Player {
       'pantinClutchTriggered': pantinClutchTriggered,
       'timeMasterTargets': timeMasterTargets,
       'hasSurvivedWolfBite': hasSurvivedWolfBite,
+
+      // SERIALISATION NOUVEAUX CHAMPS
+      'votedAgainstHistory': votedAgainstHistory.toList(),
+      'hostedRonAldoThisTurn': hostedRonAldoThisTurn,
+      'wasMaisonConverted': wasMaisonConverted,
+      'hostedEnemiesCount': hostedEnemiesCount,
+      'isRoi': isRoi,
     };
   }
 
@@ -435,6 +469,7 @@ class Player {
       name: map['name'],
       revealedPlayersHistory: List<String>.from(map['revealedPlayersHistory'] ?? []),
       protectedPlayersHistory: Set<String>.from(map['protectedPlayersHistory'] ?? []),
+      votedAgainstHistory: Set<String>.from(map['votedAgainstHistory'] ?? []), // RESTAURATION
     )
       ..role = map['role']
       ..team = map['team'] ?? "village"
@@ -489,7 +524,7 @@ class Player {
       ..hasUsedBombPower = map['hasUsedBombPower'] ?? false
       ..isBombed = map['isBombed'] ?? false
       ..bombTimer = map['bombTimer'] ?? 0
-      ..attachedBombTimer = map['attachedBombTimer'] ?? 0 // AJOUTÉ
+      ..attachedBombTimer = map['attachedBombTimer'] ?? 0
       ..houstonApollo13Triggered = map['houstonApollo13Triggered'] ?? false
       ..somnifereUses = map['somnifereUses'] ?? 2
       ..lastQuicheTurn = map['lastQuicheTurn'] ?? -1
@@ -509,6 +544,12 @@ class Player {
       ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false
       ..lastBledTarget = map['lastBledTarget']
       ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? [])
-      ..hasSurvivedWolfBite = map['hasSurvivedWolfBite'] ?? false;
+      ..hasSurvivedWolfBite = map['hasSurvivedWolfBite'] ?? false
+
+    // RESTAURATION NOUVEAUX CHAMPS
+      ..hostedRonAldoThisTurn = map['hostedRonAldoThisTurn'] ?? false
+      ..wasMaisonConverted = map['wasMaisonConverted'] ?? false
+      ..hostedEnemiesCount = map['hostedEnemiesCount'] ?? 0
+      ..isRoi = map['isRoi'] ?? false;
   }
 }

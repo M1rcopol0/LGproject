@@ -9,6 +9,9 @@ class AchievementLogic {
   static List<String> _traitorsThisTurn = [];
   static final Map<String, int> _shockTracker = {};
 
+  // Suivi local pour "Un choix cornélien" (car Set dans Player masque les doublons)
+  static final Map<String, bool> _cornellienFailed = {};
+
   // ==========================================================
   // 1. MÉTHODE PUBLIQUE POUR VÉRIFICATION EN COURS DE JEU
   // ==========================================================
@@ -50,22 +53,30 @@ class AchievementLogic {
 
   static Map<String, dynamic> _buildPlayerStats(Player p, String? winnerRole, List<Player> allPlayers) {
     return {
+      // --- INFOS DE BASE ---
       'player_role': p.role,
       'is_player_alive': p.isAlive,
       'winner_role': winnerRole,
       'turn_count': globalTurnNumber,
       'is_wolf_faction': p.team == "loups",
+      'team': p.team, // Ajouté pour "Cha cha real smooth"
+
+      // --- COMPTEURS D'ÉQUIPES ---
       'roles': {
         'VILLAGE': p.team == "village" ? 1 : 0,
         'LOUPS-GAROUS': p.team == "loups" ? 1 : 0,
         'SOLO': p.team == "solo" ? 1 : 0,
       },
-      'wolves_night_kills': wolvesNightKills,
-      'no_friendly_fire_vote': !wolfVotedWolf,
       'wolves_alive_count': allPlayers.where((pl) => pl.team == "loups" && pl.isAlive).length,
-      'paradox_achieved': paradoxAchieved,
+
+      // --- STATS LOUPS ---
+      'wolves_night_kills': wolvesNightKills, // Cumul global des kills de nuit
+      'no_friendly_fire_vote': !wolfVotedWolf,
       'evolved_hunger_achieved': evolvedHungerAchieved,
       'chaman_sniper_achieved': chamanSniperAchieved,
+
+      // --- STATS SPÉCIFIQUES RÔLES ---
+      'paradox_achieved': paradoxAchieved,
       'pokemon_died_t1': pokemonDiedTour1,
       'totalVotesReceivedDuringGame': p.totalVotesReceivedDuringGame,
       'somnifere_uses_left': p.somnifereUses,
@@ -80,6 +91,7 @@ class AchievementLogic {
       'quiche_saved_count': quicheSavedThisNight,
       'houstonApollo13Triggered': p.houstonApollo13Triggered,
       'maison_hosted_wolf': false,
+      'hosted_enemies_count': p.hostedEnemiesCount, // Pour "Epstein House"
       'tardos_suicide': p.tardosSuicide,
       'traveler_killed_wolf': p.travelerKilledWolf,
       'was_revived': p.wasRevivedInThisGame,
@@ -87,11 +99,16 @@ class AchievementLogic {
       'max_simultaneous_curses': p.maxSimultaneousCurses,
       'pantin_clutch_triggered': p.pantinClutchTriggered,
       'canaclean_present': p.canacleanPresent,
+
+      // --- RON-ALDO & FANS ---
       'is_fan': p.isFanOfRonAldo,
       'ultimate_fan_action': false,
       'is_fan_sacrifice': false,
+
+      // --- MAISON & DIVERS ---
       'house_collapsed': false,
       'is_first_blood': false,
+      'choix_cornelien_valid': p.isAlive && !(_cornellienFailed[p.name] ?? false),
     };
   }
 
@@ -115,6 +132,8 @@ class AchievementLogic {
         winnerRole = "MAÎTRE DU TEMPS";
       } else if (winners.any((p) => p.role?.toLowerCase() == "phyl")) {
         winnerRole = "PHYL";
+      } else if (winners.any((p) => p.role?.toLowerCase() == "archiviste")) { // Gestion Solo Archiviste
+        winnerRole = "ARCHIVISTE";
       } else {
         winnerRole = winners.first.role?.toUpperCase() ?? "SOLO";
       }
@@ -155,6 +174,15 @@ class AchievementLogic {
   // ==========================================================
   // 4. ÉVÉNEMENTS MANUELS (CONTEXT REQUIS POUR POP-UP)
   // ==========================================================
+
+  // Appeler cette méthode lors de chaque vote validé
+  static void trackVote(Player voter, Player target) {
+    // Si le joueur a déjà voté pour cette cible par le passé
+    if (voter.votedAgainstHistory.contains(target.name)) {
+      _cornellienFailed[voter.name] = true;
+    }
+    voter.votedAgainstHistory.add(target.name);
+  }
 
   static void checkDeathAchievements(BuildContext? context, Player victim, List<Player> allPlayers) {
     final roleLower = victim.role?.toLowerCase() ?? "";
@@ -290,19 +318,22 @@ class AchievementLogic {
 
   // --- CORRECTION FRINGALE NOCTURNE ---
   // Modification : On boucle sur tous les joueurs pour attribuer le succès
-  // immédiatement à tous les loups vivants, sans attendre le scan générique.
+  // immédiatement à tous les loups (qu'ils soient morts ou vivants), sans attendre.
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
     if (votedPlayer.hasSurvivedWolfBite) {
       evolvedHungerAchieved = true;
       debugPrint("🩸 LOG [Achievement] : Condition Fringale Nocturne remplie.");
 
       for (var p in allPlayers) {
-        if (p.team == "loups" && p.isAlive) {
+        if (p.team == "loups") { // Pas de check p.isAlive, succès d'équipe
           TrophyService.checkAndUnlockImmediate(
             context: context,
             playerName: p.name,
             achievementId: "evolved_hunger",
-            checkData: {'evolved_hunger_achieved': true},
+            checkData: {
+              'is_wolf_faction': true,
+              'evolved_hunger_achieved': true
+            },
           );
         }
       }
@@ -479,6 +510,7 @@ class AchievementLogic {
     debugPrint("🔄 LOG [Achievement] : RESET COMPLET DES SUCCÈS.");
     _traitorsThisTurn.clear();
     _shockTracker.clear();
+    _cornellienFailed.clear(); // Reset suivi Cornellien
     anybodyDeadYet = false;
     pokemonDiedTour1 = false;
     chamanSniperAchieved = false;
