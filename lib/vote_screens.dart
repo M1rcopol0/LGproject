@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/player.dart';
 import 'globals.dart';
 import 'logic.dart';
-import 'achievement_logic.dart'; // IMPORT AJOUTÉ
+import 'achievement_logic.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'night_interfaces/target_selector_interface.dart';
 
@@ -28,12 +28,12 @@ class PassScreen extends StatefulWidget {
 }
 
 class _PassScreenState extends State<PassScreen> {
-  // SÉCURITÉ : On copie et on trie la liste une seule fois pour éviter le re-build instable
   late List<Player> sortedVoters;
 
   @override
   void initState() {
     super.initState();
+    // On copie la liste pour éviter les problèmes de modification concurrente
     sortedVoters = List.from(widget.voters);
     sortedVoters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
@@ -76,7 +76,7 @@ class _PassScreenState extends State<PassScreen> {
                   if (isLastVoter) {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
 
-                    // CORRECTION : Passage du context pour les Pop-ups de succès immédiats (Traître, etc.)
+                    // Calcul centralisé des votes (Poids, Fans, etc.) + Check succès immédiats
                     GameLogic.processVillageVote(context, widget.allPlayers);
 
                     Navigator.pushReplacement(
@@ -147,7 +147,7 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
     // --- DICTATURE RON-ALDO ---
-    // Si le joueur est fan et que Ron-Aldo est vivant, il ne vote pas.
+    // Si le joueur est fan et que Ron-Aldo est vivant, il ne vote pas librement.
     bool ronAldoAlive = widget.allPlayers.any((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
     bool isFanBlocked = widget.voter.isFanOfRonAldo && ronAldoAlive;
 
@@ -169,8 +169,8 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
       );
     }
 
-    // TRI ALPHABÉTIQUE DES CIBLES
-    final eligibleTargets = widget.allPlayers.where((p) => p.isAlive).toList();
+    // TRI ALPHABÉTIQUE DES CIBLES + FILTRE ARCHIVISTE TRANSCENDANT
+    final eligibleTargets = widget.allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
@@ -241,12 +241,13 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     if (selectedTarget != null) {
       widget.voter.targetVote = selectedTarget;
 
-      // Note: Le calcul du poids se fait dans GameLogic.processVillageVote
+      // Note: Le calcul des votes (+=) se fait dans GameLogic.processVillageVote désormais pour éviter les doublons
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
 
       // Check Succès "Fan Traître"
       AchievementLogic.checkTraitorFan(context, widget.voter, selectedTarget!);
 
+      // Check Succès "Friendly Fire"
       if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
         wolfVotedWolf = true;
       }
@@ -326,7 +327,8 @@ class MJResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sortedPlayers = allPlayers.where((p) => p.isAlive).toList();
+    // FILTRE : On n'affiche pas l'Archiviste Transcendant dans la liste du MJ
+    final sortedPlayers = allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
 
     // TRI : Par votes décroissant, puis Alphabétique
     sortedPlayers.sort((a, b) {
@@ -433,7 +435,7 @@ class MJResultScreen extends StatelessWidget {
       else {
         message = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : $roleReveal";
 
-        // --- AJOUT INFO POKÉMON ---
+        // --- NOUVEAU : AJOUT INFO POKÉMON ---
         if ((deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") && deceased.pokemonRevengeTarget != null) {
           Player revengeTarget = deceased.pokemonRevengeTarget!;
           // On vérifie qu'elle est bien morte (GameLogic l'a tuée juste avant)

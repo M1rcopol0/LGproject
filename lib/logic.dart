@@ -149,7 +149,8 @@ class GameLogic {
     }
 
     // 3. Application des votes
-    for (var voter in allPlayers.where((p) => p.isAlive)) {
+    // CORRECTION : On exclut les Archivistes absents du traitement des votants
+    for (var voter in allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ)) {
 
       // CAS SPÉCIAL : FAN DE RON-ALDO
       // Si Ron-Aldo est vivant, le fan NE VOTE PAS individuellement.
@@ -187,8 +188,9 @@ class GameLogic {
 
     // ... (Le reste : Tri, Dingo, etc.) ...
 
+    // CORRECTION : On exclut les Archivistes absents de la liste des éliminables
     List<Player> votablePlayers =
-    allPlayers.where((p) => p.isAlive && !p.isImmunizedFromVote).toList();
+    allPlayers.where((p) => p.isAlive && !p.isImmunizedFromVote && !p.isAwayAsMJ).toList();
 
     if (votablePlayers.isEmpty) {
       debugPrint("🕊️ LOG [Vote] : Personne n'est éliminable aujourd'hui.");
