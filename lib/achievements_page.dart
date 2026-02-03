@@ -1,32 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'models/achievement.dart';
 import 'trophy_service.dart';
-import 'models/achievement.dart'; // C'est ici qu'on récupère la classe et les données déplacées
 
 class AchievementsPage extends StatelessWidget {
-  final String playerName;
+  final String? playerName; // DEVENU OPTIONNEL POUR ÉVITER L'ERREUR DE COMPILATION
 
-  const AchievementsPage({super.key, required this.playerName});
+  const AchievementsPage({super.key, this.playerName});
 
   @override
   Widget build(BuildContext context) {
+    // Titre dynamique selon le contexte
+    String title = playerName != null
+        ? "SUCCÈS DE ${playerName!.toUpperCase()}"
+        : "LISTE DES TROPHEES";
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: Text("SUCCÈS : $playerName", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
       ),
       body: FutureBuilder<List<String>>(
-        // On récupère la liste des IDs débloqués (ex: "first_blood", "bad_shooter")
-        future: TrophyService.getUnlockedAchievements(playerName),
+        // Si pas de joueur spécifié, on renvoie une liste vide (tous les succès apparaîtront verrouillés)
+        // ou on pourrait imaginer une liste globale débloquée sur le téléphone.
+        future: playerName != null
+            ? TrophyService.getUnlockedAchievements(playerName!)
+            : Future.value([]),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Colors.orangeAccent));
           }
 
           final unlockedIds = snapshot.data ?? [];
-          // On récupère la définition des succès depuis le modèle centralisé (gain de place ici)
           final allAchievements = AchievementData.allAchievements;
 
           return ListView.builder(
@@ -35,8 +43,6 @@ class AchievementsPage extends StatelessWidget {
             itemBuilder: (context, index) {
               final ach = allAchievements[index];
               final isUnlocked = unlockedIds.contains(ach.id);
-
-              // La couleur est désormais gérée par le modèle (facile=bleu, légendaire=or...)
               final rarityColor = ach.color;
 
               return Card(
@@ -80,6 +86,7 @@ class AchievementsPage extends StatelessWidget {
                             color: isUnlocked ? Colors.white : Colors.white38,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
+                            decoration: isUnlocked ? null : TextDecoration.lineThrough,
                           ),
                         ),
                       ),
@@ -118,7 +125,7 @@ class AchievementsPage extends StatelessWidget {
 
                   // CHECKMARK ou CADENAS
                   trailing: isUnlocked
-                      ? Icon(Icons.check_circle, color: rarityColor)
+                      ? Icon(FontAwesomeIcons.trophy, color: rarityColor, size: 20)
                       : const Icon(Icons.lock_outline, color: Colors.white12),
                 ),
               );

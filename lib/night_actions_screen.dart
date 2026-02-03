@@ -6,6 +6,7 @@ import 'logic.dart';
 import 'night_actions_logic.dart';
 import 'game_save_service.dart';
 import 'night_interfaces/role_action_dispatcher.dart';
+import 'achievement_logic.dart'; // AJOUTÉ
 import 'fin.dart';
 
 class NightActionsScreen extends StatefulWidget {
@@ -90,6 +91,11 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
   void _nextAction() {
     if (!mounted) return;
+
+    // --- AJOUT : Vérification Mid-Game après chaque rôle ---
+    // Permet de débloquer des succès comme "Mauvais tireur" immédiatement après l'action
+    AchievementLogic.checkMidGameAchievements(context, widget.players);
+
     for (var p in widget.players) {
       p.isSelected = false;
     }
@@ -121,7 +127,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     // --- CORRECTION : DÉTECTION VICTOIRE EXORCISTE ---
     if (result.exorcistVictory) {
       debugPrint("🏆 LOG [NightScreen] : L'exorciste a réussi son mime !");
-      exorcistWin = true; // Variable globale pour le succès
+      exorcistWin = true;
     }
 
     playSfx((result.deadPlayers.isEmpty && !result.villageIsNarcoleptic)
@@ -261,7 +267,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
 
-              // VICTOIRE EXORCISTE
               if (result.exorcistVictory)
                 const Column(
                   children: [
@@ -277,7 +282,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                   ],
                 ),
 
-              // ANNONCES SPÉCIALES
               if (!result.exorcistVictory && result.announcements.isNotEmpty) ...[
                 const Text("📢 ANNONCES SPÉCIALES :", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
@@ -295,7 +299,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              // RETOUR FORCÉ VOYAGEUR (NOUVEAU)
               if (!result.exorcistVictory && voyageurIntercepte) ...[
                 const Text("🛑 RETOUR FORCÉ :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
@@ -305,7 +308,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              // SILENCE ARCHIVISTE (NOUVEAU)
               if (!result.exorcistVictory && mutedPlayers.isNotEmpty) ...[
                 const Text("🤐 SILENCE IMPOSÉ :", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
@@ -318,12 +320,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              // MORTS ET NARCOLEPSIE
               if (!result.exorcistVictory && result.villageIsNarcoleptic)
                 const Text("💤 Village KO (Somnifère) !\nPersonne n'est mort, mais personne ne pourra parler.",
-                    style: TextStyle(
-                        color: Colors.purpleAccent,
-                        fontWeight: FontWeight.bold)),
+                    style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
 
               if (!result.exorcistVictory && !result.villageIsNarcoleptic) ...[
                 if (result.deadPlayers.isEmpty)
@@ -376,6 +375,9 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                   } catch (_) {}
                 }
               }
+
+              // --- AJOUT : Vérification Mid-Game au réveil (Survie, etc.) ---
+              await AchievementLogic.checkMidGameAchievements(context, widget.players);
 
               setState(() {
                 isDayTime = true;

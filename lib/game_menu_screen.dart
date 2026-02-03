@@ -17,6 +17,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'models/achievement.dart';
 import 'trophy_service.dart';
 import 'cloud_service.dart';
+import 'achievements_page.dart'; // Pour accès via AppBar
 
 class GameMenuScreen extends StatefulWidget {
   final List<Player> players;
@@ -170,6 +171,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                           secondary: Text(ach.icon, style: const TextStyle(fontSize: 24)),
                           value: isUnlocked,
                           activeColor: ach.color,
+                          checkColor: Colors.black,
                           onChanged: (val) async {
                             if (val == true) {
                               await TrophyService.unlockAchievement(p.name, ach.id);
@@ -177,7 +179,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                             } else {
                               await TrophyService.removeAchievement(p.name, ach.id);
                               unlocked.remove(ach.id);
-                              // FORCE UPLOAD pour éviter que le cloud ne remette le succès
                               if (context.mounted) {
                                 CloudService.forceUploadData(context);
                               }
@@ -193,7 +194,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER"))
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER", style: TextStyle(color: Colors.white54)))
         ],
       ),
     );
@@ -229,11 +230,12 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               ),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
               onPressed: () {
                 setState(() {});
                 Navigator.pop(ctx);
               },
-              child: const Text("TERMINER"),
+              child: const Text("TERMINER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -285,7 +287,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     }
   }
 
-  void _checkGameOver() {
+  void _checkGameOver() async {
     if (_isGameOverProcessing || !globalRolesDistributed) return;
     String? winner = GameLogic.checkWinner(_activePlayers);
     if (winner == null) return;
@@ -297,7 +299,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         (winner == "SOLO" && p.team == "solo")
     ).toList();
 
-    AchievementLogic.checkEndGameAchievements(context, winnersList, widget.players);
+    // CHECK SUCCÈS DE FIN (GÉNÉRIQUE)
+    await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.players);
 
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
@@ -341,11 +344,15 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.person, color: Colors.white),
                   title: Text(Player.formatName(p.name), style: const TextStyle(color: Colors.white)),
-                  onTap: () {
+                  onTap: () async {
                     setState(() {
                       for (var pl in widget.players) pl.isVillageChief = false;
                       p.isVillageChief = true;
                     });
+
+                    // CHECK SUCCÈS (Ex: Devenir Chef)
+                    await AchievementLogic.checkMidGameAchievements(context, widget.players);
+
                     Navigator.pop(ctx);
                   },
                 ),
@@ -378,8 +385,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
           title: const Text("⚠️ Vote Oublié", style: TextStyle(color: Colors.redAccent)),
           content: const Text("Le village n'a pas voté ce jour."),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER")),
-            TextButton(onPressed: () { Navigator.pop(ctx); _goToNight(force: true); }, child: const Text("FORCER LA NUIT")),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER", style: TextStyle(color: Colors.white54))),
+            TextButton(onPressed: () { Navigator.pop(ctx); _goToNight(force: true); }, child: const Text("FORCER LA NUIT", style: TextStyle(color: Colors.redAccent))),
           ],
         ),
       );
@@ -445,7 +452,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               onSelected: (val) => currentNameInput = val,
               fieldViewBuilder: (ctx, controller, focus, onSubmitted) {
                 controller.addListener(() => currentNameInput = controller.text);
-                return TextField(controller: controller, focusNode: focus, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Nom"));
+                return TextField(controller: controller, focusNode: focus, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Nom", labelStyle: TextStyle(color: Colors.white54)));
               },
             ),
             const SizedBox(height: 10),
@@ -454,48 +461,49 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               onSelected: (val) => currentRoleInput = val,
               fieldViewBuilder: (ctx, controller, focus, onSubmitted) {
                 controller.addListener(() => currentRoleInput = controller.text);
-                return TextField(controller: controller, focusNode: focus, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Rôle (Optionnel)"));
+                return TextField(controller: controller, focusNode: focus, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Rôle (Optionnel)", labelStyle: TextStyle(color: Colors.white54)));
               },
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER")),
-          ElevatedButton(onPressed: () {
-            // CORRECTION: Formatage du nom pour éviter les doublons
-            String cleanName = Player.formatName(currentNameInput);
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER", style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+              onPressed: () {
+                String cleanName = Player.formatName(currentNameInput);
 
-            if (cleanName.isNotEmpty) {
-              setState(() {
-                int idx = widget.players.indexWhere((p) => p.name == cleanName);
-                String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
-                String team = role != null ? GameLogic.getTeamForRole(role) : "village";
+                if (cleanName.isNotEmpty) {
+                  setState(() {
+                    int idx = widget.players.indexWhere((p) => p.name == cleanName);
+                    String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
+                    String team = role != null ? GameLogic.getTeamForRole(role) : "village";
 
-                if (idx != -1) {
-                  widget.players[idx].isPlaying = true;
-                  widget.players[idx].isAlive = true;
-                  if (role != null) {
-                    widget.players[idx].role = role;
-                    widget.players[idx].team = team;
-                    widget.players[idx].isRoleLocked = true;
-                  }
-                } else {
-                  Player newP = Player(name: cleanName, isPlaying: true);
-                  if (role != null) {
-                    newP.role = role;
-                    newP.team = team;
-                    newP.isRoleLocked = true;
-                  }
-                  widget.players.add(newP);
+                    if (idx != -1) {
+                      widget.players[idx].isPlaying = true;
+                      widget.players[idx].isAlive = true;
+                      if (role != null) {
+                        widget.players[idx].role = role;
+                        widget.players[idx].team = team;
+                        widget.players[idx].isRoleLocked = true;
+                      }
+                    } else {
+                      Player newP = Player(name: cleanName, isPlaying: true);
+                      if (role != null) {
+                        newP.role = role;
+                        newP.team = team;
+                        newP.isRoleLocked = true;
+                      }
+                      widget.players.add(newP);
+                    }
+                    if (!savedNames.contains(cleanName)) {
+                      savedNames.add(cleanName);
+                      prefs.setStringList("saved_players_list", savedNames);
+                    }
+                  });
+                  Navigator.pop(ctx);
                 }
-                if (!savedNames.contains(cleanName)) {
-                  savedNames.add(cleanName);
-                  prefs.setStringList("saved_players_list", savedNames);
-                }
-              });
-              Navigator.pop(ctx);
-            }
-          }, child: const Text("AJOUTER")),
+              }, child: const Text("AJOUTER", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -534,7 +542,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       backgroundColor: const Color(0xFF1D1E33),
       title: const Text("MORT CONFIRMÉE", style: TextStyle(color: Colors.white)),
       content: Text("${victim.name} était ${victim.role?.toUpperCase()}.", style: const TextStyle(color: Colors.white70)),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))],
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))],
     ));
   }
 
@@ -552,16 +560,23 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: Text(!globalRolesDistributed ? "PRÉPARATION" : (isDayTime ? "JOUR $globalTurnNumber" : "NUIT $globalTurnNumber")),
+        title: Text(!globalRolesDistributed ? "PRÉPARATION" : (isDayTime ? "JOUR $globalTurnNumber" : "NUIT $globalTurnNumber"), style: const TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
         backgroundColor: const Color(0xFF1D1E33),
+        elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.casino), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RouletteScreen()))),
+          IconButton(
+            icon: const Icon(FontAwesomeIcons.trophy, color: Colors.amber, size: 20),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AchievementsPage())),
+          ),
           IconButton(icon: const Icon(Icons.menu_book), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WikiPage()))),
           IconButton(icon: const Icon(Icons.settings), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
         ],
       ),
       body: Column(
         children: [
+          // BANNIÈRE D'ÉTAT OU TIMER
           Container(
             margin: const EdgeInsets.all(15), padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
@@ -577,12 +592,14 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   const SizedBox(width: 10),
                   Text(_formatTime(_currentSeconds), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
                   const Spacer(),
-                  IconButton(icon: Icon(_isTimerRunning ? Icons.pause : Icons.play_arrow), onPressed: _isTimerRunning ? () { _timer?.cancel(); setState(() => _isTimerRunning = false); } : _startTimer),
-                  IconButton(icon: const Icon(Icons.replay), onPressed: _resetTimer),
+                  IconButton(icon: Icon(_isTimerRunning ? Icons.pause : Icons.play_arrow, color: Colors.white), onPressed: _isTimerRunning ? () { _timer?.cancel(); setState(() => _isTimerRunning = false); } : _startTimer),
+                  IconButton(icon: const Icon(Icons.replay, color: Colors.white54), onPressed: _resetTimer),
                 ]
               ],
             ),
           ),
+
+          // LISTE DES JOUEURS
           Expanded(
             child: ListView.builder(
               itemCount: displayList.length,
@@ -612,6 +629,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               },
             ),
           ),
+
+          // BARRE D'ACTIONS INFÉRIEURE
           Container(
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(color: Color(0xFF1D1E33), borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
@@ -620,9 +639,23 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 if (globalRolesDistributed) ...[
                   Row(
                     children: [
-                      Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: _goToVote, icon: const Icon(Icons.how_to_vote), label: const Text("VOTE"))),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                          onPressed: _goToVote,
+                          icon: const Icon(Icons.how_to_vote, color: Colors.white),
+                          label: const Text("VOTE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
                       const SizedBox(width: 15),
-                      Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: () => _goToNight(force: false), icon: const Icon(Icons.nights_stay), label: const Text("NUIT"))),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                          onPressed: () => _goToNight(force: false),
+                          icon: const Icon(Icons.nights_stay, color: Colors.white),
+                          label: const Text("NUIT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
                     ],
                   ),
                 ] else ...[
@@ -641,7 +674,11 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                     child: const Text("LANCER LA PARTIE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 10),
-                  TextButton.icon(onPressed: () => _addPlayerDialog(context), icon: const Icon(Icons.add, color: Colors.orangeAccent), label: const Text("AJOUTER UN JOUEUR", style: TextStyle(color: Colors.orangeAccent))),
+                  TextButton.icon(
+                    onPressed: () => _addPlayerDialog(context),
+                    icon: const Icon(Icons.add, color: Colors.orangeAccent),
+                    label: const Text("AJOUTER UN JOUEUR", style: TextStyle(color: Colors.orangeAccent)),
+                  ),
                 ],
               ],
             ),

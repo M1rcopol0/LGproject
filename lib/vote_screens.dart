@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/player.dart';
 import 'globals.dart';
 import 'logic.dart';
-import 'achievement_logic.dart';
+import 'achievement_logic.dart'; // IMPORT AJOUTÉ
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'night_interfaces/target_selector_interface.dart';
 
@@ -28,7 +28,7 @@ class PassScreen extends StatefulWidget {
 }
 
 class _PassScreenState extends State<PassScreen> {
-  // SÉCURITÉ : On copie et on trie la liste une seule fois
+  // SÉCURITÉ : On copie et on trie la liste une seule fois pour éviter le re-build instable
   late List<Player> sortedVoters;
 
   @override
@@ -76,8 +76,8 @@ class _PassScreenState extends State<PassScreen> {
                   if (isLastVoter) {
                     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Passage au MJ.");
 
-                    // CORRECTION : Passage du context pour les Pop-ups de succès immédiats
-                    GameLogic.validateVoteStats(context, widget.allPlayers);
+                    // CORRECTION : Passage du context pour les Pop-ups de succès immédiats (Traître, etc.)
+                    GameLogic.processVillageVote(context, widget.allPlayers);
 
                     Navigator.pushReplacement(
                       context,
@@ -241,16 +241,14 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
     if (selectedTarget != null) {
       widget.voter.targetVote = selectedTarget;
 
-      int weight = (widget.voter.role?.toLowerCase() == "pantin") ? 2 : 1;
+      // Note: Le calcul du poids se fait dans GameLogic.processVillageVote
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
 
+      // Check Succès "Fan Traître"
       AchievementLogic.checkTraitorFan(context, widget.voter, selectedTarget!);
 
-      if (!widget.voter.isVoteCancelled) {
-        selectedTarget!.votes += weight;
-        if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
-          wolfVotedWolf = true;
-        }
+      if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
+        wolfVotedWolf = true;
       }
     }
     _goToNext();
@@ -435,7 +433,7 @@ class MJResultScreen extends StatelessWidget {
       else {
         message = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : $roleReveal";
 
-        // --- NOUVEAU : AJOUT INFO POKÉMON ---
+        // --- AJOUT INFO POKÉMON ---
         if ((deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") && deceased.pokemonRevengeTarget != null) {
           Player revengeTarget = deceased.pokemonRevengeTarget!;
           // On vérifie qu'elle est bien morte (GameLogic l'a tuée juste avant)
@@ -467,8 +465,12 @@ class MJResultScreen extends StatelessWidget {
     _finalize(context, "Personne ne meurt ce soir.", true);
   }
 
-  void _finalize(BuildContext context, String message, bool noOne) {
+  void _finalize(BuildContext context, String message, bool noOne) async {
+    // --- AJOUT : Vérification des succès AVANT le reset du tour ---
+    await AchievementLogic.checkMidGameAchievements(context, allPlayers);
+
     GameLogic.nextTurn(allPlayers);
+
     if (!context.mounted) return;
     showDialog(
       context: context,
@@ -477,7 +479,16 @@ class MJResultScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF1D1E33),
         title: Text(noOne ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT", style: const TextStyle(color: Colors.white)),
         content: Text(message, style: const TextStyle(color: Colors.white70)),
-        actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); Navigator.pop(context); onComplete(); }, child: const Text("OK", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)))],
+        actions: [
+          TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.pop(context);
+                onComplete();
+              },
+              child: const Text("OK", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold))
+          )
+        ],
       ),
     );
   }

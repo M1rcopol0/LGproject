@@ -156,7 +156,7 @@ class AchievementData {
       title: "Assurance Tous Risques",
       description: "Votre maison s'est effondrée pour protéger un invité d'une attaque mortelle.",
       icon: "🧱", rarity: 1,
-      // CORRECTION : Utilisation du flag explicite envoyé par AchievementLogic
+      // CORRECTION : Utilisation du flag explicite
       checkCondition: (data) => data['house_collapsed'] == true,
     ),
 
@@ -309,13 +309,18 @@ class AchievementData {
     ),
 
     // --- Maître du temps ---
+
+    // CORRECTION : Restriction au rôle Maître du Temps
     Achievement(
       id: "time_paradox",
       title: "Paradoxe Temporel",
       description: "En tant que Maître du temps, tuer deux personnes de camps opposés la même nuit.",
       icon: "⏳", rarity: 2,
-      checkCondition: (data) => data['paradox_achieved'] == true,
+      checkCondition: (data) =>
+      data['player_role']?.toString().toLowerCase() == "maître du temps" &&
+          data['paradox_achieved'] == true,
     ),
+
     Achievement(
       id: "time_master_clean",
       title: "Synchronisation Parfaite",

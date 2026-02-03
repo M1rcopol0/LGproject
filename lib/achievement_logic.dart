@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/player.dart';
+import 'models/achievement.dart'; // Import nécessaire pour le scan générique
 import 'trophy_service.dart';
 import 'globals.dart';
 
@@ -9,44 +10,138 @@ class AchievementLogic {
   static final Map<String, int> _shockTracker = {};
 
   // ==========================================================
-  // 1. ÉVÉNEMENTS DE FIN DE PARTIE (VICTOIRE)
+  // 1. MÉTHODE PUBLIQUE POUR VÉRIFICATION EN COURS DE JEU
+  // ==========================================================
+
+  /// À appeler n'importe quand pendant la partie (ex: après une action, au réveil).
+  /// Vérifie les succès d'état (ex: "Avoir X balles", "Utiliser X fois le pouvoir").
+  static Future<void> checkMidGameAchievements(BuildContext context, List<Player> allPlayers) async {
+    // On lance le scan avec winnerRole = null (partie pas finie)
+    await _evaluateGenericAchievements(context, allPlayers, winnerRole: null);
+  }
+
+  // ==========================================================
+  // 2. SCAN GÉNÉRIQUE DES SUCCÈS (Le Cœur du Système)
+  // ==========================================================
+
+  static Future<void> _evaluateGenericAchievements(BuildContext context, List<Player> allPlayers, {String? winnerRole}) async {
+    for (var p in allPlayers) {
+      // 1. Construction de la fiche de stats
+      Map<String, dynamic> stats = _buildPlayerStats(p, winnerRole, allPlayers);
+
+      // 2. Test de TOUTES les conditions définies dans achievement.dart
+      for (var achievement in AchievementData.allAchievements) {
+        try {
+          if (achievement.checkCondition(stats)) {
+            // Déblocage avec pop-up immédiat
+            await TrophyService.checkAndUnlockImmediate(
+              context: context,
+              playerName: p.name,
+              achievementId: achievement.id,
+              checkData: {achievement.id: true},
+            );
+          }
+        } catch (e) {
+          // Ignorer les erreurs de check pour ne pas bloquer le jeu
+        }
+      }
+    }
+  }
+
+  static Map<String, dynamic> _buildPlayerStats(Player p, String? winnerRole, List<Player> allPlayers) {
+    return {
+      'player_role': p.role,
+      'is_player_alive': p.isAlive,
+      'winner_role': winnerRole,
+      'turn_count': globalTurnNumber,
+      'is_wolf_faction': p.team == "loups",
+      'roles': {
+        'VILLAGE': p.team == "village" ? 1 : 0,
+        'LOUPS-GAROUS': p.team == "loups" ? 1 : 0,
+        'SOLO': p.team == "solo" ? 1 : 0,
+      },
+      'wolves_night_kills': wolvesNightKills,
+      'no_friendly_fire_vote': !wolfVotedWolf,
+      'wolves_alive_count': allPlayers.where((pl) => pl.team == "loups" && pl.isAlive).length,
+      'paradox_achieved': paradoxAchieved,
+      'evolved_hunger_achieved': evolvedHungerAchieved,
+      'chaman_sniper_achieved': chamanSniperAchieved,
+      'pokemon_died_t1': pokemonDiedTour1,
+      'totalVotesReceivedDuringGame': p.totalVotesReceivedDuringGame,
+      'somnifere_uses_left': p.somnifereUses,
+      'dingo_shots_fired': p.dingoShotsFired,
+      'dingo_shots_hit': p.dingoShotsHit,
+      'dingo_self_voted_all_game': p.dingoSelfVotedOnly,
+      'parking_shot_achieved': p.parkingShotUnlocked,
+      'devin_reveals_count': p.devinRevealsCount,
+      'devin_revealed_same_twice': p.hasRevealedSamePlayerTwice,
+      'bled_protected_everyone': (p.protectedPlayersHistory.length >= (allPlayers.length - 1)),
+      'saved_by_own_quiche': p.hasSavedSelfWithQuiche,
+      'quiche_saved_count': quicheSavedThisNight,
+      'houstonApollo13Triggered': p.houstonApollo13Triggered,
+      'maison_hosted_wolf': false,
+      'tardos_suicide': p.tardosSuicide,
+      'traveler_killed_wolf': p.travelerKilledWolf,
+      'was_revived': p.wasRevivedInThisGame,
+      'time_master_used_power': p.timeMasterUsedPower,
+      'max_simultaneous_curses': p.maxSimultaneousCurses,
+      'pantin_clutch_triggered': p.pantinClutchTriggered,
+      'canaclean_present': p.canacleanPresent,
+      'is_fan': p.isFanOfRonAldo,
+      'ultimate_fan_action': false,
+      'is_fan_sacrifice': false,
+      'house_collapsed': false,
+      'is_first_blood': false,
+    };
+  }
+
+  // ==========================================================
+  // 3. ÉVÉNEMENTS DE FIN DE PARTIE
   // ==========================================================
 
   static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) async {
     if (winners.isEmpty) return;
 
-    for (var p in winners) {
-      // On await pour éviter que les écritures ne se chevauchent avec recordWin
-      await _safeUnlock(p.name, "first_win");
-
-      if (p.team == "village") await _safeUnlock(p.name, "village_hero");
-      if (p.team == "loups") await _safeUnlock(p.name, "wolf_pack");
-      if (p.team == "solo") await _safeUnlock(p.name, "lone_wolf");
-
-      if (p.role?.toLowerCase() == "dresseur") {
-        try {
-          var pokemon = allPlayers.firstWhere(
-                  (pl) => pl.role?.toLowerCase() == "pokémon" || pl.role?.toLowerCase() == "pokemon",
-              orElse: () => Player(name: "Unknown", isAlive: true)
-          );
-          if (pokemon.name != "Unknown" && !pokemon.isAlive) {
-            await TrophyService.unlockAchievement(p.name, "master_no_pokemon");
-          }
-        } catch (e) {
-          debugPrint("⚠️ Erreur check Maître sans Pokémon : $e");
-        }
-      }
-
-      if (p.role?.toLowerCase() == "dingo" && (p.parkingShotUnlocked || parkingShotUnlocked)) {
-        debugPrint("🎯 LOG [Achievement] : Tir du Parking confirmé par la victoire !");
-        await TrophyService.unlockAchievement(p.name, "parking_shot");
+    // Déduction du Vainqueur
+    String winnerRole = "VILLAGE";
+    if (winners.any((p) => p.team == "loups")) {
+      winnerRole = "LOUPS-GAROUS";
+    } else if (winners.any((p) => p.role?.toLowerCase() == "ron-aldo")) {
+      winnerRole = "RON-ALDO";
+    } else if (winners.any((p) => p.team == "solo")) {
+      if (winners.any((p) => p.role?.toLowerCase() == "dresseur" || p.role?.toLowerCase() == "pokémon")) {
+        winnerRole = "DRESSEUR";
+      } else if (winners.any((p) => p.role?.toLowerCase() == "maître du temps")) {
+        winnerRole = "MAÎTRE DU TEMPS";
+      } else if (winners.any((p) => p.role?.toLowerCase() == "phyl")) {
+        winnerRole = "PHYL";
+      } else {
+        winnerRole = winners.first.role?.toUpperCase() ?? "SOLO";
       }
     }
 
-    // Vérification spéciale Archiviste en fin de partie
+    // 1. Scan Générique Complet (incluant conditions de victoire)
+    await _evaluateGenericAchievements(context, allPlayers, winnerRole: winnerRole);
+
+    // 2. Checks Spéciaux Supplémentaires (au cas où)
+    for (var p in winners) {
+      await _safeUnlock(p.name, "first_win");
+      if (p.team == "village") await _safeUnlock(p.name, "village_hero");
+      if (p.team == "loups") await _safeUnlock(p.name, "wolf_pack");
+      if (p.team == "solo") await _safeUnlock(p.name, "lone_wolf");
+    }
+
     for (var p in allPlayers) {
       if (p.role?.toLowerCase() == "archiviste") {
         await checkArchivisteEndGame(context, p);
+      }
+      if (p.role?.toLowerCase() == "dresseur" && winnerRole == "DRESSEUR") {
+        try {
+          var pokemon = allPlayers.firstWhere((pl) => pl.role?.toLowerCase() == "pokémon" || pl.role?.toLowerCase() == "pokemon", orElse: () => Player(name: "Unknown", isAlive: true));
+          if (pokemon.name != "Unknown" && !pokemon.isAlive) {
+            await TrophyService.unlockAchievement(p.name, "master_no_pokemon");
+          }
+        } catch (_) {}
       }
     }
   }
@@ -58,7 +153,7 @@ class AchievementLogic {
   }
 
   // ==========================================================
-  // 2. ÉVÉNEMENTS DE MORT ET RÉSILIENCE
+  // 4. ÉVÉNEMENTS MANUELS (CONTEXT REQUIS POUR POP-UP)
   // ==========================================================
 
   static void checkDeathAchievements(BuildContext? context, Player victim, List<Player> allPlayers) {
@@ -89,7 +184,6 @@ class AchievementLogic {
     }
   }
 
-  // CORRECTION : Ajout du context pour affichage immédiat
   static void checkHouseCollapse(BuildContext context, Player houseOwner) {
     TrophyService.checkAndUnlockImmediate(
       context: context,
@@ -99,7 +193,6 @@ class AchievementLogic {
     );
   }
 
-  // CORRECTION : Ajout du context pour affichage immédiat
   static void checkFirstBlood(BuildContext context, Player victim) {
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
@@ -117,10 +210,6 @@ class AchievementLogic {
       revivedPlayer.wasRevivedInThisGame = true;
     }
   }
-
-  // ==========================================================
-  // 3. ACTIONS DE JEU AVEC POP-UP IMMÉDIAT
-  // ==========================================================
 
   static void checkApollo13(BuildContext context, Player houston, Player p1, Player p2) {
     bool teamsAreDifferent = (p1.team != p2.team);
@@ -157,9 +246,12 @@ class AchievementLogic {
       );
 
       if (!otherEnemiesAlive) {
-        debugPrint("🎯 LOG [Achievement] : Condition Tir du Parking remplie (Dernier ennemi abattu).");
+        debugPrint("🎯 LOG [Achievement] : Condition Tir du Parking remplie.");
         dingo.parkingShotUnlocked = true;
         parkingShotUnlocked = true;
+        if (context != null) {
+          TrophyService.checkAndUnlockImmediate(context: context, playerName: dingo.name, achievementId: "parking_shot", checkData: {'parking_shot_achieved': true});
+        }
       }
     }
   }
@@ -186,7 +278,6 @@ class AchievementLogic {
       }
 
       if (ronAldoSelfVoted) {
-        debugPrint("⚽ LOG [Succès] : Condition Sacrifice Ultime remplie (Ron-Aldo s'est auto-voté).");
         TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: victim.name,
@@ -197,11 +288,9 @@ class AchievementLogic {
     }
   }
 
-  // --- CORRECTION FRINGALE NOCTURNE ---
-  static void checkEvolvedHunger(BuildContext? context, Player votedPlayer) {
-    // Si la personne votée a survécu à une morsure la nuit précédente
+  static void checkEvolvedHunger(BuildContext context, Player votedPlayer) {
     if (votedPlayer.hasSurvivedWolfBite) {
-      evolvedHungerAchieved = true; // Flag global pour succès loup
+      evolvedHungerAchieved = true;
     }
   }
 
@@ -300,7 +389,7 @@ class AchievementLogic {
 
     final Set<String> usedThisGame = p.archivisteActionsUsed.toSet();
 
-    // 1. LE ROI DU CDI
+    // LE ROI DU CDI
     if (usedThisGame.containsAll(requiredPowers)) {
       await TrophyService.checkAndUnlockImmediate(
         context: context,
@@ -310,7 +399,7 @@ class AchievementLogic {
       );
     }
 
-    // 2. LE PRINCE DU CDI
+    // LE PRINCE DU CDI
     try {
       final prefs = await SharedPreferences.getInstance();
 
