@@ -64,7 +64,7 @@ class AchievementData {
       id: "cha_cha_smooth",
       title: "Cha cha real smooth",
       description: "Gagnez seul en tant qu'Archiviste (Switch vers Solo).",
-      icon: "🕺", rarity: 3,
+      icon: "🕺", rarity: 4,
       checkCondition: (data) =>
       data['player_role']?.toLowerCase() == "archiviste" &&
           (data['winner_role'] == "ARCHIVISTE" || data['winner_role'] == "SOLO") &&
@@ -173,7 +173,7 @@ class AchievementData {
       id: "assurance_habitation",
       title: "Assurance habitation",
       description: "Survivez car votre maison s'est effondrée à votre place.",
-      icon: "📝", rarity: 2,
+      icon: "📝", rarity: 1,
       checkCondition: (data) => data['assurance_habitation_triggered'] == true,
     ),
 
@@ -213,21 +213,21 @@ class AchievementData {
       id: "tardos_oups",
       title: "Oups...",
       description: "Faites exploser votre propre bombe à la figure.",
-      icon: "💥", rarity: 2,
+      icon: "💥", rarity: 4,
       checkCondition: (data) => data['tardos_suicide'] == true,
     ),
     Achievement(
       id: "11_septembre",
       title: "11 septembre",
       description: "Faites exploser la maison ET tous ses occupants.",
-      icon: "✈️", rarity: 4,
+      icon: "✈️", rarity: 2,
       checkCondition: (data) => data['11_septembre_triggered'] == true,
     ),
     Achievement(
       id: "self_destruct",
       title: "Self-destruct",
       description: "Mourez dans votre propre explosion en emportant la maison.",
-      icon: "💣", rarity: 2,
+      icon: "💣", rarity: 3,
       checkCondition: (data) => data['self_destruct_triggered'] == true,
     ),
 
@@ -265,7 +265,7 @@ class AchievementData {
       id: "8_morts_6_blesses",
       title: "8 morts, 6 blessés",
       description: "La meute a dévoré 8 joueurs cumulés dans la partie.",
-      icon: "🍖", rarity: 3,
+      icon: "🍖", rarity: 4,
       checkCondition: (data) =>
       data['is_wolf_faction'] == true && (data['wolves_night_kills'] ?? 0) >= 8,
     ),
@@ -292,7 +292,7 @@ class AchievementData {
       id: "evolved_alpha",
       title: "Alpha Dominant",
       description: "Gagner en étant le dernier loup vivant.",
-      icon: "👑", rarity: 3,
+      icon: "👑", rarity: 2,
       checkCondition: (data) =>
       data['is_wolf_faction'] == true &&
           data['winner_role'] == "LOUPS-GAROUS" &&
@@ -372,16 +372,6 @@ class AchievementData {
     ),
 
     Achievement(
-      id: "time_master_clean",
-      title: "Synchronisation Parfaite",
-      description: "Gagner sans jamais utiliser votre pouvoir.",
-      icon: "🕰️", rarity: 3,
-      checkCondition: (data) =>
-      data['player_role'] == "Maître du temps" &&
-          data['winner_role'] == "MAÎTRE DU TEMPS" &&
-          data['time_master_used_power'] == false,
-    ),
-    Achievement(
       id: "time_perfect",
       title: "Timing Précis",
       description: "En tant que Maître du temps, gagner au Jour 5.",
@@ -391,13 +381,6 @@ class AchievementData {
     ),
 
     // --- Pantin ---
-    Achievement(
-      id: "pantin_chain",
-      title: "Effet Domino",
-      description: "Avoir maudit 4 personnes vivantes simultanément.",
-      icon: "🔗", rarity: 4,
-      checkCondition: (data) => (data['max_simultaneous_curses'] ?? 0) >= 4,
-    ),
     Achievement(
       id: "pantin_clutch",
       title: "Vote Décisif",
@@ -528,7 +511,7 @@ class AchievementData {
       id: "veteran_village",
       title: "Ancien du Village",
       description: "Gagner 10 fois avec le Village.",
-      icon: "👴", rarity: 1,
+      icon: "👴", rarity: 2,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
         return (roles['VILLAGE'] ?? 0) >= 10;

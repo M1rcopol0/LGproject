@@ -43,7 +43,7 @@ class GameLogic {
     AchievementLogic.checkCanacleanCondition(null, allPlayers);
 
     AchievementLogic.clearTurnData();
-    AchievementLogic.checkPantinCurses(allPlayers);
+    // AchievementLogic.checkPantinCurses(allPlayers); // RETIRÉ (Succès supprimé)
 
     _enforceMaisonFanPolicy(allPlayers);
 
@@ -165,6 +165,9 @@ class GameLogic {
       }
 
       if (voter.targetVote != null) {
+        // --- SUIVI SUCCÈS "UN CHOIX CORNÉLIEN" ---
+        AchievementLogic.trackVote(voter, voter.targetVote!);
+
         // Poids de base
         int weight = 1;
 
@@ -361,6 +364,16 @@ class GameLogic {
     victim.isAlive = false;
     debugPrint("💀 LOG [Mort] : ${victim.name} (${victim.role}) a quitté la partie.");
 
+    // --- SUCCÈS : LOUIS CROIX V BÂTON ---
+    if (isVote && victim.isVillageChief && victim.isRoi) {
+      TrophyService.checkAndUnlockImmediate(
+          context: context,
+          playerName: victim.name,
+          achievementId: "louis_croix_v",
+          checkData: {'louis_croix_v_triggered': true}
+      );
+    }
+
     // --- VENGEANCE POKÉMON ---
     if ((victim.role?.toLowerCase() == "pokémon" || victim.role?.toLowerCase() == "pokemon") &&
         victim.pokemonRevengeTarget != null) {
@@ -438,7 +451,7 @@ class GameLogic {
     p.phylTargets = [];
     p.isFanOfRonAldo = false;
     p.isVillageChief = false;
-    p.maxSimultaneousCurses = 0;
+    // p.maxSimultaneousCurses = 0; // RETIRÉ
     p.hasBeenHitByDart = false;
     p.zookeeperEffectReady = false;
     p.isEffectivelyAsleep = false;

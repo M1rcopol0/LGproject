@@ -29,7 +29,6 @@ class Player {
   bool hasReturnedThisTurn; // Pour l'annonce du matin (Voyageur)
   bool travelerKilledWolf; // Pour 'traveler_sniper'
   int hostedCountThisGame; // Pour 'hotel_training'
-  bool timeMasterUsedPower; // Pour 'time_perfect'
   bool tardosSuicide; // Pour 'tardos_oups'
   bool pantinClutchTriggered; // Pour le succès Clutch
 
@@ -134,7 +133,6 @@ class Player {
   int killsThisGame;
   int mutedPlayersCount;
   bool hasHeardWolfSecrets;
-  int maxSimultaneousCurses;
   bool canacleanPresent;
 
   // UI
@@ -179,7 +177,6 @@ class Player {
     this.isVoteCancelled = false,
     this.travelerKilledWolf = false,
     this.hostedCountThisGame = 0,
-    this.timeMasterUsedPower = false,
     this.tardosSuicide = false,
     this.targetVote,
     this.totalVotesReceivedDuringGame = 0,
@@ -224,7 +221,6 @@ class Player {
     this.killsThisGame = 0,
     this.mutedPlayersCount = 0,
     this.hasHeardWolfSecrets = false,
-    this.maxSimultaneousCurses = 0,
     this.canacleanPresent = false,
     this.isSelected = false,
 
@@ -445,11 +441,9 @@ class Player {
       'killsThisGame': killsThisGame,
       'mutedPlayersCount': mutedPlayersCount,
       'hasHeardWolfSecrets': hasHeardWolfSecrets,
-      'maxSimultaneousCurses': maxSimultaneousCurses,
       'canacleanPresent': canacleanPresent,
       'travelerKilledWolf': travelerKilledWolf,
       'hostedCountThisGame': hostedCountThisGame,
-      'timeMasterUsedPower': timeMasterUsedPower,
       'tardosSuicide': tardosSuicide,
       'pantinClutchTriggered': pantinClutchTriggered,
       'timeMasterTargets': timeMasterTargets,
@@ -535,11 +529,9 @@ class Player {
       ..killsThisGame = map['killsThisGame'] ?? 0
       ..mutedPlayersCount = map['mutedPlayersCount'] ?? 0
       ..hasHeardWolfSecrets = map['hasHeardWolfSecrets'] ?? false
-      ..maxSimultaneousCurses = map['maxSimultaneousCurses'] ?? 0
       ..canacleanPresent = map['canacleanPresent'] ?? false
       ..travelerKilledWolf = map['travelerKilledWolf'] ?? false
       ..hostedCountThisGame = map['hostedCountThisGame'] ?? 0
-      ..timeMasterUsedPower = map['timeMasterUsedPower'] ?? false
       ..tardosSuicide = map['tardosSuicide'] ?? false
       ..pantinClutchTriggered = map['pantinClutchTriggered'] ?? false
       ..lastBledTarget = map['lastBledTarget']

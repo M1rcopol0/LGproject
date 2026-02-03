@@ -131,7 +131,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'somnifere_uses_left': winner.somnifereUses,
           'roleChangesCount': winner.roleChangesCount,
           'mutedPlayersCount': winner.mutedPlayersCount,
-          'max_simultaneous_curses': winner.maxSimultaneousCurses,
+          // 'maxSimultaneousCurses': winner.maxSimultaneousCurses, // RETIRÉ
           'was_revived': winner.wasRevivedInThisGame,
           'totalVotesReceivedDuringGame': winner.totalVotesReceivedDuringGame,
           'hasBetrayedRonAldo': winner.hasBetrayedRonAldo,
@@ -147,7 +147,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'devin_revealed_same_twice': winner.hasRevealedSamePlayerTwice,
           'traveler_killed_wolf': winner.travelerKilledWolf,
           'cumulative_hosted_count': winner.hostedCountThisGame,
-          'time_master_used_power': winner.timeMasterUsedPower,
+          // 'time_master_used_power': winner.timeMasterUsedPower, // RETIRÉ
           'tardos_suicide': winner.tardosSuicide,
         };
 

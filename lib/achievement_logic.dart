@@ -95,8 +95,8 @@ class AchievementLogic {
       'tardos_suicide': p.tardosSuicide,
       'traveler_killed_wolf': p.travelerKilledWolf,
       'was_revived': p.wasRevivedInThisGame,
-      'time_master_used_power': p.timeMasterUsedPower,
-      'max_simultaneous_curses': p.maxSimultaneousCurses,
+      // 'time_master_used_power': RETIRÉ
+      // 'max_simultaneous_curses': RETIRÉ
       'pantin_clutch_triggered': p.pantinClutchTriggered,
       'canaclean_present': p.canacleanPresent,
 
@@ -317,8 +317,6 @@ class AchievementLogic {
   }
 
   // --- CORRECTION FRINGALE NOCTURNE ---
-  // Modification : On boucle sur tous les joueurs pour attribuer le succès
-  // immédiatement à tous les loups (qu'ils soient morts ou vivants), sans attendre.
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
     if (votedPlayer.hasSurvivedWolfBite) {
       evolvedHungerAchieved = true;
@@ -338,7 +336,6 @@ class AchievementLogic {
         }
       }
 
-      // On garde le scan générique en sécurité
       _evaluateGenericAchievements(context, allPlayers);
     }
   }
@@ -485,16 +482,7 @@ class AchievementLogic {
     }
   }
 
-  static void checkPantinCurses(List<Player> players) {
-    int cursedCount = players.where((p) => p.isAlive && p.pantinCurseTimer != null).length;
-    for (var p in players) {
-      if (p.role?.toLowerCase() == "pantin" && cursedCount >= 4) {
-        if (cursedCount > p.maxSimultaneousCurses) {
-          p.maxSimultaneousCurses = cursedCount;
-        }
-      }
-    }
-  }
+  // NETTOYAGE : checkPantinCurses supprimé
 
   static void recordPhylChange(Player phyl) {
     phyl.roleChangesCount++;
