@@ -538,6 +538,17 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 String cleanName = Player.formatName(currentNameInput);
 
                 if (cleanName.isNotEmpty) {
+                  // CORRECTION : VÉRIFICATION STRICTE DE DOUBLONS
+                  // On vérifie si un joueur avec ce nom existe DÉJÀ (insensible à la casse)
+                  bool exists = widget.players.any((p) => p.name.toLowerCase() == cleanName.toLowerCase());
+
+                  if (exists) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Le joueur $cleanName existe déjà !", style: const TextStyle(color: Colors.white)), backgroundColor: Colors.red)
+                    );
+                    return; // On arrête ici, on ne ferme pas la modale
+                  }
+
                   setState(() {
                     int idx = widget.players.indexWhere((p) => p.name == cleanName);
                     String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;

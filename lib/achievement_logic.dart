@@ -291,6 +291,7 @@ class AchievementLogic {
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer) {
     if (votedPlayer.hasSurvivedWolfBite) {
       evolvedHungerAchieved = true;
+      debugPrint("🩸 LOG [Achievement] : Condition Fringale Nocturne remplie.");
     }
   }
 

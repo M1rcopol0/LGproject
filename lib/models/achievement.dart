@@ -256,7 +256,9 @@ class AchievementData {
       title: "Fringale Nocturne",
       description: "La victime survit à votre morsure nocturne mais meurt au vote suivant.",
       icon: "🩸", rarity: 3,
-      checkCondition: (data) => data['evolved_hunger_achieved'] == true,
+      checkCondition: (data) =>
+      data['is_wolf_faction'] == true &&
+          data['evolved_hunger_achieved'] == true,
     ),
     Achievement(
       id: "clean_paws",
