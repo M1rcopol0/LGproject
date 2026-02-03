@@ -3,6 +3,7 @@ import 'models/player.dart';
 import 'logic.dart';
 import 'globals.dart';
 import 'achievement_logic.dart';
+import 'trophy_service.dart'; // Added import for TrophyService
 
 class NightResult {
   final List<Player> deadPlayers;
@@ -257,6 +258,14 @@ class NightActionsLogic {
           if (target.role?.toLowerCase() == "grand-mère") {
             target.hasSavedSelfWithQuiche = true;
             debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
+
+            // CORRECTION: Déclenchement immédiat du succès "Le petit chaperon rouge"
+            TrophyService.checkAndUnlockImmediate(
+                context: context,
+                playerName: target.name,
+                achievementId: "self_quiche_save",
+                checkData: {'saved_by_own_quiche': true, 'player_role': 'grand-mère'}
+            );
           }
           debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
 
