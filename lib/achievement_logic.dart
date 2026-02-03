@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/player.dart';
-import 'models/achievement.dart'; // Necessary import for generic scan
+import 'models/achievement.dart'; // Import nécessaire pour le scan générique
 import 'trophy_service.dart';
 import 'globals.dart';
 
@@ -10,30 +10,30 @@ class AchievementLogic {
   static final Map<String, int> _shockTracker = {};
 
   // ==========================================================
-  // 1. PUBLIC METHOD FOR MID-GAME VERIFICATION
+  // 1. MÉTHODE PUBLIQUE POUR VÉRIFICATION EN COURS DE JEU
   // ==========================================================
 
-  /// To be called anytime during the game (e.g., after an action, upon waking up).
-  /// Verifies state achievements (e.g., "Have X bullets", "Use power X times").
+  /// À appeler n'importe quand pendant la partie (ex: après une action, au réveil).
+  /// Vérifie les succès d'état (ex: "Avoir X balles", "Utiliser X fois le pouvoir").
   static Future<void> checkMidGameAchievements(BuildContext context, List<Player> allPlayers) async {
-    // Run the scan with winnerRole = null (game not finished)
+    // On lance le scan avec winnerRole = null (partie pas finie)
     await _evaluateGenericAchievements(context, allPlayers, winnerRole: null);
   }
 
   // ==========================================================
-  // 2. GENERIC ACHIEVEMENT SCAN (Core System)
+  // 2. SCAN GÉNÉRIQUE DES SUCCÈS (Le Cœur du Système)
   // ==========================================================
 
   static Future<void> _evaluateGenericAchievements(BuildContext context, List<Player> allPlayers, {String? winnerRole}) async {
     for (var p in allPlayers) {
-      // 1. Construct the stats sheet
+      // 1. Construction de la fiche de stats
       Map<String, dynamic> stats = _buildPlayerStats(p, winnerRole, allPlayers);
 
-      // 2. Test ALL conditions defined in achievement.dart
+      // 2. Test de TOUTES les conditions définies dans achievement.dart
       for (var achievement in AchievementData.allAchievements) {
         try {
           if (achievement.checkCondition(stats)) {
-            // Unlock with immediate pop-up
+            // Déblocage avec pop-up immédiat
             await TrophyService.checkAndUnlockImmediate(
               context: context,
               playerName: p.name,
@@ -42,7 +42,7 @@ class AchievementLogic {
             );
           }
         } catch (e) {
-          // Ignore check errors to avoid blocking the game
+          // Ignorer les erreurs de check pour ne pas bloquer le jeu
         }
       }
     }
@@ -96,13 +96,13 @@ class AchievementLogic {
   }
 
   // ==========================================================
-  // 3. END GAME EVENTS
+  // 3. ÉVÉNEMENTS DE FIN DE PARTIE
   // ==========================================================
 
   static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) async {
     if (winners.isEmpty) return;
 
-    // Determine the Winner
+    // Déduction du Vainqueur
     String winnerRole = "VILLAGE";
     if (winners.any((p) => p.team == "loups")) {
       winnerRole = "LOUPS-GAROUS";
@@ -120,10 +120,10 @@ class AchievementLogic {
       }
     }
 
-    // 1. Complete Generic Scan (including victory conditions)
+    // 1. Scan Générique Complet (incluant conditions de victoire)
     await _evaluateGenericAchievements(context, allPlayers, winnerRole: winnerRole);
 
-    // 2. Additional Special Checks (just in case)
+    // 2. Checks Spéciaux Supplémentaires (au cas où)
     for (var p in winners) {
       await _safeUnlock(p.name, "first_win");
       if (p.team == "village") await _safeUnlock(p.name, "village_hero");
@@ -153,7 +153,7 @@ class AchievementLogic {
   }
 
   // ==========================================================
-  // 4. MANUAL EVENTS (CONTEXT REQUIRED FOR POP-UP)
+  // 4. ÉVÉNEMENTS MANUELS (CONTEXT REQUIS POUR POP-UP)
   // ==========================================================
 
   static void checkDeathAchievements(BuildContext? context, Player victim, List<Player> allPlayers) {
@@ -288,10 +288,14 @@ class AchievementLogic {
     }
   }
 
-  static void checkEvolvedHunger(BuildContext context, Player votedPlayer) {
+  // --- CORRECTION : POP-UP IMMÉDIAT POUR FRINGALE NOCTURNE ---
+  static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
     if (votedPlayer.hasSurvivedWolfBite) {
       evolvedHungerAchieved = true;
       debugPrint("🩸 LOG [Achievement] : Condition Fringale Nocturne remplie.");
+
+      // On lance le scan global pour que tous les loups reçoivent le succès
+      _evaluateGenericAchievements(context, allPlayers);
     }
   }
 

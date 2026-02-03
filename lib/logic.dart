@@ -67,6 +67,7 @@ class GameLogic {
       }
 
       p.isImmunizedFromVote = false;
+      // On reset isVoteCancelled ici pour le jour suivant
       p.isVoteCancelled = false;
       p.isMutedDay = false;
       p.powerActiveThisTurn = false;
@@ -117,7 +118,8 @@ class GameLogic {
 
       if (p.votes > 0) {
         p.totalVotesReceivedDuringGame += p.votes;
-        AchievementLogic.checkEvolvedHunger(context, p);
+        // On vérifie Fringale Nocturne si quelqu'un a reçu des votes (potentiellement mortel)
+        // Mais le vrai check se fait après désignation de la cible
       }
     }
   }
@@ -151,6 +153,12 @@ class GameLogic {
     // 3. Application des votes
     // CORRECTION : On exclut les Archivistes absents du traitement des votants
     for (var voter in allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ)) {
+
+      // CORRECTION MAJEURE : Si le vote est annulé (Archiviste), on passe direct
+      if (voter.isVoteCancelled) {
+        debugPrint("🚫 LOG [Vote] : Le vote de ${voter.name} a été annulé par l'Archiviste.");
+        continue;
+      }
 
       // CAS SPÉCIAL : FAN DE RON-ALDO
       // Si Ron-Aldo est vivant, le fan NE VOTE PAS individuellement.
@@ -212,7 +220,9 @@ class GameLogic {
       }
     }
 
-    AchievementLogic.checkEvolvedHunger(context, first);
+    // --- CHECK FRINGALE NOCTURNE ---
+    // C'est ici qu'on vérifie si la victime du vote a survécu à une morsure.
+    AchievementLogic.checkEvolvedHunger(context, first, allPlayers);
   }
 
   // ==========================================================
