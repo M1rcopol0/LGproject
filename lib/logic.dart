@@ -32,19 +32,12 @@ class GameLogic {
     return "village";
   }
 
-  // ==========================================================
-  // 1. TRANSITION DE TOUR (CENTRALISÉE)
-  // ==========================================================
   static void nextTurn(List<Player> allPlayers) {
     debugPrint("--------------------------------------------------");
     debugPrint("🔄 LOG [GameLogic] : Initialisation du prochain tour...");
 
-    // Check Succès (null context car auto)
     AchievementLogic.checkCanacleanCondition(null, allPlayers);
-
     AchievementLogic.clearTurnData();
-    // AchievementLogic.checkPantinCurses(allPlayers); // RETIRÉ (Succès supprimé)
-
     _enforceMaisonFanPolicy(allPlayers);
 
     nightChamanTarget = null;
@@ -53,7 +46,6 @@ class GameLogic {
     quicheSavedThisNight = 0;
 
     for (var p in allPlayers) {
-      // RESET CRITIQUE DES VOTES
       p.votes = 0;
       p.targetVote = null;
 
@@ -67,7 +59,6 @@ class GameLogic {
       }
 
       p.isImmunizedFromVote = false;
-      // On reset isVoteCancelled ici pour le jour suivant
       p.isVoteCancelled = false;
       p.isMutedDay = false;
       p.powerActiveThisTurn = false;
@@ -92,9 +83,6 @@ class GameLogic {
     } catch (e) {}
   }
 
-  // ==========================================================
-  // 2. ANALYSE DES VOTES
-  // ==========================================================
   static void validateVoteStats(BuildContext context, List<Player> allPlayers) {
     debugPrint("📊 LOG [GameLogic] : Analyse statistique des votes...");
 
@@ -122,67 +110,49 @@ class GameLogic {
     }
   }
 
-  // ==========================================================
-  // 3. GESTION DES VOTES
-  // ==========================================================
   static void processVillageVote(BuildContext context, List<Player> allPlayers) {
     debugPrint("🗳️ LOG [Vote] : Calcul du résultat du vote.");
 
     hasVotedThisTurn = true;
 
-    // 1. Reset des compteurs (CRITIQUE POUR ÉVITER LE CUMUL)
     for (var p in allPlayers) {
       p.votes = 0;
     }
 
-    // 2. Identification du bloc Ron-Aldo
     Player? ronAldo;
     int fanCount = 0;
 
     try {
       ronAldo = allPlayers.firstWhere((p) => p.role?.toLowerCase() == "ron-aldo" && p.isAlive);
-      // On compte les fans vivants pour le bonus
       fanCount = allPlayers.where((p) => p.isFanOfRonAldo && p.isAlive).length;
       debugPrint("⚽ LOG [Ron-Aldo] : Fans actifs détectés : $fanCount");
     } catch (_) {
       debugPrint("⚽ LOG [Ron-Aldo] : Pas de Ron-Aldo vivant.");
     }
 
-    // 3. Application des votes
-    // CORRECTION : On exclut les Archivistes absents du traitement des votants
     for (var voter in allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ)) {
-
-      // CORRECTION MAJEURE : Si le vote est annulé (Archiviste), on passe direct
       if (voter.isVoteCancelled) {
         debugPrint("🚫 LOG [Vote] : Le vote de ${voter.name} a été annulé par l'Archiviste.");
         continue;
       }
 
-      // CAS SPÉCIAL : FAN DE RON-ALDO
-      // Si Ron-Aldo est vivant, le fan NE VOTE PAS individuellement.
       if (ronAldo != null && voter.isFanOfRonAldo) {
         continue;
       }
 
       if (voter.targetVote != null) {
-        // --- SUIVI SUCCÈS "UN CHOIX CORNÉLIEN" ---
         AchievementLogic.trackVote(voter, voter.targetVote!);
 
-        // Poids de base
         int weight = 1;
-
-        // Bonus Pantin (x2)
         if (voter.role?.toLowerCase() == "pantin") {
           weight = 2;
         }
 
-        // Bonus Ron-Aldo (Lui-même [1] + ses fans [fanCount])
         if (voter.role?.toLowerCase() == "ron-aldo") {
           weight += fanCount;
           debugPrint("⚽ LOG [Ron-Aldo] : Vote avec un poids de $weight (dont $fanCount fans).");
         }
 
-        // Application du vote
         try {
           var target = allPlayers.firstWhere((p) => p.name == voter.targetVote!.name);
           target.votes += weight;
@@ -195,9 +165,6 @@ class GameLogic {
 
     validateVoteStats(context, allPlayers);
 
-    // ... (Le reste : Tri, Dingo, etc.) ...
-
-    // CORRECTION : On exclut les Archivistes absents de la liste des éliminables
     List<Player> votablePlayers =
     allPlayers.where((p) => p.isAlive && !p.isImmunizedFromVote && !p.isAwayAsMJ).toList();
 
@@ -222,9 +189,6 @@ class GameLogic {
     }
   }
 
-  // ==========================================================
-  // 4. ÉLIMINATION
-  // ==========================================================
   static Player eliminatePlayer(BuildContext context, List<Player> allPlayers, Player target,
       {bool isVote = false, String reason = ""}) {
 
@@ -239,22 +203,18 @@ class GameLogic {
       return realTarget;
     }
 
-    // --- LOGIQUE PANTIN ---
     if (roleLower == "pantin") {
       if (!isVote) {
         debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
         return realTarget;
       } else {
         if (!realTarget.hasSurvivedVote) {
-          // Check Clutch si le Pantin est la cible éliminée par le MJ
           try {
             List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
             survivors.sort((a, b) => b.votes.compareTo(a.votes));
-            // Recherche du concurrent le plus proche (celui qui n'est pas le pantin)
             Player competitor = survivors.firstWhere((p) => p.name != realTarget.name, orElse: () => realTarget);
             int diff = (competitor.votes - realTarget.votes).abs();
 
-            // Si écart de 1 voix et que le Pantin a voté pour son concurrent direct
             if (diff <= 1 && realTarget.targetVote?.name == competitor.name) {
               realTarget.pantinClutchTriggered = true;
               TrophyService.checkAndUnlockImmediate(
@@ -273,14 +233,12 @@ class GameLogic {
       }
     }
 
-    // --- DETECTION CLUTCH SI LE MJ ELIMINE LA PERSONNE LA PLUS VOTÉE ---
     if (isVote && roleLower != "pantin") {
       try {
         Player pantin = allPlayers.firstWhere((p) => p.isAlive && p.role?.toLowerCase() == "pantin");
         List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
         survivors.sort((a, b) => b.votes.compareTo(a.votes));
 
-        // RÈGLE : La victime doit être le premier au score et l'écart avec le Pantin doit être de 1
         if (realTarget.name == survivors[0].name) {
           int diff = (realTarget.votes - pantin.votes).abs();
           if (diff <= 1 && pantin.targetVote?.name == realTarget.name) {
@@ -313,7 +271,6 @@ class GameLogic {
 
     Player victim = realTarget;
 
-    // --- LOGIQUE MAISON (PROTECTION) ---
     if (realTarget.isInHouse && !reason.contains("Malédiction")) {
       Player? houseOwner;
       try {
@@ -328,23 +285,20 @@ class GameLogic {
           houseOwner.isHouseDestroyed = true;
           for (var p in allPlayers) { p.isInHouse = false; }
           victim.isAlive = false;
-          // CORRECTION : Appel avec context pour le pop-up
           AchievementLogic.checkHouseCollapse(context, houseOwner);
           debugPrint("🏠 LOG [Maison] : Effondrement ! Le propriétaire meurt à la place de ${realTarget.name}");
           return victim;
         }
       }
     }
-    // --- CORRECTION RON-ALDO (Sacrifice UNIQUE) ---
+
     else if (roleLower == "ron-aldo") {
       try {
-        // On cherche spécifiquement le Fan n°1 (Order = 1)
         Player firstFan = allPlayers.firstWhere(
               (p) => p.isFanOfRonAldo && p.fanJoinOrder == 1,
           orElse: () => Player(name: "None"),
         );
 
-        // Seul lui peut se sacrifier, s'il est vivant.
         if (firstFan.name != "None" && firstFan.isAlive) {
           victim = firstFan;
           debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${victim.name}) se sacrifie !");
@@ -361,14 +315,10 @@ class GameLogic {
       chamanSniperAchieved = true;
     }
 
-    // --- MISE À MORT EFFECTIVE ---
     victim.isAlive = false;
     debugPrint("💀 LOG [Mort] : ${victim.name} (${victim.role}) a quitté la partie.");
 
-    // --- SUCCÈS : LOUIS CROIX V BÂTON ---
-    // CORRECTION : On vérifie la variable globale du mode de jeu et non le booléen sur le joueur
     if (isVote && victim.isVillageChief && globalGovernanceMode == "ROI") {
-      debugPrint("👑 CAPTEUR [Louis Croix V] : Le ROI a été exécuté !");
       TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: victim.name,
@@ -377,7 +327,6 @@ class GameLogic {
       );
     }
 
-    // --- VENGEANCE POKÉMON ---
     if ((victim.role?.toLowerCase() == "pokémon" || victim.role?.toLowerCase() == "pokemon") &&
         victim.pokemonRevengeTarget != null) {
       try {
@@ -392,7 +341,6 @@ class GameLogic {
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
       firstDeadPlayerName = victim.name;
-      // CORRECTION : Appel avec context pour le pop-up
       AchievementLogic.checkFirstBlood(context, victim);
     }
 
@@ -400,22 +348,15 @@ class GameLogic {
       pokemonDiedTour1 = true;
     }
 
-    // UPDATE : Check immédiat
     AchievementLogic.checkDeathAchievements(context, victim, allPlayers);
 
-    // --- CORRECTION FRINGALE NOCTURNE ---
-    // Si c'est un vote, que la victime meurt et qu'elle avait survécu à une morsure
     if (isVote && victim.hasSurvivedWolfBite) {
-      // On lance le scan global pour attribuer le succès aux loups
       AchievementLogic.checkEvolvedHunger(context, victim, allPlayers);
     }
 
     return victim;
   }
 
-  // ==========================================================
-  // 5. INITIALISATION DE PARTIE
-  // ==========================================================
   static void assignRoles(List<Player> players) {
     debugPrint("--------------------------------------------------");
     debugPrint("🎭 LOG [Setup] : Distribution des rôles en cours...");
@@ -455,7 +396,6 @@ class GameLogic {
     p.phylTargets = [];
     p.isFanOfRonAldo = false;
     p.isVillageChief = false;
-    // p.maxSimultaneousCurses = 0; // RETIRÉ
     p.hasBeenHitByDart = false;
     p.zookeeperEffectReady = false;
     p.isEffectivelyAsleep = false;
@@ -475,11 +415,7 @@ class GameLogic {
     }
   }
 
-  // ==========================================================
-  // 6. CONDITIONS DE VICTOIRE
-  // ==========================================================
   static String? checkWinner(List<Player> players) {
-    // --- VICTOIRE IMMÉDIATE DE L'EXORCISTE ---
     if (exorcistWin) {
       debugPrint("✝️ LOG [Fin] : L'EXORCISTE A RÉUSSI ! VICTOIRE DU VILLAGE.");
       return "EXORCISTE";

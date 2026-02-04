@@ -147,7 +147,6 @@ class _TardosInterfaceState extends State<TardosInterface> {
 
   void _placeBomb(Player target) {
     // --- MARQUAGE DÉFINITIF ---
-    // On marque que le pouvoir est consommé pour empêcher une seconde pose plus tard
     widget.actor.hasUsedBombPower = true;
 
     int roll = Random().nextInt(100);
@@ -158,12 +157,13 @@ class _TardosInterfaceState extends State<TardosInterface> {
       debugPrint("💥 LOG [Tardos] : ÉCHEC CRITIQUE ! La bombe explose sur Tardos.");
       setState(() {
         widget.actor.tardosTarget = widget.actor;
-        widget.actor.bombTimer = 0; // Explosion immédiate (fin de nuit)
+        widget.actor.bombTimer = 0; // Pour l'affichage UI
         widget.actor.hasPlacedBomb = true; // Active l'état "Bombe en cours"
         widget.actor.tardosSuicide = true; // Flag pour succès
 
-        // --- VISUEL : C'est le Tardos qui porte la bombe ---
+        // --- VISUEL ET LOGIQUE ---
         widget.actor.isBombed = true;
+        widget.actor.attachedBombTimer = 0; // Explosion immédiate pour Logic.dart
       });
       _showPop("CRITIQUE !", "La bombe vous a explosé dans les mains !\nVous mourrez ce matin.", true);
 
@@ -173,12 +173,14 @@ class _TardosInterfaceState extends State<TardosInterface> {
       // SUCCÈS STANDARD
       debugPrint("🧨 LOG [Tardos] : Bombe posée sur ${target.name}.");
       setState(() {
+        // Mise à jour du Tardos (Acteur) pour son UI
         widget.actor.tardosTarget = target;
-        widget.actor.bombTimer = 2; // Explosion dans 2 nuits (J+2)
+        widget.actor.bombTimer = 2; // Pour l'affichage "dans 2 nuits"
         widget.actor.hasPlacedBomb = true;
 
-        // --- VISUEL : La cible porte la bombe ---
+        // --- CORRECTION : Mise à jour de la Cible (Target) pour Logic.dart ---
         target.isBombed = true;
+        target.attachedBombTimer = 2; // C'est CA qui manquait !
       });
       _showPop("BOMBE POSÉE", "La bombe est armée sur ${target.name}.\nExplosion dans 2 nuits.", false);
     }
