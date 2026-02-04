@@ -60,15 +60,16 @@ class AchievementData {
       icon: "📚", rarity: 2,
       checkCondition: (data) => data['archiviste_prince_qualified'] == true,
     ),
+    // CORRECTION : Tolérance majuscules/minuscules pour 'team'
     Achievement(
       id: "cha_cha_smooth",
       title: "Cha cha real smooth",
       description: "Gagnez seul en tant qu'Archiviste (Switch vers Solo).",
       icon: "🕺", rarity: 4,
       checkCondition: (data) =>
-      data['player_role']?.toLowerCase() == "archiviste" &&
+      (data['player_role']?.toString().toLowerCase().contains("archiviste") ?? false) &&
           (data['winner_role'] == "ARCHIVISTE" || data['winner_role'] == "SOLO") &&
-          data['team'] == "solo",
+          data['team']?.toString().toLowerCase() == "solo",
     ),
 
     // --- Devin ---
@@ -360,7 +361,6 @@ class AchievementData {
 
     // --- Maître du temps ---
 
-    // CORRECTION : Restriction au rôle Maître du Temps
     Achievement(
       id: "time_paradox",
       title: "Paradoxe Temporel",
@@ -405,7 +405,6 @@ class AchievementData {
       title: "Fan Ultime",
       description: "Votez contre Ron-Aldo mais mourez pour le sauver.",
       icon: "💔", rarity: 3,
-      // CORRECTION : Utilisation du flag explicite
       checkCondition: (data) => data['ultimate_fan_action'] == true,
     ),
     Achievement(
@@ -482,7 +481,6 @@ class AchievementData {
       checkCondition: (data) => data['choix_cornelien_valid'] == true,
     ),
 
-    // CORRECTION : Condition explicite pour déclencheur manuel
     Achievement(
       id: "first_blood",
       title: "Premier Sang",

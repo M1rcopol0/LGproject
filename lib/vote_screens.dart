@@ -142,11 +142,8 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
   Widget build(BuildContext context) {
     bool voterIsTraveling = (widget.voter.role?.toLowerCase() == "voyageur" && widget.voter.isInTravel);
 
-    // CORRECTION : Si l'Archiviste est absent (Transcendance), il ne vote pas.
-    // On passe directement au suivant.
     if (widget.voter.isAwayAsMJ) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _goToNext());
-      // Écran temporaire noir pendant le skip automatique
       return const Scaffold(backgroundColor: Color(0xFF0A0E21));
     }
 
@@ -171,8 +168,13 @@ class _IndividualVoteScreenState extends State<IndividualVoteScreen> {
       );
     }
 
-    // CORRECTION : L'Archiviste absent est retiré des cibles
-    final eligibleTargets = widget.allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
+    // FILTRE : Vivant, Joue, Pas Absent
+    final eligibleTargets = widget.allPlayers.where((p) =>
+    p.isAlive &&
+        p.isPlaying &&
+        !p.isAwayAsMJ
+    ).toList();
+
     eligibleTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
@@ -322,8 +324,12 @@ class MJResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // CORRECTION : On n'affiche pas l'Archiviste Transcendant dans la liste de décision
-    final sortedPlayers = allPlayers.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
+    // CORRECTION : Filtre STRICT des joueurs actifs (vivants + isPlaying + pas absent)
+    final sortedPlayers = allPlayers.where((p) =>
+    p.isAlive &&
+        p.isPlaying &&
+        !p.isAwayAsMJ
+    ).toList();
 
     sortedPlayers.sort((a, b) {
       int voteComp = b.votes.compareTo(a.votes);
@@ -401,6 +407,7 @@ class MJResultScreen extends StatelessWidget {
     }
 
     String roleReveal = target.role?.toUpperCase() ?? "INCONNU";
+    // ÉLIMINATION (Met à jour isAlive)
     Player deceased = GameLogic.eliminatePlayer(context, allPlayers, target, isVote: true);
 
     String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${Player.formatName(deceased.name)} est éliminé.";
@@ -451,8 +458,13 @@ class MJResultScreen extends StatelessWidget {
   }
 
   void _finalize(BuildContext context, String message, bool noOne) async {
+    // Vérification succès mid-game (pour le fan ultime qui vient de mourir par ex)
     await AchievementLogic.checkMidGameAchievements(context, allPlayers);
-    GameLogic.nextTurn(allPlayers);
+
+    // CORRECTION CRITIQUE : NE PAS appeler GameLogic.nextTurn() ici !
+    // La nuit ne doit commencer que si le MJ clique sur "NUIT" dans le menu.
+    // GameLogic.nextTurn(allPlayers);  <-- SUPPRIMÉ
+
     if (!context.mounted) return;
     showDialog(
       context: context,
@@ -464,14 +476,35 @@ class MJResultScreen extends StatelessWidget {
         actions: [
           TextButton(
               onPressed: () {
-                Navigator.of(ctx).pop();
-                Navigator.pop(context);
-                onComplete();
+                Navigator.of(ctx).pop(); // Dialog
+                Navigator.pop(context); // MJResultScreen
+                onComplete(); // Callback vers GameMenu pour refresh
               },
               child: const Text("OK", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold))
           )
         ],
       ),
     );
+  }
+}
+
+// ... Wrappers inchangés ...
+class VotePlayerSelectionScreen extends StatelessWidget {
+  const VotePlayerSelectionScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    // CORRECTION : Filtre
+    List<Player> voters = globalPlayers.where((p) => p.isAlive && p.isPlaying && !p.isAwayAsMJ).toList();
+    voters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (voters.isEmpty) return const Scaffold(backgroundColor: Color(0xFF0A0E21), body: Center(child: Text("Personne ne peut voter.", style: TextStyle(color: Colors.white))));
+    return PassScreen(voters: voters, allPlayers: globalPlayers, index: 0, onComplete: () { Navigator.pop(context); });
+  }
+}
+
+class VoteResultScreen extends StatelessWidget {
+  const VoteResultScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MJResultScreen(allPlayers: globalPlayers, onComplete: () {});
   }
 }

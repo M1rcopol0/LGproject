@@ -8,24 +8,30 @@ import 'package:talker_flutter/talker_flutter.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GÉNÉRALE ---
-String globalGameVersion = "1.5.1 - Release";
+String globalGameVersion = "1.5.3 - Debug";
 late Talker globalTalker;
 
-// --- PARAMÈTRES AUDIO ---
+// --- PARAMÈTRES AUDIO & JEU ---
 bool globalMusicEnabled = true;
 bool globalSfxEnabled = true;
-double globalVolume = 1.0; // <--- CELLE-CI ÉTAIT MANQUANTE ET FAISAIT CRASHER
+// NOUVEAU : Paramètre de vote (Anonyme ou Main levée)
+bool globalVoteAnonyme = true;
+double globalVolume = 1.0;
 
 // --- ÉTAT DU JEU (CYCLE MODIFIÉ) ---
 List<Player> globalPlayers = [];
-bool isDayTime = false;            // Le jeu commence par la Nuit
-int globalTurnNumber = 1;          // Nuit 1 -> Jour 1 -> Nuit 2...
+bool isDayTime = false;
+int globalTurnNumber = 1;
 double globalTimerMinutes = 2.0;
 bool globalRolesDistributed = false;
 bool hasVotedThisTurn = false;
 
+// --- NOUVEAU : GOUVERNANCE (Maire / Roi / Dictateur) ---
+// Permet de stocker le résultat de la roulette
+String globalGovernanceMode = "MAIRE";
+
 // --- FLAG CHRONOLOGIE ---
-bool nightOnePassed = false; // Indique si la Nuit 1 est terminée
+bool nightOnePassed = false;
 
 // --- FLAGS DE SUCCÈS (3.0) ---
 bool anybodyDeadYet = false;
@@ -73,6 +79,7 @@ Future<void> loadAudioSettings() async {
   final prefs = await SharedPreferences.getInstance();
   globalMusicEnabled = prefs.getBool('settings_music') ?? true;
   globalSfxEnabled = prefs.getBool('settings_sfx') ?? true;
+  globalVoteAnonyme = prefs.getBool('settings_vote_anonyme') ?? true; // CHARGEMENT
   globalVolume = prefs.getDouble('app_volume') ?? 1.0;
 }
 
@@ -80,6 +87,7 @@ Future<void> saveAudioSettings() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool('settings_music', globalMusicEnabled);
   await prefs.setBool('settings_sfx', globalSfxEnabled);
+  await prefs.setBool('settings_vote_anonyme', globalVoteAnonyme); // SAUVEGARDE
   await prefs.setDouble('app_volume', globalVolume);
   if (!globalMusicEnabled) stopMusic();
 }
@@ -97,7 +105,7 @@ Future<void> playSfx(String fileName) async {
 Future<void> playMusic(String fileName) async {
   if (globalMusicEnabled) {
     try {
-      await globalMusicPlayer.setVolume(globalVolume * 0.5); // Musique un peu moins forte
+      await globalMusicPlayer.setVolume(globalVolume * 0.5);
       await globalMusicPlayer.setReleaseMode(ReleaseMode.loop);
       await globalMusicPlayer.play(AssetSource('sounds/$fileName'));
     } catch (e) { debugPrint("Erreur Musique : $e"); }
@@ -115,29 +123,26 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
 
   if (eraseAllHistory) {
     await prefs.remove('saved_players_list');
-    await prefs.remove('saved_trophies_v2'); // Nom correct V2
+    await prefs.remove('saved_trophies_v2');
     await prefs.remove('global_faction_stats');
     globalPlayers.clear();
   } else {
-    // Reset juste pour une nouvelle partie (on garde les joueurs)
     for (var p in globalPlayers) {
-      // On suppose une méthode reset dans Player, sinon on réinitialise manuellement ici
       p.isPlaying = true;
       p.isAlive = true;
       p.role = null;
       p.team = "village";
-      // ... autres resets ...
     }
   }
 
   globalTimerMinutes = 2.0;
-  isDayTime = false; // Reset au cycle Nuit
+  isDayTime = false;
   globalTurnNumber = 1;
   globalRolesDistributed = false;
   nightOnePassed = false;
   hasVotedThisTurn = false;
+  globalGovernanceMode = "MAIRE"; // Reset gouvernance
 
-  // Reset Flags Succès
   anybodyDeadYet = false;
   firstDeadPlayerName = null;
   wolfVotedWolf = false;
@@ -151,7 +156,6 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
   exorcistWin = false;
   parkingShotUnlocked = false;
 
-  // Reset Tracking
   nightChamanTarget = null;
   nightWolvesTarget = null;
   nightWolvesTargetSurvived = false;
@@ -161,7 +165,6 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
   stopMusic();
 }
 
-// --- LOGIQUE NOCTURNE (ORDRE OPTIMISÉ) ---
 class NightAction {
   final String role;
   final String instruction;
@@ -169,7 +172,6 @@ class NightAction {
   NightAction({required this.role, required this.instruction, this.sound = 'default_night.mp3'});
 }
 
-// L'ordre est stratégique : Protections/Sommeil -> Infos -> Attaques
 List<NightAction> nightActionsOrder = [
   NightAction(role: "Phyl", instruction: "Éliminez vos cibles.", sound: "writing.mp3"),
   NightAction(role: "Tardos", instruction: "Amorcez votre bombe.", sound: "fuse.mp3"),

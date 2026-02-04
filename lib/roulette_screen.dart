@@ -40,7 +40,6 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
   }
 
   void _calculateResult() async {
-    // Si le résultat est déjà affiché (cas du skip), on ne relance pas
     if (result.isNotEmpty) return;
 
     double angleFinal = _currentRotation % (2 * pi);
@@ -51,22 +50,21 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
 
     setState(() {
       result = finalName;
+      // --- CORRECTION : MISE À JOUR GLOBALE ---
+      globalGovernanceMode = finalName; // Met à jour le mode pour GameLogic
     });
 
-    // SONS DE RÉSULTAT
-    if (finalName == "MAIRE") {
-      await playSfx("maire.mp3");
-    } else if (finalName == "ROI") {
-      await playSfx("roi.mp3");
-    } else if (finalName == "DICTATEUR") {
-      await playSfx("dictateur.mp3");
-    }
+    debugPrint("👑 LOG [Roulette] : Nouveau mode de gouvernance -> $globalGovernanceMode");
+
+    if (finalName == "MAIRE") await playSfx("maire.mp3");
+    else if (finalName == "ROI") await playSfx("roi.mp3");
+    else if (finalName == "DICTATEUR") await playSfx("dictateur.mp3");
   }
 
   void _skipAnimation() {
     if (_controller.isAnimating) {
-      _controller.stop(); // Arrête l'animation là où elle est
-      _calculateResult(); // Calcule immédiatement le résultat
+      _controller.stop();
+      _calculateResult();
     }
   }
 
@@ -76,7 +74,6 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
       _currentRotation += (pi * 2 * (12 + Random().nextInt(5))) + (Random().nextDouble() * pi * 2);
     });
 
-    // SON DE ROTATION
     await playSfx("roulette.mp3");
 
     _controller.reset();
@@ -106,7 +103,6 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
             AnimatedBuilder(
               animation: _animation,
               builder: (context, child) {
-                // Si l'animation est stoppée par le skip, on affiche la position finale
                 double rotationValue = _controller.isAnimating
                     ? _animation.value * _currentRotation
                     : _currentRotation;

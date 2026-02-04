@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 class Player {
   String name;
   String? role;
+  String? previousRole; // Pour suivre les conversions (ex: Maison -> Fan)
   String team; // "village", "loups", "solo"
   bool isAlive;
 
@@ -13,7 +14,7 @@ class Player {
   bool isRoleLocked;
 
   // --- NOUVEAUX CHAMPS SUCCÈS ---
-  Set<String> votedAgainstHistory; // Pour "Un choix cornélien"
+  List<String> votedAgainstHistory; // List au lieu de Set pour garder les doublons
   bool hostedRonAldoThisTurn;      // Pour "Ramenez la coupe à la maison"
   bool wasMaisonConverted;         // Pour "Ramenez la coupe à la maison"
   int hostedEnemiesCount;          // Pour "Epstein House"
@@ -141,6 +142,7 @@ class Player {
   Player({
     required String name,
     this.role,
+    this.previousRole,
     this.team = "village",
     this.isAlive = true,
     this.isPlaying = false,
@@ -224,8 +226,7 @@ class Player {
     this.canacleanPresent = false,
     this.isSelected = false,
 
-    // NOUVEAUX CHAMPS (Initialisation)
-    Set<String>? votedAgainstHistory,
+    List<String>? votedAgainstHistory,
     this.hostedRonAldoThisTurn = false,
     this.wasMaisonConverted = false,
     this.hostedEnemiesCount = 0,
@@ -234,7 +235,7 @@ class Player {
   }) : name = formatName(name),
         revealedPlayersHistory = revealedPlayersHistory ?? [],
         protectedPlayersHistory = protectedPlayersHistory ?? {},
-        votedAgainstHistory = votedAgainstHistory ?? {};
+        votedAgainstHistory = votedAgainstHistory ?? [];
 
   static String formatName(String input) {
     if (input.trim().isEmpty) return input;
@@ -250,6 +251,7 @@ class Player {
   bool get isWolf => team == "loups";
 
   void changeRole(String newRole, String newTeam) {
+    previousRole = role; // Sauvegarde de l'ancien rôle
     debugPrint("🎭 LOG [RoleChange] : $name ($role) devient $newRole ($newTeam)");
     role = newRole;
     team = newTeam;
@@ -265,6 +267,7 @@ class Player {
 
   void resetFullState() {
     role = null;
+    previousRole = null;
     team = "village";
     isAlive = true;
     isProtectedByPokemon = false;
@@ -286,7 +289,7 @@ class Player {
     pantinCurseTimer = null;
 
     // RESET NOUVEAUX CHAMPS
-    votedAgainstHistory = {};
+    votedAgainstHistory = [];
     hostedRonAldoThisTurn = false;
     wasMaisonConverted = false;
     hostedEnemiesCount = 0;
@@ -314,7 +317,7 @@ class Player {
     List<Widget> icons = [];
 
     if (isVillageChief) icons.add(const Icon(Icons.workspace_premium, size: 16, color: Colors.amber));
-    if (isRoi) icons.add(const Icon(FontAwesomeIcons.crown, size: 14, color: Colors.amberAccent)); // Icône Roi
+    if (isRoi) icons.add(const Icon(FontAwesomeIcons.crown, size: 14, color: Colors.amberAccent));
     if (isInHouse) icons.add(const Icon(Icons.home, size: 16, color: Colors.orangeAccent));
     if (isProtectedByPokemon) icons.add(const Icon(Icons.bolt, size: 16, color: Colors.yellow));
     if (isEffectivelyAsleep) icons.add(const Icon(Icons.bedtime, size: 16, color: Colors.blueAccent));
@@ -375,6 +378,7 @@ class Player {
     return {
       'name': name,
       'role': role,
+      'previousRole': previousRole, // SÉRIALISATION AJOUTÉE
       'team': team,
       'isAlive': isAlive,
       'isPlaying': isPlaying,
@@ -450,7 +454,7 @@ class Player {
       'hasSurvivedWolfBite': hasSurvivedWolfBite,
 
       // SERIALISATION NOUVEAUX CHAMPS
-      'votedAgainstHistory': votedAgainstHistory.toList(),
+      'votedAgainstHistory': votedAgainstHistory, // Pas besoin de .toList() car c'est déjà une List
       'hostedRonAldoThisTurn': hostedRonAldoThisTurn,
       'wasMaisonConverted': wasMaisonConverted,
       'hostedEnemiesCount': hostedEnemiesCount,
@@ -463,9 +467,12 @@ class Player {
       name: map['name'],
       revealedPlayersHistory: List<String>.from(map['revealedPlayersHistory'] ?? []),
       protectedPlayersHistory: Set<String>.from(map['protectedPlayersHistory'] ?? []),
-      votedAgainstHistory: Set<String>.from(map['votedAgainstHistory'] ?? []), // RESTAURATION
+
+      // RESTAURATION NOUVEAUX CHAMPS
+      votedAgainstHistory: List<String>.from(map['votedAgainstHistory'] ?? []),
     )
       ..role = map['role']
+      ..previousRole = map['previousRole'] // DÉSÉRIALISATION AJOUTÉE
       ..team = map['team'] ?? "village"
       ..isAlive = map['isAlive'] ?? true
       ..isPlaying = map['isPlaying'] ?? false
@@ -537,8 +544,6 @@ class Player {
       ..lastBledTarget = map['lastBledTarget']
       ..timeMasterTargets = List<String>.from(map['timeMasterTargets'] ?? [])
       ..hasSurvivedWolfBite = map['hasSurvivedWolfBite'] ?? false
-
-    // RESTAURATION NOUVEAUX CHAMPS
       ..hostedRonAldoThisTurn = map['hostedRonAldoThisTurn'] ?? false
       ..wasMaisonConverted = map['wasMaisonConverted'] ?? false
       ..hostedEnemiesCount = map['hostedEnemiesCount'] ?? 0

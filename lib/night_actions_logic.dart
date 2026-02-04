@@ -42,8 +42,6 @@ class NightActionsLogic {
       }
 
       // --- LOGIQUE BOMBE MANUELLE (VIA MENU MJ) ---
-      // Gestion du timer pour une bombe ajoutée manuellement par le MJ
-      // CORRECTION : On ne décrémente que si ce n'est PAS une bombe de Tardos active sur ce joueur
       if (p.isBombed && p.attachedBombTimer > 0) {
         // Double sécurité : si un Tardos vise ce joueur, on ignore le timer manuel pour éviter les conflits
         bool targetedByTardos = players.any((attacker) =>
@@ -120,7 +118,6 @@ class NightActionsLogic {
       if (p.role?.toLowerCase() == "maître du temps" && p.isAlive && p.timeMasterTargets.isNotEmpty) {
         debugPrint("⏳ LOG [TimeMaster] : Exécution des cibles : ${p.timeMasterTargets}");
 
-        // CORRECTION PARADOXE TEMPOREL : Détection ici
         List<Player> killedByTime = [];
 
         for (var targetName in p.timeMasterTargets) {
@@ -142,17 +139,15 @@ class NightActionsLogic {
             debugPrint("⏳ LOG [Succès] : Paradoxe Temporel détecté !");
             paradoxAchieved = true;
 
-            // --- CORRECTION : Déblocage immédiat ---
             TrophyService.checkAndUnlockImmediate(
               context: context,
               playerName: p.name,
               achievementId: "time_paradox",
               checkData: {
-                'player_role': 'Maître du temps', // Force le rôle pour matcher la condition
+                'player_role': 'Maître du temps',
                 'paradox_achieved': true
               },
             );
-            // ---------------------------------------
           }
         }
 
@@ -162,37 +157,45 @@ class NightActionsLogic {
 
     // --- 0.5 ANALYSE MAISON (EPSTEIN & RON-ALDO) ---
     try {
-      Player maison = players.firstWhere((p) => p.role?.toLowerCase() == "maison" && p.isAlive);
-
-      // Reset des compteurs temporaires
-      maison.hostedEnemiesCount = 0;
-      maison.hostedRonAldoThisTurn = false;
-
-      for (var invite in players.where((p) => p.isInHouse)) {
-        // Epstein House : Compter les ennemis
-        if (invite.team != "village") {
-          maison.hostedEnemiesCount++;
-        }
-
-        // Ramenez la coupe : Repérer Ron-Aldo
-        if (invite.role?.toLowerCase() == "ron-aldo") {
-          maison.hostedRonAldoThisTurn = true;
-          // Propager l'info sur l'invité aussi, au cas où la maison change de rôle (devient Fan)
-          invite.hostedRonAldoThisTurn = true;
-        }
-      }
-
-      // Trigger immédiat Epstein House
-      if (maison.hostedEnemiesCount >= 2) {
-        TrophyService.checkAndUnlockImmediate(
-            context: context,
-            playerName: maison.name,
-            achievementId: "epstein_house",
-            checkData: {
-              'player_role': 'maison',
-              'hosted_enemies_count': maison.hostedEnemiesCount
-            }
+      // CORRECTION CRITIQUE : On cherche la maison, même si elle vient d'être convertie en Fan (previousRole)
+      Player? maison;
+      try {
+        maison = players.firstWhere((p) =>
+        (p.role?.toLowerCase() == "maison" || p.previousRole?.toLowerCase() == "maison") &&
+            p.isAlive
         );
+      } catch (_) {}
+
+      if (maison != null) {
+        maison.hostedEnemiesCount = 0;
+        maison.hostedRonAldoThisTurn = false;
+
+        for (var invite in players.where((p) => p.isInHouse)) {
+          // Epstein House : Compter les ennemis
+          if (invite.team != "village") {
+            maison.hostedEnemiesCount++;
+          }
+
+          // Repérage Ron-Aldo dans la maison (Flag vital pour "Ramenez la coupe")
+          if (invite.role?.toLowerCase() == "ron-aldo") {
+            maison.hostedRonAldoThisTurn = true;
+            invite.hostedRonAldoThisTurn = true;
+            debugPrint("🏠 LOG [Maison] : Ron-Aldo détecté chez ${maison.name}. Flag activé.");
+          }
+        }
+
+        // Succès Epstein House
+        if (maison.hostedEnemiesCount >= 2) {
+          TrophyService.checkAndUnlockImmediate(
+              context: context,
+              playerName: maison.name,
+              achievementId: "epstein_house",
+              checkData: {
+                'player_role': 'maison',
+                'hosted_enemies_count': maison.hostedEnemiesCount
+              }
+          );
+        }
       }
     } catch (_) {}
 
@@ -254,7 +257,6 @@ class NightActionsLogic {
     }
 
     // B. Bombe Manuelle (Liée à la victime via menu MJ)
-    // CORRECTION CRITIQUE : Vérifier que ce n'est PAS une bombe de Tardos active
     for (var p in players) {
       bool targetedByTardos = players.any((attacker) =>
       attacker.role?.toLowerCase() == "tardos" &&
@@ -264,7 +266,6 @@ class NightActionsLogic {
 
       if (p.isBombed && p.attachedBombTimer == 0 && !targetedByTardos) {
         _handleExplosion(context, players, p, pendingDeathsMap, "Explosion Bombe (Manuelle)", null);
-        // Note : isBombed sera reset dans _handleExplosion
       }
     }
 
@@ -302,8 +303,6 @@ class NightActionsLogic {
           return;
         }
 
-        // CORRECTION : RETRAIT DE "Temps" DANS LES CAUSES IMPARABLES
-        // Le Maître du Temps sera désormais bloqué par la Quiche.
         bool isUnstoppable = reason.contains("accidentelle") || // Suicide Tardos
             reason.contains("Bombe") ||        // Explosion Tardos
             reason.contains("Tardos") ||       // Explosion Tardos
@@ -312,12 +311,10 @@ class NightActionsLogic {
         if (quicheIsActive && !isUnstoppable) {
           quicheSavedThisNight++;
 
-          // --- CORRECTION SUCCÈS "LE PETIT CHAPERON ROUGE" ---
           if (target.role?.toLowerCase() == "grand-mère") {
             target.hasSavedSelfWithQuiche = true;
             debugPrint("👵 LOG [Succès] : La Grand-mère s'est sauvée elle-même !");
 
-            // Déclenchement immédiat du succès
             TrophyService.checkAndUnlockImmediate(
                 context: context,
                 playerName: target.name,
@@ -328,7 +325,6 @@ class NightActionsLogic {
 
           debugPrint("🛡️ LOG [Quiche] : ${target.name} sauvé de : $reason");
 
-          // Gestion Succès Fringale Nocturne (Si attaque loup bloquée)
           if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
             target.hasSurvivedWolfBite = true;
             nightWolvesTargetSurvived = true;
@@ -337,6 +333,7 @@ class NightActionsLogic {
           return;
         }
 
+        // --- SACRIFICE POKÉMON ---
         if (dresseur != null && dresseur.lastDresseurAction != null) {
           if (target == dresseur && dresseur.lastDresseurAction == dresseur) {
             if (pokemon != null && pokemon.isAlive) {
@@ -371,6 +368,69 @@ class NightActionsLogic {
         }
 
         bool targetWasInHouse = target.isInHouse;
+
+        // ===========================================================
+        // LOGIQUE SACRIFICE RON-ALDO (CORRIGÉE & PRIORISÉE)
+        // ===========================================================
+        if (target.role?.toLowerCase() == "ron-aldo" && !isUnstoppable) {
+          try {
+            List<Player> fans = players.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
+
+            // FILTRAGE CRITIQUE : Chercher si un fan est la "Maison convertie ce tour-ci"
+            // La maison convertie (ancien rôle 'maison', nouveau 'fan') a le flag hostedRonAldoThisTurn
+            Player? priorityFan;
+            try {
+              priorityFan = fans.firstWhere((p) => p.hostedRonAldoThisTurn);
+            } catch (_) {}
+
+            if (priorityFan != null) {
+              // La maison convertie passe en priorité absolue pour le sacrifice
+              fans.remove(priorityFan);
+              fans.insert(0, priorityFan);
+              debugPrint("⚽🏆 LOG [Ron-Aldo] : La Maison convertie (${priorityFan.name}) devient prioritaire pour le sacrifice.");
+            } else {
+              // Sinon, ordre classique par ancienneté
+              fans.sort((a, b) => a.fanJoinOrder.compareTo(b.fanJoinOrder));
+            }
+
+            if (fans.isNotEmpty) {
+              Player fanSacrifice = fans.first;
+              debugPrint("🛡️⚽ LOG [Ron-Aldo] : ${fanSacrifice.name} se sacrifie pour sauver Ron-Aldo !");
+
+              Player deadFan = GameLogic.eliminatePlayer(context, players, fanSacrifice, isVote: false, reason: "Sacrifice pour Ron-Aldo");
+              finalDeathReasons[deadFan.name] = "Sacrifice pour Ron-Aldo ($reason)";
+              AchievementLogic.checkDeathAchievements(context, deadFan, players);
+              AchievementLogic.checkFanSacrifice(context, deadFan, target);
+
+              // CHECK SUCCÈS "RAMENEZ LA COUPE À LA MAISON"
+              if (deadFan.hostedRonAldoThisTurn) {
+                debugPrint("🏆 LOG [Achievement] : Conditions 'Ramenez la coupe' remplies !");
+
+                // Succès pour le Fan (La Maison)
+                TrophyService.checkAndUnlockImmediate(
+                    context: context,
+                    playerName: deadFan.name,
+                    achievementId: "coupe_maison",
+                    checkData: {'ramenez_la_coupe': true}
+                );
+
+                // Succès pour Ron-Aldo (Le survivant)
+                TrophyService.checkAndUnlockImmediate(
+                    context: context,
+                    playerName: target.name,
+                    achievementId: "coupe_maison",
+                    checkData: {'ramenez_la_coupe': true}
+                );
+              }
+
+              return; // Ron-Aldo est sauvé
+            }
+          } catch(e) {
+            debugPrint("⚠️ Erreur sacrifice Ron-Aldo: $e");
+          }
+        }
+
+        // --- MORT NORMALE ---
         Player finalVictim = GameLogic.eliminatePlayer(context, players, target, isVote: false);
 
         if (!finalVictim.isAlive) {
@@ -414,7 +474,6 @@ class NightActionsLogic {
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
 
             // --- SUCCÈS : ASSURANCE HABITATION ---
-            // Le joueur target a survécu car la maison est morte à sa place
             TrophyService.checkAndUnlockImmediate(
                 context: context,
                 playerName: target.name,
@@ -422,8 +481,6 @@ class NightActionsLogic {
                 checkData: {'assurance_habitation_triggered': true}
             );
 
-            // CORRECTION CRITIQUE : La cible originale a survécu à une morsure (si c'était des loups)
-            // C'est ce qui permet d'activer le flag pour Fringale Nocturne
             if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
               target.hasSurvivedWolfBite = true;
             }
@@ -431,22 +488,6 @@ class NightActionsLogic {
           } else {
             debugPrint("💀 LOG [Mort] : ${finalVictim.name} succombe ($reason).");
             finalDeathReasons[finalVictim.name] = reason;
-
-            // --- SUCCÈS : RAMENEZ LA COUPE À LA MAISON ---
-            // Si la victime est un fan (ex-Maison) qui se sacrifie (ou meurt) alors qu'elle hébergeait Ron-Aldo
-            if (finalVictim.isFanOfRonAldo && finalVictim.hostedRonAldoThisTurn) {
-              // On cherche Ron-Aldo pour lui donner le succès
-              try {
-                Player ron = players.firstWhere((p) => p.role?.toLowerCase() == "ron-aldo");
-                // On suppose ici que si le fan meurt et hébergeait Ron-Aldo, c'est suite à une attaque
-                TrophyService.checkAndUnlockImmediate(
-                    context: context,
-                    playerName: ron.name,
-                    achievementId: "coupe_maison",
-                    checkData: {'ramenez_la_coupe': true}
-                );
-              } catch (_) {}
-            }
           }
           if (reason.contains("Morsure")) wolvesNightKills++;
         } else {
@@ -473,7 +514,6 @@ class NightActionsLogic {
           AchievementLogic.checkDeathAchievements(context, p, players);
           finalDeathReasons[p.name] = "Malédiction du Pantin";
 
-          // Si c'est le Pokémon qui meurt de malédiction, il se venge quand même
           if ((p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.pokemonRevengeTarget != null) {
             Player rev = p.pokemonRevengeTarget!;
             if (rev.isAlive) {
@@ -540,16 +580,12 @@ class NightActionsLogic {
       }
 
       // --- SUCCÈS : 11 SEPTEMBRE & SELF-DESTRUCT ---
-      // On vérifie si la maison ET tous les occupants sont morts
-      // (Note: pendingDeathsMap contient les morts de CETTE phase d'explosion)
       if (houseOwner != null && occupants.isNotEmpty) {
-        // On considère "réussi" si le propriétaire et tous les occupants sont dans la liste des décès
         bool houseDead = pendingDeathsMap.containsKey(houseOwner);
         bool allOccupantsDead = occupants.every((o) => pendingDeathsMap.containsKey(o));
 
         if (houseDead && allOccupantsDead) {
           if (attacker != null && attacker.role?.toLowerCase() == "tardos") {
-            // 11 Septembre
             TrophyService.checkAndUnlockImmediate(
                 context: context,
                 playerName: attacker.name,
@@ -557,7 +593,6 @@ class NightActionsLogic {
                 checkData: {'11_septembre_triggered': true}
             );
 
-            // Self-destruct : Si Tardos meurt aussi dans l'explosion
             if (pendingDeathsMap.containsKey(attacker)) {
               TrophyService.checkAndUnlockImmediate(
                   context: context,

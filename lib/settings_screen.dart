@@ -55,7 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ===========================================================================
-  // 1. LOGIQUE D'EXPORTATION DES LOGS (CORRIGÉE)
+  // 1. LOGIQUE D'EXPORTATION DES LOGS
   // ===========================================================================
   Future<void> _generateAndSendLogs() async {
     try {
@@ -65,26 +65,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       sb.writeln("Version: $globalGameVersion");
       sb.writeln("\n--------------------------------------------------\n");
 
-      // CORRECTION : Récupération réelle des logs depuis l'historique Talker
       final history = globalTalker.history;
 
       if (history.isEmpty) {
         sb.writeln("Aucun log enregistré en mémoire.");
       } else {
-        // On parcourt l'historique pour l'écrire dans le buffer
         for (var log in history) {
           sb.writeln(log.generateTextMessage());
         }
       }
 
-      // Création du fichier temporaire
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/debug_logs_lg3.txt');
 
-      // Écriture
       await file.writeAsString(sb.toString());
-
-      // Partage
       await Share.shareXFiles([XFile(file.path)], text: 'Rapport Bug Loup Garou 3.0');
 
     } catch (e) {
@@ -119,17 +113,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
 
-              // 1. Nettoyage Local
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('saved_players_list');
               await TrophyService.resetAllStats();
               globalTalker.cleanHistory();
               setState(() { globalPlayers.clear(); });
 
-              // 2. Nettoyage Cloud (Envoi des données vides)
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nettoyage Cloud en cours...")));
-                // Utilise la nouvelle méthode créée pour écraser le cloud
                 await CloudService.forceUploadData(context);
               }
             },
@@ -164,13 +155,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () async {
                   Navigator.pop(ctx);
 
-                  // 1. Suppression Locale
                   await TrophyService.deletePlayerStats(player.name);
                   setState(() { globalPlayers.removeAt(index); });
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setStringList('saved_players_list', globalPlayers.map((p) => p.name).toList());
 
-                  // 2. Mise à jour Cloud (Envoi de la nouvelle liste sans le joueur)
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${player.name} supprimé. Mise à jour du Cloud...")));
                     await CloudService.forceUploadData(context);
@@ -190,7 +179,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: const Text("Paramètres"),
+        title: const Text("PARAMÈTRES"),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -198,37 +188,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           // --- AUDIO ---
-          ListTile(
-            title: const Text("Musique de fond", style: TextStyle(color: Colors.white)),
-            trailing: Switch(
-              activeColor: Colors.orangeAccent,
-              value: globalMusicEnabled,
-              onChanged: (v) {
-                setState(() => globalMusicEnabled = v);
-                saveAudioSettings();
-              },
-            ),
+          _buildSectionTitle("Audio"),
+          _buildSwitchTile(
+            title: "Musique de fond",
+            subtitle: "Activer la musique d'ambiance",
+            icon: Icons.music_note,
+            value: globalMusicEnabled,
+            onChanged: (v) {
+              setState(() => globalMusicEnabled = v);
+              saveAudioSettings();
+              if (v) playMusic('ambiance_sus.mp3'); else stopMusic();
+            },
           ),
-          ListTile(
-            title: const Text("Effets sonores (SFX)", style: TextStyle(color: Colors.white)),
-            trailing: Switch(
-              activeColor: Colors.orangeAccent,
-              value: globalSfxEnabled,
-              onChanged: (v) {
-                setState(() => globalSfxEnabled = v);
-                saveAudioSettings();
-              },
-            ),
+          _buildSwitchTile(
+            title: "Effets sonores (SFX)",
+            subtitle: "Activer les sons d'interface",
+            icon: Icons.volume_up,
+            value: globalSfxEnabled,
+            onChanged: (v) {
+              setState(() => globalSfxEnabled = v);
+              saveAudioSettings();
+            },
           ),
 
-          const Divider(color: Colors.white24),
+          const SizedBox(height: 20),
+          _buildSectionTitle("Gameplay"),
+
+          // --- NOUVEAU SWITCH DE VOTE ---
+          _buildSwitchTile(
+            title: "Vote Anonyme (App)",
+            subtitle: "Activé : Chaque joueur vote sur le téléphone.\nDésactivé : Vote à main levée, saisie directe.",
+            icon: FontAwesomeIcons.checkToSlot,
+            value: globalVoteAnonyme,
+            onChanged: (val) {
+              setState(() {
+                globalVoteAnonyme = val;
+                saveAudioSettings();
+              });
+            },
+          ),
+          // --------------------------------
+
+          const SizedBox(height: 20),
+          _buildSectionTitle("Configuration"),
 
           // --- TIMER ---
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-            child: Text(
-              "Durée du Timer : ${globalTimerMinutes.toInt()} min",
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Durée du Timer :", style: TextStyle(color: Colors.white70)),
+                Text("${globalTimerMinutes.toInt()} min", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              ],
             ),
           ),
           Slider(
@@ -259,16 +271,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(color: Colors.white24, height: 40),
 
-          // --- SECTION CLOUD (GOOGLE SHEETS) ---
+          // --- SECTION CLOUD ---
           const Text("CLOUD (GOOGLE SHEETS)", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
 
-          SwitchListTile(
-            title: const Text("Synchro Auto", style: TextStyle(color: Colors.white)),
-            subtitle: const Text("Mise à jour des stats après chaque partie", style: TextStyle(color: Colors.white38, fontSize: 12)),
+          _buildSwitchTile(
+            title: "Synchro Auto",
+            subtitle: "Mise à jour des stats après chaque partie",
+            icon: Icons.cloud_sync,
             value: _autoCloudSync,
-            activeColor: Colors.green,
             onChanged: (val) => _setAutoCloud(val),
           ),
+
+          const SizedBox(height: 10),
 
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
@@ -289,7 +303,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text("GESTION DONNÉES", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           const SizedBox(height: 15),
 
-          // EXPORT (On garde l'export JSON au cas où, mais suppression de l'import)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blueAccent.withOpacity(0.2),
@@ -305,7 +318,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 20),
 
-          // SUPPRESSION JOUEUR (Met à jour le Cloud)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orangeAccent.withOpacity(0.1),
@@ -321,7 +333,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 12),
 
-          // RESET TOTAL (Met à jour le Cloud)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.withOpacity(0.1),
@@ -372,6 +383,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 30),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white70,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required Function(bool) onChanged,
+  }) {
+    return Card(
+      color: Colors.white10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: SwitchListTile(
+        activeColor: Colors.blueAccent,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        secondary: Icon(icon, color: Colors.blueAccent, size: 28),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        value: value,
+        onChanged: onChanged,
       ),
     );
   }

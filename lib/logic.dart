@@ -361,11 +361,14 @@ class GameLogic {
       chamanSniperAchieved = true;
     }
 
+    // --- MISE À MORT EFFECTIVE ---
     victim.isAlive = false;
     debugPrint("💀 LOG [Mort] : ${victim.name} (${victim.role}) a quitté la partie.");
 
     // --- SUCCÈS : LOUIS CROIX V BÂTON ---
-    if (isVote && victim.isVillageChief && victim.isRoi) {
+    // CORRECTION : On vérifie la variable globale du mode de jeu et non le booléen sur le joueur
+    if (isVote && victim.isVillageChief && globalGovernanceMode == "ROI") {
+      debugPrint("👑 CAPTEUR [Louis Croix V] : Le ROI a été exécuté !");
       TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: victim.name,
@@ -397,6 +400,7 @@ class GameLogic {
       pokemonDiedTour1 = true;
     }
 
+    // UPDATE : Check immédiat
     AchievementLogic.checkDeathAchievements(context, victim, allPlayers);
 
     // --- CORRECTION FRINGALE NOCTURNE ---

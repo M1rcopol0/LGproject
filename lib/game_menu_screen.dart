@@ -13,11 +13,10 @@ import 'fin.dart';
 import 'game_save_service.dart';
 import 'achievement_logic.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-// IMPORTS AJOUTÉS POUR LA GESTION DES SUCCÈS
 import 'models/achievement.dart';
 import 'trophy_service.dart';
 import 'cloud_service.dart';
-import 'achievements_page.dart'; // Pour accès via AppBar
+import 'achievements_page.dart';
 
 class GameMenuScreen extends StatefulWidget {
   final List<Player> players;
@@ -78,7 +77,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 style: const TextStyle(color: Colors.white54, fontSize: 14)),
             const Divider(color: Colors.white10, height: 30),
 
-            // 1. TUER / RESSUSCITER
             ListTile(
               leading: Icon(p.isAlive ? Icons.dangerous : Icons.favorite, color: p.isAlive ? Colors.redAccent : Colors.greenAccent),
               title: Text(p.isAlive ? "ÉLIMINER LE JOUEUR" : "RESSUSCITER LE JOUEUR", style: const TextStyle(color: Colors.white)),
@@ -92,7 +90,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               },
             ),
 
-            // 2. APPLIQUER EFFET
             ListTile(
               leading: const Icon(Icons.auto_fix_high, color: Colors.blueAccent),
               title: const Text("APPLIQUER UN EFFET / ÉTAT", style: TextStyle(color: Colors.white)),
@@ -102,7 +99,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               },
             ),
 
-            // 3. NOMMER CHEF
             ListTile(
               leading: const Icon(Icons.workspace_premium, color: Colors.amber),
               title: const Text("NOMMER CHEF DU VILLAGE", style: TextStyle(color: Colors.white)),
@@ -116,7 +112,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               },
             ),
 
-            // 4. GESTION SUCCÈS (NOUVEAU)
             ListTile(
               leading: const Icon(Icons.emoji_events, color: Colors.purpleAccent),
               title: const Text("GÉRER LES SUCCÈS (MJ)", style: TextStyle(color: Colors.white)),
@@ -126,7 +121,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
               },
             ),
 
-            // 5. RETOUR
             ListTile(
               leading: const Icon(Icons.arrow_back, color: Colors.white54),
               title: const Text("RETOUR AU VILLAGE", style: TextStyle(color: Colors.white54)),
@@ -138,7 +132,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     );
   }
 
-  // --- MANAGER DE SUCCÈS IN-GAME ---
   void _showAchievementManager(Player p) {
     showDialog(
       context: context,
@@ -223,7 +216,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   _effectSwitch("Immunisé Vote (Bled)", p.isImmunizedFromVote, (v) => p.isImmunizedFromVote = v),
                   _effectSwitch("Révélé (Devin)", p.isRevealedByDevin, (v) => p.isRevealedByDevin = v),
 
-                  // --- BOMBE MANUELLE ---
                   ListTile(
                     title: const Text("Porteur de Bombe", style: TextStyle(color: Colors.white)),
                     trailing: Switch(
@@ -234,14 +226,12 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                           p.isBombed = val;
                           if (!val) p.attachedBombTimer = 0;
                         });
-                        // Si activé, on demande le timer
                         if (val) _askIntDialog("Temps avant explosion (tours)", 2, (t) => setState(() => p.attachedBombTimer = t));
                       },
                     ),
                     subtitle: p.isBombed ? Text("Explosion dans ${p.attachedBombTimer} tours", style: const TextStyle(color: Colors.redAccent, fontSize: 12)) : null,
                   ),
 
-                  // --- MALÉDICTION PANTIN ---
                   ListTile(
                     title: const Text("Maudit (Pantin)", style: TextStyle(color: Colors.white)),
                     trailing: Switch(
@@ -257,13 +247,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                     subtitle: p.pantinCurseTimer != null ? Text("Mort dans ${p.pantinCurseTimer} tours", style: const TextStyle(color: Colors.purpleAccent, fontSize: 12)) : null,
                   ),
 
-                  // --- VOYAGEUR ---
                   _effectSwitch("En Voyage", p.isInTravel, (v) => p.isInTravel = v),
-
-                  // --- FAN RON-ALDO ---
                   _effectSwitch("Fan de Ron-Aldo", p.isFanOfRonAldo, (v) => p.isFanOfRonAldo = v),
-
-                  // --- ABSENCE ARCHIVISTE ---
                   _effectSwitch("Transcendance (Absent)", p.isAwayAsMJ, (v) => p.isAwayAsMJ = v),
                 ],
               ),
@@ -282,7 +267,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     );
   }
 
-  // Petit helper pour demander un entier
   void _askIntDialog(String title, int defaultVal, Function(int) onVal) {
     TextEditingController ctrl = TextEditingController(text: defaultVal.toString());
     showDialog(
@@ -363,9 +347,9 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
         (winner == "SOLO" && p.team == "solo")
     ).toList();
 
-    // CHECK SUCCÈS DE FIN (GÉNÉRIQUE)
     await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.players);
 
+    if (!mounted) return;
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
     GameSaveService.clearSave();
@@ -378,7 +362,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _checkChiefAlive() {
-    if (_isGameOverProcessing) return;
+    if (_isGameOverProcessing || !mounted) return;
     bool chiefExists = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
     if (!chiefExists) {
       _showChiefElectionDialog();
@@ -386,6 +370,9 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _showChiefElectionDialog() {
+    // SECURITY CHECK: On ne montre pas le dialogue si le jeu est fini ou si le widget est démonté
+    if (_isGameOverProcessing || !mounted) return;
+
     List<Player> eligible = _activePlayers.where((p) => p.isAlive).toList();
     if (eligible.isEmpty) return;
     eligible.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -409,15 +396,14 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                   leading: const Icon(Icons.person, color: Colors.white),
                   title: Text(Player.formatName(p.name), style: const TextStyle(color: Colors.white)),
                   onTap: () async {
+                    if (!mounted) return; // FIX CRASH
                     setState(() {
                       for (var pl in widget.players) pl.isVillageChief = false;
                       p.isVillageChief = true;
                     });
 
-                    // CHECK SUCCÈS (Ex: Devenir Chef)
                     await AchievementLogic.checkMidGameAchievements(context, widget.players);
-
-                    Navigator.pop(ctx);
+                    if (mounted) Navigator.pop(ctx);
                   },
                 ),
               );
@@ -434,8 +420,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       return;
     }
     if (!p.isPlaying) return;
-
-    // OUVERTURE DU MENU MJ (AVEC SUCCÈS)
     _showPlayerAdminMenu(p);
   }
 
@@ -462,38 +446,56 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     playMusic("ambiance_nuit.mp3");
 
     Navigator.push(context, MaterialPageRoute(builder: (_) => NightActionsScreen(players: _activePlayers))).then((_) {
-      setState(() {
-        isDayTime = true;
-        hasVotedThisTurn = false;
-        _resetTimer();
-        _checkGameStateIntegrity();
-      });
+      if (mounted) {
+        setState(() {
+          isDayTime = true;
+          hasVotedThisTurn = false;
+          _resetTimer();
+          _checkGameStateIntegrity();
+        });
+      }
     });
   }
 
-  void _goToVote() async {
+  void _handleVoteNavigation() {
     _resetTimer();
-    await playSfx("vote_music.mp3");
-    List<Player> voters = _activePlayers.where((p) => p.isAlive).toList();
-    voters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    playSfx("vote_music.mp3");
 
-    Navigator.push(context, MaterialPageRoute(builder: (_) => PassScreen(
-        voters: voters,
-        allPlayers: _activePlayers,
-        index: 0,
-        onComplete: () {
-          hasVotedThisTurn = true;
-          setState(() {
-            _checkGameOver();
-            if (!_isGameOverProcessing) {
-              bool chiefAlive = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
-              if (!chiefAlive) _showChiefElectionDialog();
-            }
-            isDayTime = false;
-            _resetTimer();
-          });
+    if (globalVoteAnonyme) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const VotePlayerSelectionScreen()),
+      ).then((_) => _onVoteComplete());
+    } else {
+      for (var p in widget.players) {
+        p.targetVote = null;
+        p.votes = 0;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const VoteResultScreen()),
+      ).then((_) => _onVoteComplete());
+    }
+  }
+
+  void _onVoteComplete() {
+    // FIX CRASH: Vérification mounted avant setState
+    if (!mounted) return;
+
+    hasVotedThisTurn = true;
+    setState(() {
+      _checkGameOver();
+      // Si le jeu n'est pas fini, on check le chef
+      if (!_isGameOverProcessing) {
+        bool chiefAlive = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
+        if (!chiefAlive) {
+          // On attend un peu pour laisser la transition se finir
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showChiefElectionDialog());
         }
-    )));
+      }
+      isDayTime = false;
+      _resetTimer();
+    });
   }
 
   void _addPlayerDialog(BuildContext context) async {
@@ -538,7 +540,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 String cleanName = Player.formatName(currentNameInput);
 
                 if (cleanName.isNotEmpty) {
-                  // CORRECTION : VÉRIFICATION STRICTE DE DOUBLONS (Case-insensitive)
                   int existingIdx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
 
                   setState(() {
@@ -546,7 +547,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                     String team = role != null ? GameLogic.getTeamForRole(role) : "village";
 
                     if (existingIdx != -1) {
-                      // MISE À JOUR (Pas de duplication)
                       widget.players[existingIdx].isPlaying = true;
                       widget.players[existingIdx].isAlive = true;
                       if (role != null) {
@@ -555,7 +555,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                         widget.players[existingIdx].isRoleLocked = true;
                       }
                     } else {
-                      // CRÉATION
                       Player newP = Player(name: cleanName, isPlaying: true);
                       if (role != null) {
                         newP.role = role;
@@ -711,7 +710,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                          onPressed: _goToVote,
+                          onPressed: _handleVoteNavigation,
                           icon: const Icon(Icons.how_to_vote, color: Colors.white),
                           label: const Text("VOTE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),

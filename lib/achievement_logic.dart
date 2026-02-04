@@ -9,15 +9,13 @@ class AchievementLogic {
   static List<String> _traitorsThisTurn = [];
   static final Map<String, int> _shockTracker = {};
 
-  // Suivi local pour "Un choix cornélien" (car Set dans Player masque les doublons)
+  // Suivi local pour "Un choix cornélien"
   static final Map<String, bool> _cornellienFailed = {};
 
   // ==========================================================
   // 1. MÉTHODE PUBLIQUE POUR VÉRIFICATION EN COURS DE JEU
   // ==========================================================
 
-  /// À appeler n'importe quand pendant la partie (ex: après une action, au réveil).
-  /// Vérifie les succès d'état (ex: "Avoir X balles", "Utiliser X fois le pouvoir").
   static Future<void> checkMidGameAchievements(BuildContext context, List<Player> allPlayers) async {
     // On lance le scan avec winnerRole = null (partie pas finie)
     await _evaluateGenericAchievements(context, allPlayers, winnerRole: null);
@@ -28,15 +26,38 @@ class AchievementLogic {
   // ==========================================================
 
   static Future<void> _evaluateGenericAchievements(BuildContext context, List<Player> allPlayers, {String? winnerRole}) async {
+    debugPrint("🔍 CAPTEUR [Global Scan] : Début analyse. Vainqueur potentiel: $winnerRole");
+
     for (var p in allPlayers) {
       // 1. Construction de la fiche de stats
       Map<String, dynamic> stats = _buildPlayerStats(p, winnerRole, allPlayers);
 
-      // 2. Test de TOUTES les conditions définies dans achievement.dart
+      // --- LOGS DÉBOGAGE CIBLÉS ---
+      if (p.role?.toLowerCase().contains("archiviste") == true && winnerRole != null) {
+        debugPrint("🔍 CAPTEUR [Archiviste] ${p.name} :");
+        debugPrint("   > Role Joueur: ${stats['player_role']}");
+        debugPrint("   > Team Joueur: '${stats['team']}' (Attendu: 'solo')");
+        debugPrint("   > Role Vainqueur: '$winnerRole' (Attendu: 'ARCHIVISTE' ou 'SOLO')");
+      }
+
+      if (p.role?.toLowerCase().contains("ron-aldo") == true || p.role?.toLowerCase().contains("maison") == true || p.wasMaisonConverted) {
+        if (stats['ramenez_la_coupe'] == true) {
+          debugPrint("🔍 CAPTEUR [Coupe Maison] ${p.name} : FLAG ACTIF (Succès devrait tomber)");
+        }
+      }
+
+      if (winnerRole != null && p.isAlive) {
+        bool valid = stats['choix_cornelien_valid'];
+        if (!valid) {
+          debugPrint("🔍 CAPTEUR [Cornélien] ${p.name} : ÉCHEC. Historique: ${p.votedAgainstHistory}");
+        }
+      }
+      // -----------------------------
+
+      // 2. Test de TOUTES les conditions
       for (var achievement in AchievementData.allAchievements) {
         try {
           if (achievement.checkCondition(stats)) {
-            // Déblocage avec pop-up immédiat
             await TrophyService.checkAndUnlockImmediate(
               context: context,
               playerName: p.name,
@@ -45,37 +66,32 @@ class AchievementLogic {
             );
           }
         } catch (e) {
-          // Ignorer les erreurs de check pour ne pas bloquer le jeu
+          // Ignorer les erreurs
         }
       }
     }
   }
 
   static Map<String, dynamic> _buildPlayerStats(Player p, String? winnerRole, List<Player> allPlayers) {
+    bool hasDuplicateVotes = p.votedAgainstHistory.length != p.votedAgainstHistory.toSet().length;
+
     return {
-      // --- INFOS DE BASE ---
       'player_role': p.role,
       'is_player_alive': p.isAlive,
       'winner_role': winnerRole,
       'turn_count': globalTurnNumber,
       'is_wolf_faction': p.team == "loups",
-      'team': p.team, // Ajouté pour "Cha cha real smooth"
-
-      // --- COMPTEURS D'ÉQUIPES ---
+      'team': p.team,
       'roles': {
         'VILLAGE': p.team == "village" ? 1 : 0,
         'LOUPS-GAROUS': p.team == "loups" ? 1 : 0,
         'SOLO': p.team == "solo" ? 1 : 0,
       },
       'wolves_alive_count': allPlayers.where((pl) => pl.team == "loups" && pl.isAlive).length,
-
-      // --- STATS LOUPS ---
-      'wolves_night_kills': wolvesNightKills, // Cumul global des kills de nuit
+      'wolves_night_kills': wolvesNightKills,
       'no_friendly_fire_vote': !wolfVotedWolf,
       'evolved_hunger_achieved': evolvedHungerAchieved,
       'chaman_sniper_achieved': chamanSniperAchieved,
-
-      // --- STATS SPÉCIFIQUES RÔLES ---
       'paradox_achieved': paradoxAchieved,
       'pokemon_died_t1': pokemonDiedTour1,
       'totalVotesReceivedDuringGame': p.totalVotesReceivedDuringGame,
@@ -91,24 +107,19 @@ class AchievementLogic {
       'quiche_saved_count': quicheSavedThisNight,
       'houstonApollo13Triggered': p.houstonApollo13Triggered,
       'maison_hosted_wolf': false,
-      'hosted_enemies_count': p.hostedEnemiesCount, // Pour "Epstein House"
+      'hosted_enemies_count': p.hostedEnemiesCount,
       'tardos_suicide': p.tardosSuicide,
       'traveler_killed_wolf': p.travelerKilledWolf,
       'was_revived': p.wasRevivedInThisGame,
-      // 'time_master_used_power': RETIRÉ
-      // 'max_simultaneous_curses': RETIRÉ
-      'pantin_clutch_triggered': p.pantinClutchTriggered,
+      'pantinClutchTriggered': p.pantinClutchTriggered,
       'canaclean_present': p.canacleanPresent,
-
-      // --- RON-ALDO & FANS ---
       'is_fan': p.isFanOfRonAldo,
       'ultimate_fan_action': false,
       'is_fan_sacrifice': false,
-
-      // --- MAISON & DIVERS ---
+      'ramenez_la_coupe': p.wasMaisonConverted,
       'house_collapsed': false,
       'is_first_blood': false,
-      'choix_cornelien_valid': p.isAlive && !(_cornellienFailed[p.name] ?? false),
+      'choix_cornelien_valid': p.isAlive && !hasDuplicateVotes,
     };
   }
 
@@ -119,7 +130,8 @@ class AchievementLogic {
   static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) async {
     if (winners.isEmpty) return;
 
-    // Déduction du Vainqueur
+    debugPrint("🏁 CAPTEUR [EndGame] : Calcul des succès de fin.");
+
     String winnerRole = "VILLAGE";
     if (winners.any((p) => p.team == "loups")) {
       winnerRole = "LOUPS-GAROUS";
@@ -132,17 +144,17 @@ class AchievementLogic {
         winnerRole = "MAÎTRE DU TEMPS";
       } else if (winners.any((p) => p.role?.toLowerCase() == "phyl")) {
         winnerRole = "PHYL";
-      } else if (winners.any((p) => p.role?.toLowerCase() == "archiviste")) { // Gestion Solo Archiviste
+      } else if (winners.any((p) => p.role?.toLowerCase() == "archiviste")) {
         winnerRole = "ARCHIVISTE";
       } else {
         winnerRole = winners.first.role?.toUpperCase() ?? "SOLO";
       }
     }
 
-    // 1. Scan Générique Complet (incluant conditions de victoire)
+    debugPrint("🏆 CAPTEUR [EndGame] : WinnerRole déduit -> $winnerRole");
+
     await _evaluateGenericAchievements(context, allPlayers, winnerRole: winnerRole);
 
-    // 2. Checks Spéciaux Supplémentaires (au cas où)
     for (var p in winners) {
       await _safeUnlock(p.name, "first_win");
       if (p.team == "village") await _safeUnlock(p.name, "village_hero");
@@ -172,16 +184,13 @@ class AchievementLogic {
   }
 
   // ==========================================================
-  // 4. ÉVÉNEMENTS MANUELS (CONTEXT REQUIS POUR POP-UP)
+  // 4. ÉVÉNEMENTS MANUELS
   // ==========================================================
 
-  // Appeler cette méthode lors de chaque vote validé
   static void trackVote(Player voter, Player target) {
-    // Si le joueur a déjà voté pour cette cible par le passé
-    if (voter.votedAgainstHistory.contains(target.name)) {
-      _cornellienFailed[voter.name] = true;
-    }
+    debugPrint("🗳️ CAPTEUR [Vote] : ${voter.name} vote pour ${target.name}.");
     voter.votedAgainstHistory.add(target.name);
+    debugPrint("   > Historique actuel: ${voter.votedAgainstHistory}");
   }
 
   static void checkDeathAchievements(BuildContext? context, Player victim, List<Player> allPlayers) {
@@ -189,12 +198,7 @@ class AchievementLogic {
 
     if ((roleLower == "pokémon" || roleLower == "pokemon") && globalTurnNumber == 1) {
       if (context != null) {
-        TrophyService.checkAndUnlockImmediate(
-          context: context,
-          playerName: victim.name,
-          achievementId: "pokemon_fail",
-          checkData: {'pokemon_died_t1': true, 'player_role': 'Pokémon'},
-        );
+        TrophyService.checkAndUnlockImmediate(context: context, playerName: victim.name, achievementId: "pokemon_fail", checkData: {'pokemon_died_t1': true, 'player_role': 'Pokémon'});
       } else {
         _safeUnlock(victim.name, "pokemon_fail");
       }
@@ -202,79 +206,48 @@ class AchievementLogic {
 
     if (roleLower == "maison" && globalTurnNumber == 1) {
       if (context != null) {
-        TrophyService.checkAndUnlockImmediate(
-          context: context,
-          playerName: victim.name,
-          achievementId: "house_fast_death",
-          checkData: {'turn_count': 1, 'player_role': 'Maison', 'death_cause': 'direct_hit'},
-        );
+        TrophyService.checkAndUnlockImmediate(context: context, playerName: victim.name, achievementId: "house_fast_death", checkData: {'turn_count': 1, 'player_role': 'Maison', 'death_cause': 'direct_hit'});
       }
     }
   }
 
   static void checkHouseCollapse(BuildContext context, Player houseOwner) {
-    TrophyService.checkAndUnlockImmediate(
-      context: context,
-      playerName: houseOwner.name,
-      achievementId: "house_collapse",
-      checkData: {'house_collapsed': true},
-    );
+    TrophyService.checkAndUnlockImmediate(context: context, playerName: houseOwner.name, achievementId: "house_collapse", checkData: {'house_collapsed': true});
   }
 
   static void checkFirstBlood(BuildContext context, Player victim) {
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
-      TrophyService.checkAndUnlockImmediate(
-        context: context,
-        playerName: victim.name,
-        achievementId: "first_blood",
-        checkData: {'is_first_blood': true},
-      );
+      TrophyService.checkAndUnlockImmediate(context: context, playerName: victim.name, achievementId: "first_blood", checkData: {'is_first_blood': true});
     }
   }
 
   static void recordRevive(Player revivedPlayer) {
-    if (revivedPlayer.role?.toLowerCase() == "pokémon" || revivedPlayer.role?.toLowerCase() == "pokemon") {
+    if (revivedPlayer.role?.toLowerCase().contains("pok") == true) {
       revivedPlayer.wasRevivedInThisGame = true;
     }
   }
 
   static void checkApollo13(BuildContext context, Player houston, Player p1, Player p2) {
     bool teamsAreDifferent = (p1.team != p2.team);
-
     if (teamsAreDifferent) {
       bool p1NotVillage = p1.team != "village";
       bool p2NotVillage = p2.team != "village";
-
       if (p1NotVillage && p2NotVillage) {
         houston.houstonApollo13Triggered = true;
-        debugPrint("🚀 LOG [Achievement] : APOLLO 13 validé pour ${houston.name} !");
-
-        TrophyService.checkAndUnlockImmediate(
-          context: context,
-          playerName: houston.name,
-          achievementId: "apollo_13",
-          checkData: {'houstonApollo13Triggered': true},
-        );
+        debugPrint("🚀 CAPTEUR [Achievement] : APOLLO 13 validé pour ${houston.name} !");
+        TrophyService.checkAndUnlockImmediate(context: context, playerName: houston.name, achievementId: "apollo_13", checkData: {'houstonApollo13Triggered': true});
       }
     }
   }
 
   static void checkParkingShot(BuildContext? context, Player dingo, Player victim, List<Player> allPlayers) {
     if (dingo.role?.toLowerCase() != "dingo") return;
-
     bool isEnemy = (victim.team == "loups" || victim.team == "solo");
-
     if (isEnemy) {
-      bool otherEnemiesAlive = allPlayers.any((p) =>
-      p.isAlive &&
-          p.name != victim.name &&
-          p.name != dingo.name &&
-          (p.team == "loups" || p.team == "solo")
-      );
-
+      bool otherEnemiesAlive = allPlayers.any((p) => p.isAlive && p.name != victim.name && p.name != dingo.name && (p.team == "loups" || p.team == "solo"));
       if (!otherEnemiesAlive) {
-        debugPrint("🎯 LOG [Achievement] : Condition Tir du Parking remplie.");
+        debugPrint("🎯 CAPTEUR [Achievement] : Condition Tir du Parking remplie.");
         dingo.parkingShotUnlocked = true;
         parkingShotUnlocked = true;
         if (context != null) {
@@ -288,11 +261,13 @@ class AchievementLogic {
     checkParkingShot(null, dingo, victim, allPlayers);
   }
 
+  // --- CORRECTION CRITIQUE : FAN ULTIME ---
   static void checkFanSacrifice(BuildContext context, Player victim, Player savedPlayer) {
     bool isFan = victim.isFanOfRonAldo;
     bool isRonAldoSaved = savedPlayer.role?.toLowerCase() == "ron-aldo";
 
     if (isFan && isRonAldoSaved) {
+      // 1. Succès Garde du Corps (Toujours vrai si sacrifice)
       TrophyService.checkAndUnlockImmediate(
         context: context,
         playerName: victim.name,
@@ -300,65 +275,52 @@ class AchievementLogic {
         checkData: {'sacrificed': true},
       );
 
-      bool ronAldoSelfVoted = false;
-      if (savedPlayer.targetVote != null && savedPlayer.targetVote!.name == savedPlayer.name) {
-        ronAldoSelfVoted = true;
+      debugPrint("🛡️ CAPTEUR [Sacrifice] : ${victim.name} (Fan) s'est sacrifié.");
+
+      // 2. Succès Fan Ultime :
+      // La condition est : Le FAN (Victim) a voté contre RON-ALDO (SavedPlayer)
+      // C'est ce qui constitue la "trahison pardonnée" par le sacrifice.
+      bool fanVotedAgainstRonAldo = false;
+      if (victim.targetVote != null && victim.targetVote!.name == savedPlayer.name) {
+        fanVotedAgainstRonAldo = true;
       }
 
-      if (ronAldoSelfVoted) {
+      if (fanVotedAgainstRonAldo) {
+        debugPrint("🏆 CAPTEUR [Fan Ultime] : ${victim.name} a trahi Ron-Aldo puis est mort pour lui !");
         TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: victim.name,
           achievementId: "ultimate_fan",
           checkData: {'ultimate_fan_action': true},
         );
+      } else {
+        debugPrint("ℹ️ CAPTEUR [Fan Ultime] : Echec. Le fan n'avait pas voté contre Ron-Aldo (${victim.targetVote?.name}).");
       }
     }
   }
 
-  // --- CORRECTION FRINGALE NOCTURNE ---
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
     if (votedPlayer.hasSurvivedWolfBite) {
       evolvedHungerAchieved = true;
-      debugPrint("🩸 LOG [Achievement] : Condition Fringale Nocturne remplie.");
-
+      debugPrint("🩸 CAPTEUR [Achievement] : Condition Fringale Nocturne remplie.");
       for (var p in allPlayers) {
-        if (p.team == "loups") { // Pas de check p.isAlive, succès d'équipe
-          TrophyService.checkAndUnlockImmediate(
-            context: context,
-            playerName: p.name,
-            achievementId: "evolved_hunger",
-            checkData: {
-              'is_wolf_faction': true,
-              'evolved_hunger_achieved': true
-            },
-          );
+        if (p.team == "loups") {
+          TrophyService.checkAndUnlockImmediate(context: context, playerName: p.name, achievementId: "evolved_hunger", checkData: {'is_wolf_faction': true, 'evolved_hunger_achieved': true});
         }
       }
-
       _evaluateGenericAchievements(context, allPlayers);
     }
   }
 
   static void checkDevinAchievements(BuildContext context, Player devin) {
     if (devin.hasRevealedSamePlayerTwice) {
-      TrophyService.checkAndUnlockImmediate(
-        context: context,
-        playerName: devin.name,
-        achievementId: "double_check_devin",
-        checkData: {'devin_revealed_same_twice': true},
-      );
+      TrophyService.checkAndUnlockImmediate(context: context, playerName: devin.name, achievementId: "double_check_devin", checkData: {'devin_revealed_same_twice': true});
     }
   }
 
   static void checkBledAchievements(BuildContext context, Player bled, int totalPlayers) {
     if (bled.protectedPlayersHistory.length >= (totalPlayers - 1)) {
-      TrophyService.checkAndUnlockImmediate(
-        context: context,
-        playerName: bled.name,
-        achievementId: "bled_all_covered",
-        checkData: {'bled_protected_everyone': true},
-      );
+      TrophyService.checkAndUnlockImmediate(context: context, playerName: bled.name, achievementId: "bled_all_covered", checkData: {'bled_protected_everyone': true});
     }
   }
 
@@ -371,12 +333,7 @@ class AchievementLogic {
         if (allSameTeamAndAlive) {
           p.canacleanPresent = true;
           if (context != null) {
-            TrophyService.checkAndUnlockImmediate(
-              context: context,
-              playerName: p.name,
-              achievementId: "canaclean",
-              checkData: {'canaclean_present': true},
-            );
+            TrophyService.checkAndUnlockImmediate(context: context, playerName: p.name, achievementId: "canaclean", checkData: {'canaclean_present': true});
           }
         }
       }
@@ -384,12 +341,7 @@ class AchievementLogic {
   }
 
   static void checkWelcomeWolf(BuildContext context, Player maison) {
-    TrophyService.checkAndUnlockImmediate(
-      context: context,
-      playerName: maison.name,
-      achievementId: "welcome_wolf",
-      checkData: {'maison_hosted_wolf': true},
-    );
+    TrophyService.checkAndUnlockImmediate(context: context, playerName: maison.name, achievementId: "welcome_wolf", checkData: {'maison_hosted_wolf': true});
   }
 
   static void checkTraitorFan(BuildContext context, Player voter, Player target) {
@@ -397,81 +349,44 @@ class AchievementLogic {
     if (voter.isFanOfRonAldo && (targetRole == "RON-ALDO" || targetRole == "RON ALDO")) {
       if (!_traitorsThisTurn.contains(voter.name)) {
         _traitorsThisTurn.add(voter.name);
-        debugPrint("🐍 LOG [Achievement] : Fan Traître détecté -> ${voter.name}");
+        debugPrint("🐍 CAPTEUR [Achievement] : Fan Traître détecté -> ${voter.name}");
       }
     }
   }
 
   static void checkTardosOups(BuildContext context, Player tardos) {
     if (tardos.tardosSuicide) {
-      TrophyService.checkAndUnlockImmediate(
-        context: context,
-        playerName: tardos.name,
-        achievementId: "tardos_oups",
-        checkData: {'tardos_suicide': true},
-      );
+      TrophyService.checkAndUnlockImmediate(context: context, playerName: tardos.name, achievementId: "tardos_oups", checkData: {'tardos_suicide': true});
     }
   }
 
   static void checkClutchManual(BuildContext context, Player pantin) {
-    TrophyService.checkAndUnlockImmediate(
-      context: context,
-      playerName: pantin.name,
-      achievementId: "pantin_clutch",
-      checkData: {'pantin_clutch_triggered': true},
-    );
+    TrophyService.checkAndUnlockImmediate(context: context, playerName: pantin.name, achievementId: "pantin_clutch", checkData: {'pantin_clutch_triggered': true});
   }
 
-  // --- CORRECTION ARCHIVISTE (CLÉ PAR JOUEUR) ---
   static Future<void> checkArchivisteEndGame(BuildContext context, Player p) async {
     if (p.role?.toLowerCase() != "archiviste") return;
-
-    const Set<String> requiredPowers = {
-      "mute",
-      "cancel_vote",
-      "scapegoat",
-      "transcendance_start"
-    };
-
+    const Set<String> requiredPowers = {"mute", "cancel_vote", "scapegoat", "transcendance_start"};
     final Set<String> usedThisGame = p.archivisteActionsUsed.toSet();
 
-    // LE ROI DU CDI
+    debugPrint("📚 CAPTEUR [Archiviste] : Pouvoirs utilisés par ${p.name}: $usedThisGame");
+
     if (usedThisGame.containsAll(requiredPowers)) {
-      await TrophyService.checkAndUnlockImmediate(
-        context: context,
-        playerName: p.name,
-        achievementId: "archiviste_king",
-        checkData: {'archiviste_king_qualified': true},
-      );
+      await TrophyService.checkAndUnlockImmediate(context: context, playerName: p.name, achievementId: "archiviste_king", checkData: {'archiviste_king_qualified': true});
     }
 
-    // LE PRINCE DU CDI
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      // CLÉ UNIQUE : archiviste_powers_history_PSEUDO
       String historyKey = "archiviste_powers_history_${p.name}";
-
       List<String> historyList = prefs.getStringList(historyKey) ?? [];
       Set<String> historySet = historyList.toSet();
-
       historySet.addAll(usedThisGame);
       await prefs.setStringList(historyKey, historySet.toList());
-
       if (historySet.containsAll(requiredPowers)) {
-        await TrophyService.checkAndUnlockImmediate(
-          context: context,
-          playerName: p.name,
-          achievementId: "archiviste_prince",
-          checkData: {'archiviste_prince_qualified': true},
-        );
+        await TrophyService.checkAndUnlockImmediate(context: context, playerName: p.name, achievementId: "archiviste_prince", checkData: {'archiviste_prince_qualified': true});
       }
-    } catch (e) {
-      debugPrint("⚠️ Erreur check Prince du CDI : $e");
-    }
+    } catch (e) { debugPrint("⚠️ Erreur check Prince du CDI : $e"); }
   }
-
-  // --- UTILITAIRES ---
 
   static void updateVoyageur(Player voyageur) {
     if (voyageur.isInTravel) {
@@ -481,8 +396,6 @@ class AchievementLogic {
       }
     }
   }
-
-  // NETTOYAGE : checkPantinCurses supprimé
 
   static void recordPhylChange(Player phyl) {
     phyl.roleChangesCount++;
@@ -498,7 +411,7 @@ class AchievementLogic {
     debugPrint("🔄 LOG [Achievement] : RESET COMPLET DES SUCCÈS.");
     _traitorsThisTurn.clear();
     _shockTracker.clear();
-    _cornellienFailed.clear(); // Reset suivi Cornellien
+    _cornellienFailed.clear();
     anybodyDeadYet = false;
     pokemonDiedTour1 = false;
     chamanSniperAchieved = false;
