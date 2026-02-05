@@ -21,27 +21,38 @@ class _PickBanScreenState extends State<PickBanScreen> {
   }
 
   void _initializeLists() {
+    // Liste complète des rôles Villageois (Incluant les nouveaux)
     final allVillage = [
       "Archiviste", "Devin", "Dingo", "Zookeeper", "Enculateur du bled",
-      "Exorciste", "Grand-mère", "Houston", "Maison", "Tardos", "Villageois", "Voyageur"
+      "Exorciste", "Grand-mère", "Houston", "Maison", "Tardos", "Villageois", "Voyageur",
+      "Sorcière", "Cupidon", "Voyante", "Saltimbanque", "Chasseur", "Kung-Fu Panda"
     ];
-    final allWolves = ["Loup-garou chaman", "Loup-garou évolué", "Somnifère"];
+
+    // Liste complète des rôles Loups (Incluant le classique)
+    final allWolves = [
+      "Loup-garou chaman", "Loup-garou évolué", "Somnifère"
+    ];
+
     final allSolos = ["Chuchoteur", "Maître du temps", "Pantin", "Phyl", "Dresseur", "Ron-Aldo"];
 
-    // CORRECTION : Le villageois n'est plus forcé à true.
-    // Il dépend uniquement de ce qui est dans globalPickBan.
+    // TRI ALPHABÉTIQUE (Pour l'affichage)
+    allVillage.sort((a, b) => a.compareTo(b));
+    allWolves.sort((a, b) => a.compareTo(b));
+    allSolos.sort((a, b) => a.compareTo(b));
+
+    // Mapping et récupération de l'état de sélection depuis globals.dart
     villageRoles = allVillage.map((name) {
-      bool selected = globalPickBan["village"]!.contains(name);
+      bool selected = globalPickBan["village"]?.contains(name) ?? false;
       return RoleItem(name, isSelected: selected);
     }).toList();
 
     wolfRoles = allWolves.map((name) {
-      bool selected = globalPickBan["loups"]!.contains(name);
+      bool selected = globalPickBan["loups"]?.contains(name) ?? false;
       return RoleItem(name, isSelected: selected);
     }).toList();
 
     soloRoles = allSolos.map((name) {
-      bool selected = globalPickBan["solo"]!.contains(name);
+      bool selected = globalPickBan["solo"]?.contains(name) ?? false;
       return RoleItem(
           name,
           isSelected: selected,
@@ -57,6 +68,7 @@ class _PickBanScreenState extends State<PickBanScreen> {
     globalPickBan["loups"] = wolfRoles.where((r) => r.isSelected).map((r) => r.name).toList();
 
     List<String> selectedSolos = soloRoles.where((r) => r.isSelected).map((r) => r.name).toList();
+    // Logique spéciale pour ajouter automatiquement le Pokémon si le Dresseur est choisi
     if (selectedSolos.contains("Dresseur")) {
       if (!selectedSolos.contains("Pokémon")) selectedSolos.add("Pokémon");
     }
@@ -76,7 +88,7 @@ class _PickBanScreenState extends State<PickBanScreen> {
             tooltip: "Réinitialiser",
             onPressed: () {
               setState(() {
-                // Reset propre : tout vide par défaut
+                // Reset propre : tout vide par défaut pour permettre une sélection personnalisée
                 globalPickBan["village"] = [];
                 globalPickBan["loups"] = [];
                 globalPickBan["solo"] = [];
@@ -146,7 +158,6 @@ class _PickBanScreenState extends State<PickBanScreen> {
         final role = roles[index];
         return GestureDetector(
           onTap: () {
-            // CORRECTION : On a retiré le blocage qui empêchait de décocher le Villageois.
             setState(() {
               role.isSelected = !role.isSelected;
             });
@@ -195,5 +206,5 @@ class RoleItem {
   final String name;
   final String? displayName;
   bool isSelected;
-  RoleItem(this.name, {this.isSelected = false, this.displayName}); // false par défaut
+  RoleItem(this.name, {this.isSelected = false, this.displayName});
 }

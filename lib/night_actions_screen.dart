@@ -6,7 +6,7 @@ import 'logic.dart';
 import 'night_actions_logic.dart';
 import 'game_save_service.dart';
 import 'night_interfaces/role_action_dispatcher.dart';
-import 'achievement_logic.dart'; // AJOUTÉ
+import 'achievement_logic.dart';
 import 'fin.dart';
 
 class NightActionsScreen extends StatefulWidget {
@@ -30,9 +30,10 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     debugPrint("--------------------------------------------------");
     debugPrint("🌑 LOG [NightScreen] : Ouverture de la Nuit $globalTurnNumber");
 
-    // PHASE 0 : PRÉ-RÉSOLUTION
+    // PHASE 0 : PRÉ-RÉSOLUTION (Bombes, poisons...)
     NightActionsLogic.prepareNightStates(widget.players);
 
+    // Reset visuel des sélections
     for (var p in widget.players) {
       p.isSelected = false;
     }
@@ -41,7 +42,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   }
 
   // ==========================================================
-  // LOGIQUE DE NAVIGATION ET FILTRAGE
+  // LOGIQUE DE NAVIGATION ET FILTRAGE DES RÔLES
   // ==========================================================
 
   void _checkSkipAction() {
@@ -51,40 +52,58 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     }
 
     final action = nightActionsOrder[currentActionIndex];
+    final roleName = action.role;
 
-    // Phyl n'agit qu'à la Nuit 1
-    if (action.role == "Phyl" && globalTurnNumber > 1) {
+    // --- RÈGLES DE SKIP SPÉCIALES ---
+
+    // 1. Phyl : Nuit 1 seulement
+    if (roleName == "Phyl" && globalTurnNumber > 1) {
       debugPrint("⏭️ LOG [Skip] : Phyl (Action réservée à la Nuit 1).");
+      _nextAction();
+      return;
+    }
+
+    // 2. Cupidon : Nuit 1 seulement
+    if (roleName == "Cupidon" && globalTurnNumber > 1) {
+      debugPrint("⏭️ LOG [Skip] : Cupidon (Action réservée à la Nuit 1).");
       _nextAction();
       return;
     }
 
     bool shouldWakeUp = false;
 
-    if (action.role == "Loups-garous évolués") {
+    // 3. Gestion des groupes (Loups)
+    if (roleName == "Loups-garous évolués") {
+      // Les loups se réveillent s'il y a au moins un loup vivant
       shouldWakeUp = widget.players.any((p) => p.isAlive && p.isWolf);
-    } else if (action.role == "Dresseur") {
+    }
+    // 4. Gestion Dresseur / Pokémon
+    else if (roleName == "Dresseur") {
       shouldWakeUp = widget.players.any((p) =>
       (p.role?.toLowerCase() == "dresseur" ||
           p.role?.toLowerCase() == "pokémon") &&
           p.isAlive);
-    } else {
+    }
+    // 5. Gestion Générique (Optimisation ici : remplace les multiples if/else)
+    else {
       shouldWakeUp = widget.players.any((p) {
         final r = p.role?.toLowerCase() ?? "";
-        final a = action.role.toLowerCase();
+        final a = roleName.toLowerCase();
 
         if (r != a || !p.isAlive) return false;
 
+        // Conditions spécifiques aux rôles à charges ou tours
         if (a == "somnifère") return p.somnifereUses > 0;
         if (a == "houston") return (globalTurnNumber % 2 != 0); // Impair
         if (a == "exorciste") return (globalTurnNumber == 2);
 
+        // Pour tous les autres (Sorcière, Voyante, etc.), ils se réveillent s'ils sont vivants
         return true;
       });
     }
 
     if (!shouldWakeUp) {
-      debugPrint("⏭️ LOG [Skip] : Aucun acteur éligible pour ${action.role}.");
+      debugPrint("⏭️ LOG [Skip] : Aucun acteur éligible pour $roleName.");
       Future.microtask(() => _nextAction());
     }
   }
@@ -92,8 +111,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   void _nextAction() {
     if (!mounted) return;
 
-    // --- AJOUT : Vérification Mid-Game après chaque rôle ---
-    // Permet de débloquer des succès comme "Mauvais tireur" immédiatement après l'action
+    // Vérification Mid-Game après chaque rôle (débloque certains succès immédiatement)
     AchievementLogic.checkMidGameAchievements(context, widget.players);
 
     for (var p in widget.players) {
@@ -116,6 +134,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
     debugPrint("🧪 LOG [Résolution] : Calcul final de la nuit.");
 
+    // Résolution logique des morts (Loups, Sorcière, etc.)
     final result = NightActionsLogic.resolveNight(
       context,
       widget.players,
@@ -124,12 +143,12 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       exorcistSuccess: (_exorcismeResult == "success"),
     );
 
-    // --- CORRECTION : DÉTECTION VICTOIRE EXORCISTE ---
     if (result.exorcistVictory) {
       debugPrint("🏆 LOG [NightScreen] : L'exorciste a réussi son mime !");
       exorcistWin = true;
     }
 
+    // Son de réveil (Oiseau si calme, Cloche si morts)
     playSfx((result.deadPlayers.isEmpty && !result.villageIsNarcoleptic)
         ? "oiseau.mp3"
         : "cloche.mp3");
@@ -154,14 +173,18 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       actor = widget.players.firstWhere((p) =>
       p.role?.toLowerCase() == action.role.toLowerCase() && p.isAlive);
     } catch (_) {
+      // Fallback pour les groupes (Loups) ou si erreur
       actor = widget.players.firstWhere((p) => p.isWolf && p.isAlive,
           orElse: () => Player(name: "Inconnu"));
     }
 
+    String title = "NUIT $globalTurnNumber - ${action.role.toUpperCase()}";
+    if (action.role.contains("Loup")) title = "NUIT $globalTurnNumber - LOUPS-GAROUS";
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: Text("NUIT $globalTurnNumber - ${action.role.toUpperCase()}"),
+        title: Text(title, style: const TextStyle(fontSize: 16)),
         centerTitle: true,
         automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
@@ -170,7 +193,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
         children: [
           const SizedBox(height: 10),
           Text(
-              action.role == "Loups-garous évolués"
+              action.role.contains("Loup")
                   ? "⚖️ CONSEIL DES LOUPS"
                   : "🎭 AU TOUR DE : ${formatPlayerName(actor.name)}",
               style: const TextStyle(
@@ -186,6 +209,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                       color: Colors.white70, fontStyle: FontStyle.italic))),
           const Divider(
               color: Colors.white10, thickness: 1, indent: 40, endIndent: 40),
+
           Expanded(
             child: RoleActionDispatcher(
               action: action,
@@ -203,8 +227,16 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 _nextAction();
               },
               onNext: _nextAction,
-              showPopUp: (title, msg) =>
-                  _showPop(title, msg, onDismiss: _nextAction),
+              showPopUp: (title, msg) => _showPop(title, msg, onDismiss: _nextAction),
+
+              // --- CORRECTION CRITIQUE SORCIÈRE ---
+              // Permet à la potion de mort d'être enregistrée dans la liste globale des morts
+              onDirectKill: (target, reason) {
+                setState(() {
+                  pendingDeaths[target] = reason;
+                });
+                debugPrint("🩸 LOG [Action] : Mort directe enregistrée pour ${target.name} ($reason)");
+              },
             ),
           ),
         ],
@@ -233,19 +265,32 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
   }
 
   void _showMorningPopup(NightResult result) {
-    // 1. DÉTECTION DES JOUEURS MUETS (ARCHIVISTE)
+    // 1. Joueurs muets (Tri Alphabétique)
     List<String> mutedPlayers = widget.players
         .where((p) => p.isMutedDay && p.isAlive)
         .map((p) => p.name)
         .toList();
+    mutedPlayers.sort((a, b) => a.compareTo(b));
 
-    // 2. DÉTECTION RETOUR FORCÉ VOYAGEUR
+    // 2. Retour Voyageur
     bool voyageurIntercepte = widget.players.any((p) =>
     p.role?.toLowerCase() == "voyageur" &&
         p.isAlive &&
         !p.canTravelAgain &&
-        !p.isInTravel
+        !p.isInTravel &&
+        p.hasReturnedThisTurn
     );
+
+    // 3. Kung-Fu Panda (Tri Alphabétique)
+    List<String> screamers = widget.players
+        .where((p) => p.mustScreamKungFu && p.isAlive)
+        .map((p) => p.name)
+        .toList();
+    screamers.sort((a, b) => a.compareTo(b));
+
+    // 4. Liste des morts (Tri Alphabétique pour l'affichage)
+    List<Player> sortedDeadPlayers = List.from(result.deadPlayers);
+    sortedDeadPlayers.sort((a, b) => a.name.compareTo(b.name));
 
     showDialog(
       context: context,
@@ -256,9 +301,7 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           children: [
             Icon(Icons.wb_sunny, color: Colors.orangeAccent),
             SizedBox(width: 10),
-            Expanded(
-              child: Text("LE VILLAGE SE RÉVEILLE", style: TextStyle(color: Colors.white)),
-            ),
+            Expanded(child: Text("LE VILLAGE SE RÉVEILLE", style: TextStyle(color: Colors.white))),
           ],
         ),
         content: SingleChildScrollView(
@@ -268,85 +311,60 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
             children: [
 
               if (result.exorcistVictory)
-                const Column(
-                  children: [
-                    Icon(Icons.emoji_events, color: Colors.amber, size: 50),
-                    SizedBox(height: 10),
-                    Text(
-                        "L'EXORCISME A RÉUSSI !\nLe village est purifié et gagne immédiatement !",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Colors.amberAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18)),
-                  ],
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 20),
+                  child: Text(
+                      "L'EXORCISME A RÉUSSI !\nLe village est purifié et gagne immédiatement !",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
                 ),
 
               if (!result.exorcistVictory && result.announcements.isNotEmpty) ...[
                 const Text("📢 ANNONCES SPÉCIALES :", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                ...result.announcements.map((msg) => Text("- $msg", style: const TextStyle(color: Colors.white70))),
+                const Divider(color: Colors.white24),
+              ],
+
+              if (screamers.isNotEmpty) ...[
+                const Text("🐼 DÉFI DU PANDA :", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
-                ...result.announcements.map((msg) => Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 8),
+                Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.blueAccent.withOpacity(0.15),
+                    color: Colors.black45,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blueAccent.withOpacity(0.4)),
+                    border: Border.all(color: Colors.white24),
                   ),
-                  child: Text(msg, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                )),
-                const Divider(color: Colors.white24, height: 20),
-              ],
-
-              if (!result.exorcistVictory && voyageurIntercepte) ...[
-                const Text("🛑 RETOUR FORCÉ :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 5),
-                const Text(
-                    "Le Voyageur a été attaqué durant son périple !\nIl a survécu mais a dû rentrer en urgence. Il ne pourra plus repartir.",
-                    style: TextStyle(color: Colors.white70, fontSize: 13, fontStyle: FontStyle.italic)),
-                const Divider(color: Colors.white24, height: 20),
-              ],
-
-              if (!result.exorcistVictory && mutedPlayers.isNotEmpty) ...[
-                const Text("🤐 SILENCE IMPOSÉ :", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 5),
-                ...mutedPlayers.map((name) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4.0),
                   child: Text(
-                      "- $name ne peut pas parler aujourd'hui.",
-                      style: const TextStyle(color: Colors.white70, fontSize: 13, fontStyle: FontStyle.italic)),
-                )),
+                      "${screamers.join(", ")} doit crier :\n\"KUNG-FU PANDA !\"",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)
+                  ),
+                ),
                 const Divider(color: Colors.white24, height: 20),
               ],
 
-              if (!result.exorcistVictory && result.villageIsNarcoleptic)
-                const Text("💤 Village KO (Somnifère) !\nPersonne n'est mort, mais personne ne pourra parler.",
-                    style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+              if (voyageurIntercepte) ...[
+                const Text("🛑 RETOUR FORCÉ :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                const Text("Le Voyageur a dû rentrer. Il ne repartira plus.", style: TextStyle(color: Colors.white70)),
+                const Divider(color: Colors.white24),
+              ],
 
-              if (!result.exorcistVictory && !result.villageIsNarcoleptic) ...[
-                if (result.deadPlayers.isEmpty)
+              if (mutedPlayers.isNotEmpty) ...[
+                const Text("🤐 SILENCE :", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                Text("${mutedPlayers.join(", ")} ne peut pas parler.", style: const TextStyle(color: Colors.white70)),
+                const Divider(color: Colors.white24),
+              ],
+
+              if (result.villageIsNarcoleptic)
+                const Text("💤 Village KO (Somnifère) !\nPersonne ne meurt, personne ne parle.", style: TextStyle(color: Colors.purpleAccent)),
+
+              if (!result.villageIsNarcoleptic) ...[
+                if (sortedDeadPlayers.isEmpty)
                   const Text("🕊️ Personne n'est mort cette nuit.", style: TextStyle(color: Colors.greenAccent))
                 else ...[
                   const Text("💀 DÉCÈS :", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  ...result.deadPlayers.map((p) {
-                    // --- AJOUT INFO POKÉMON ---
-                    String info = "- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}";
-
-                    if ((p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.pokemonRevengeTarget != null) {
-                      var target = p.pokemonRevengeTarget!;
-                      // Si la cible est aussi dans la liste des morts de cette nuit
-                      if (result.deadPlayers.any((dead) => dead.name == target.name)) {
-                        info += "\n  ⚡ A emporté ${target.name} !";
-                      }
-                    }
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text(info, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                    );
-                  }),
+                  ...sortedDeadPlayers.map((p) => Text("- ${p.name} (${p.role})\n  ${result.deathReasons[p.name]}", style: const TextStyle(color: Colors.white70))),
                 ],
               ],
             ],
@@ -356,37 +374,26 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
             onPressed: () async {
+              // Fin du jeu immédiate si exorciste
               if (result.exorcistVictory) {
-                exorcistWin = true;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)),
-                      (route) => false,
-                );
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.players)), (route) => false);
                 return;
               }
 
-              if (result.revealedPlayerNames.isNotEmpty) {
-                debugPrint("👁️ LOG [Devin] : Mise à jour des icônes pour ${result.revealedPlayerNames}");
-                for (String name in result.revealedPlayerNames) {
-                  try {
-                    var p = widget.players.firstWhere((pl) => pl.name == name);
-                    p.isRevealedByDevin = true;
-                  } catch (_) {}
-                }
+              // Application des révélations Devin
+              for (String name in result.revealedPlayerNames) {
+                try {
+                  widget.players.firstWhere((pl) => pl.name == name).isRevealedByDevin = true;
+                } catch (_) {}
               }
 
-              // --- AJOUT : Vérification Mid-Game au réveil (Survie, etc.) ---
               await AchievementLogic.checkMidGameAchievements(context, widget.players);
-
-              setState(() {
-                isDayTime = true;
-              });
+              setState(() => isDayTime = true);
               await GameSaveService.saveGame();
 
               if (mounted) {
                 Navigator.pop(ctx);
-                Navigator.pop(context);
+                Navigator.pop(context); // Retour au GameMenu
               }
             },
             child: const Text("VOIR LE VILLAGE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),

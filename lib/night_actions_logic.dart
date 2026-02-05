@@ -298,6 +298,13 @@ class NightActionsLogic {
       pendingDeathsMap.forEach((target, reason) {
         if (!target.isAlive) return;
 
+        // --- PROTECTION SORCIÈRE (VIE) ---
+        // Si le joueur a été sauvé par la potion de vie (flag global), on annule la morsure
+        if ((reason.contains("Morsure") || reason.contains("Attaque des Loups")) && nightWolvesTargetSurvived) {
+          debugPrint("🧪 LOG [Sorcière] : ${target.name} a été ressuscité par la potion.");
+          return; // Annulation de la mort
+        }
+
         if (target.isAwayAsMJ) {
           debugPrint("🛡️ LOG [Archiviste] : Attaque sur Archiviste annulée (Absent).");
           return;
@@ -330,6 +337,13 @@ class NightActionsLogic {
             nightWolvesTargetSurvived = true;
           }
 
+          return;
+        }
+
+        // --- PROTECTION SALTIMBANQUE ---
+        if (target.isProtectedBySaltimbanque && !isUnstoppable) {
+          debugPrint("🛡️ LOG [Saltimbanque] : ${target.name} protégé cette nuit.");
+          if (reason.contains("Morsure")) nightWolvesTargetSurvived = true;
           return;
         }
 
@@ -376,20 +390,16 @@ class NightActionsLogic {
           try {
             List<Player> fans = players.where((p) => p.isFanOfRonAldo && p.isAlive).toList();
 
-            // FILTRAGE CRITIQUE : Chercher si un fan est la "Maison convertie ce tour-ci"
-            // La maison convertie (ancien rôle 'maison', nouveau 'fan') a le flag hostedRonAldoThisTurn
             Player? priorityFan;
             try {
               priorityFan = fans.firstWhere((p) => p.hostedRonAldoThisTurn);
             } catch (_) {}
 
             if (priorityFan != null) {
-              // La maison convertie passe en priorité absolue pour le sacrifice
               fans.remove(priorityFan);
               fans.insert(0, priorityFan);
               debugPrint("⚽🏆 LOG [Ron-Aldo] : La Maison convertie (${priorityFan.name}) devient prioritaire pour le sacrifice.");
             } else {
-              // Sinon, ordre classique par ancienneté
               fans.sort((a, b) => a.fanJoinOrder.compareTo(b.fanJoinOrder));
             }
 
@@ -402,19 +412,13 @@ class NightActionsLogic {
               AchievementLogic.checkDeathAchievements(context, deadFan, players);
               AchievementLogic.checkFanSacrifice(context, deadFan, target);
 
-              // CHECK SUCCÈS "RAMENEZ LA COUPE À LA MAISON"
               if (deadFan.hostedRonAldoThisTurn) {
-                debugPrint("🏆 LOG [Achievement] : Conditions 'Ramenez la coupe' remplies !");
-
-                // Succès pour le Fan (La Maison)
                 TrophyService.checkAndUnlockImmediate(
                     context: context,
                     playerName: deadFan.name,
                     achievementId: "coupe_maison",
                     checkData: {'ramenez_la_coupe': true}
                 );
-
-                // Succès pour Ron-Aldo (Le survivant)
                 TrophyService.checkAndUnlockImmediate(
                     context: context,
                     playerName: target.name,
@@ -473,7 +477,6 @@ class NightActionsLogic {
             debugPrint("🏠 LOG [Maison] : Effondrement protecteur pour ${target.name}.");
             finalDeathReasons[finalVictim.name] = "Protection de ${target.name} ($reason)";
 
-            // --- SUCCÈS : ASSURANCE HABITATION ---
             TrophyService.checkAndUnlockImmediate(
                 context: context,
                 playerName: target.name,
@@ -490,6 +493,16 @@ class NightActionsLogic {
             finalDeathReasons[finalVictim.name] = reason;
           }
           if (reason.contains("Morsure")) wolvesNightKills++;
+
+          // --- GESTION CUPIDON (MORTS LIÉES) ---
+          if (finalVictim.isLinkedByCupidon && finalVictim.lover != null) {
+            Player lover = finalVictim.lover!;
+            // Si l'amant est mort (via récursivité dans eliminatePlayer) et qu'on ne l'a pas encore noté
+            if (!lover.isAlive && !finalDeathReasons.containsKey(lover.name)) {
+              finalDeathReasons[lover.name] = "Chagrin d'amour (Lié à ${finalVictim.name})";
+            }
+          }
+
         } else {
           // Survie (ex: Pantin Immunisé, Voyageur)
           if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
@@ -541,14 +554,18 @@ class NightActionsLogic {
       p.powerActiveThisTurn = false;
       p.isProtectedByPokemon = false;
       p.hasReturnedThisTurn = false;
-      p.hostedRonAldoThisTurn = false; // Reset pour le tour suivant
+      p.hostedRonAldoThisTurn = false;
+      p.isProtectedBySaltimbanque = false; // Reset Saltimbanque
 
       if (!p.hasBeenHitByDart) p.isEffectivelyAsleep = false;
     }
 
+    // Liste finale des morts (comparaison avant/après)
+    List<Player> deadNow = players.where((p) => !p.isAlive && finalDeathReasons.containsKey(p.name)).toList();
+
     debugPrint("🏁 LOG [Logic] : Résolution terminée.");
     return NightResult(
-      deadPlayers: aliveBefore.where((p) => !p.isAlive).toList(),
+      deadPlayers: deadNow,
       deathReasons: finalDeathReasons,
       villageWasProtected: quicheIsActive,
       announcements: morningAnnouncements,

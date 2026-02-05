@@ -129,6 +129,26 @@ class Player {
   bool hasBakedQuiche;
   bool hasSavedSelfWithQuiche;
 
+  // --- NOUVEAUX RÔLES (Mise à jour demandée) ---
+
+  // SALTIMBANQUE
+  bool isProtectedBySaltimbanque;
+  Player? lastSaltimbanqueTarget;
+
+  // CUPIDON
+  bool isLinkedByCupidon;
+  Player? lover;
+
+  // SORCIÈRE
+  bool hasUsedSorciereRevive;
+  bool hasUsedSorciereKill;
+
+  // KUNG-FU PANDA
+  bool mustScreamKungFu; // Si le joueur a été ciblé par le Panda
+
+  // CHASSEUR
+  // (Pas de variable spéciale, la logique est dans eliminatePlayer)
+
   // --- STATS GLOBALES ET SUCCÈS ---
   int roleChangesCount;
   int killsThisGame;
@@ -232,6 +252,15 @@ class Player {
     this.hostedEnemiesCount = 0,
     this.isRoi = false,
 
+    // NOUVEAUX RÔLES
+    this.isProtectedBySaltimbanque = false,
+    this.lastSaltimbanqueTarget,
+    this.isLinkedByCupidon = false,
+    this.lover,
+    this.hasUsedSorciereRevive = false,
+    this.hasUsedSorciereKill = false,
+    this.mustScreamKungFu = false,
+
   }) : name = formatName(name),
         revealedPlayersHistory = revealedPlayersHistory ?? [],
         protectedPlayersHistory = protectedPlayersHistory ?? {},
@@ -294,6 +323,15 @@ class Player {
     wasMaisonConverted = false;
     hostedEnemiesCount = 0;
     isRoi = false;
+
+    // RESET RÔLES 2.0
+    isProtectedBySaltimbanque = false;
+    lastSaltimbanqueTarget = null;
+    isLinkedByCupidon = false;
+    lover = null;
+    hasUsedSorciereRevive = false;
+    hasUsedSorciereKill = false;
+    mustScreamKungFu = false;
   }
 
   void resetTemporaryStates() {
@@ -309,6 +347,10 @@ class Player {
 
     // RESET TEMPORAIRE
     hostedRonAldoThisTurn = false;
+
+    // Saltimbanque : la protection ne dure qu'une nuit
+    isProtectedBySaltimbanque = false;
+    mustScreamKungFu = false;
   }
 
   Widget buildStatusIcons() {
@@ -336,6 +378,22 @@ class Player {
       icons.add(const Padding(
         padding: EdgeInsets.symmetric(horizontal: 2.0),
         child: Icon(FontAwesomeIcons.bomb, size: 14, color: Colors.redAccent),
+      ));
+    }
+
+    // Icône Amoureux (Cupidon)
+    if (isLinkedByCupidon) {
+      icons.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2.0),
+        child: Icon(Icons.favorite, size: 14, color: Colors.pinkAccent),
+      ));
+    }
+
+    // Icône Saltimbanque
+    if (isProtectedBySaltimbanque) {
+      icons.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2.0),
+        child: Icon(Icons.shield, size: 14, color: Colors.amberAccent),
       ));
     }
 
@@ -459,6 +517,14 @@ class Player {
       'wasMaisonConverted': wasMaisonConverted,
       'hostedEnemiesCount': hostedEnemiesCount,
       'isRoi': isRoi,
+
+      // SERIALISATION NOUVEAUX RÔLES
+      'isProtectedBySaltimbanque': isProtectedBySaltimbanque,
+      // 'lastSaltimbanqueTarget': Ne pas sérialiser les références objets cycliques -> utiliser le nom ou index si besoin, mais souvent le reset suffit
+      'isLinkedByCupidon': isLinkedByCupidon,
+      'hasUsedSorciereRevive': hasUsedSorciereRevive,
+      'hasUsedSorciereKill': hasUsedSorciereKill,
+      'mustScreamKungFu': mustScreamKungFu,
     };
   }
 
@@ -547,6 +613,13 @@ class Player {
       ..hostedRonAldoThisTurn = map['hostedRonAldoThisTurn'] ?? false
       ..wasMaisonConverted = map['wasMaisonConverted'] ?? false
       ..hostedEnemiesCount = map['hostedEnemiesCount'] ?? 0
-      ..isRoi = map['isRoi'] ?? false;
+      ..isRoi = map['isRoi'] ?? false
+
+    // RESTAURATION NOUVEAUX RÔLES
+      ..isProtectedBySaltimbanque = map['isProtectedBySaltimbanque'] ?? false
+      ..isLinkedByCupidon = map['isLinkedByCupidon'] ?? false
+      ..hasUsedSorciereRevive = map['hasUsedSorciereRevive'] ?? false
+      ..hasUsedSorciereKill = map['hasUsedSorciereKill'] ?? false
+      ..mustScreamKungFu = map['mustScreamKungFu'] ?? false;
   }
 }

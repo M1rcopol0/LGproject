@@ -49,6 +49,10 @@ class GameLogic {
       p.votes = 0;
       p.targetVote = null;
 
+      // Reset des actions temporaires de nuit (dont Saltimbanque)
+      p.isProtectedBySaltimbanque = false;
+      // Note: p.lastSaltimbanqueTarget est conservé pour la règle "pas 2 fois de suite"
+
       if (!p.isAlive) {
         p.pantinCurseTimer = null;
         p.hasBeenHitByDart = false;
@@ -203,6 +207,13 @@ class GameLogic {
       return realTarget;
     }
 
+    // --- SALTIMBANQUE (Protection Nuit, sauf vote) ---
+    if (!isVote && realTarget.isProtectedBySaltimbanque) {
+      debugPrint("🛡️ LOG [Saltimbanque] : ${realTarget.name} est protégé cette nuit !");
+      return realTarget; // Survie
+    }
+
+    // --- PANTIN ---
     if (roleLower == "pantin") {
       if (!isVote) {
         debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
@@ -271,6 +282,7 @@ class GameLogic {
 
     Player victim = realTarget;
 
+    // --- MAISON ---
     if (realTarget.isInHouse && !reason.contains("Malédiction")) {
       Player? houseOwner;
       try {
@@ -292,6 +304,7 @@ class GameLogic {
       }
     }
 
+    // --- RON-ALDO ---
     else if (roleLower == "ron-aldo") {
       try {
         Player firstFan = allPlayers.firstWhere(
@@ -315,8 +328,31 @@ class GameLogic {
       chamanSniperAchieved = true;
     }
 
+    // --- MORT ---
     victim.isAlive = false;
     debugPrint("💀 LOG [Mort] : ${victim.name} (${victim.role}) a quitté la partie.");
+
+    // --- CHASSEUR (Logique Post-Mortem) ---
+    if (victim.role?.toLowerCase() == "chasseur") {
+      debugPrint("🔫 LOG [Chasseur] : Le Chasseur est mort !");
+      if (context.mounted) {
+        showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: Colors.red[900],
+              title: const Text("🔫 TIR DU CHASSEUR", style: TextStyle(color: Colors.white)),
+              content: Text("${victim.name} est le Chasseur !\nIl doit éliminer quelqu'un immédiatement."),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK", style: TextStyle(color: Colors.white)))],
+            )
+        );
+      }
+    }
+
+    // --- CUPIDON (Amoureux) ---
+    if (victim.isLinkedByCupidon && victim.lover != null && victim.lover!.isAlive) {
+      debugPrint("💘 LOG [Cupidon] : ${victim.name} meurt, entraînant son amant ${victim.lover!.name} dans la tombe.");
+      eliminatePlayer(context, allPlayers, victim.lover!, isVote: false, reason: "Chagrin d'amour");
+    }
 
     if (isVote && victim.isVillageChief && globalGovernanceMode == "ROI") {
       TrophyService.checkAndUnlockImmediate(
@@ -409,6 +445,15 @@ class GameLogic {
     p.isHouseDestroyed = false;
     p.hasSurvivedVote = false;
     p.isAwayAsMJ = false;
+
+    // NOUVEAUX RÔLES
+    p.isProtectedBySaltimbanque = false;
+    p.lastSaltimbanqueTarget = null;
+    p.isLinkedByCupidon = false;
+    p.lover = null;
+    p.hasUsedSorciereRevive = false;
+    p.hasUsedSorciereKill = false;
+    p.mustScreamKungFu = false;
 
     if (globalTurnNumber == 1) {
       AchievementLogic.resetFullGameData();

@@ -16,7 +16,7 @@ class MJResultScreen extends StatefulWidget {
 }
 
 class _MJResultScreenState extends State<MJResultScreen> {
-  // NOUVEAU : État pour masquer les résultats au début
+  // État pour masquer les résultats au début
   bool _resultsRevealed = false;
 
   @override
@@ -76,7 +76,7 @@ class _MJResultScreenState extends State<MJResultScreen> {
     );
   }
 
-  // --- ÉCRAN 2 : GESTION DES VOTES (Code existant) ---
+  // --- ÉCRAN 2 : GESTION DES VOTES ---
   Widget _buildVoteManagementScreen() {
     // On filtre : Vivants + Joue cette partie + Pas absent (Archiviste)
     final sortedPlayers = widget.allPlayers.where((p) =>
@@ -85,7 +85,7 @@ class _MJResultScreenState extends State<MJResultScreen> {
         !p.isAwayAsMJ
     ).toList();
 
-    // Tri par votes décroissants
+    // CORRECTION 1 : TRI (Votes décroissants, puis Alphabétique)
     sortedPlayers.sort((a, b) {
       int voteComp = b.votes.compareTo(a.votes);
       if (voteComp != 0) return voteComp;
@@ -114,8 +114,10 @@ class _MJResultScreenState extends State<MJResultScreen> {
               itemCount: sortedPlayers.length,
               itemBuilder: (context, i) {
                 final p = sortedPlayers[i];
+
+                // Calcul de l'immunité visuelle
                 bool isImmunized = p.isImmunizedFromVote || p.isInHouse;
-                // Protection Ron-Aldo visuelle
+                // Protection Ron-Aldo visuelle (Si des fans sont en vie)
                 if (p.role?.toLowerCase() == "ron-aldo") {
                   if (widget.allPlayers.any((f) => f.isFanOfRonAldo && f.isAlive)) isImmunized = true;
                 }
@@ -127,11 +129,20 @@ class _MJResultScreenState extends State<MJResultScreen> {
                     leading: isImmunized
                         ? const Icon(Icons.shield, color: Colors.cyanAccent, size: 28)
                         : const Icon(Icons.person_outline, color: Colors.white24),
-                    title: Text(Player.formatName(p.name), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isImmunized ? Colors.cyanAccent : Colors.white)),
-                    subtitle: Text(p.role?.toUpperCase() ?? "INCONNU", style: TextStyle(color: isImmunized ? Colors.cyanAccent.withOpacity(0.6) : Colors.orangeAccent, fontSize: 12)),
+                    title: Text(
+                        Player.formatName(p.name),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isImmunized ? Colors.cyanAccent : Colors.white)
+                    ),
+                    subtitle: Text(
+                        p.role?.toUpperCase() ?? "INCONNU",
+                        style: TextStyle(color: isImmunized ? Colors.cyanAccent.withOpacity(0.6) : Colors.orangeAccent, fontSize: 12)
+                    ),
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                      decoration: BoxDecoration(color: isImmunized ? Colors.cyan[900] : Colors.red[900], borderRadius: BorderRadius.circular(20)),
+                      decoration: BoxDecoration(
+                          color: isImmunized ? Colors.cyan[900] : Colors.red[900],
+                          borderRadius: BorderRadius.circular(20)
+                      ),
                       child: Text("${p.votes} VOIX", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                     onTap: () => _confirmDeath(context, p),
@@ -143,7 +154,11 @@ class _MJResultScreenState extends State<MJResultScreen> {
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green[800], minimumSize: const Size(double.infinity, 60), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[800],
+                  minimumSize: const Size(double.infinity, 60),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+              ),
               onPressed: () => _handleNoOneDies(context),
               child: const Text("🕊️ GRÂCE DU VILLAGE", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
@@ -166,6 +181,10 @@ class _MJResultScreenState extends State<MJResultScreen> {
 
     playSfx("cloche.mp3");
 
+    // Capture des infos AVANT élimination pour détecter la mort en chaîne (CORRECTION 3 : CUPIDON)
+    Player? lover = target.isLinkedByCupidon ? target.lover : null;
+    bool loverWasAlive = lover?.isAlive ?? false;
+
     // 1. ÉLIMINATION LOGIQUE
     Player deceased = GameLogic.eliminatePlayer(context, widget.allPlayers, target, isVote: true);
 
@@ -174,21 +193,32 @@ class _MJResultScreenState extends State<MJResultScreen> {
     String message = deceased.isAlive ? "La cible a survécu !" : "Le village a tranché ! ${Player.formatName(deceased.name)} est éliminé.";
     String title = deceased.isAlive ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT";
 
+    // Gestion des cas particuliers pour le message
     if (deceased.role?.toLowerCase() == "pantin" && deceased.isAlive) {
-      message = "🃏 Le Pantin a survécu (Immunité unique).";
+      message = "🃏 Le Pantin a survécu (Immunité unique au premier vote).";
     }
     else if (deceased.role?.toLowerCase() == "voyageur" && deceased.isAlive) {
-      message = "✈️ Le Voyageur revient au village (Survit).";
+      message = "✈️ Le Voyageur revient au village (Survit au vote pendant le voyage).";
     }
     else if (!deceased.isAlive) {
+      // Cas Sacrifice Ron-Aldo
       if (target.role?.toLowerCase() == "ron-aldo" && deceased.role?.toLowerCase() == "fan de ron-aldo") {
-        message = "🛡️ SACRIFICE : ${Player.formatName(deceased.name)} s'est sacrifié !\nSon rôle était : FAN DE RON-ALDO";
+        message = "🛡️ SACRIFICE : ${Player.formatName(deceased.name)} s'est sacrifié pour Ron-Aldo !\nSon rôle était : FAN DE RON-ALDO";
       }
+      // Cas Maison
       else if (target.role?.toLowerCase() == "maison" && deceased != target) {
         message = "🏠 La Maison s'est effondrée sur ${Player.formatName(deceased.name)} !\nSon rôle était : ${deceased.role?.toUpperCase()}";
       }
+      // Cas Normal
       else {
         message = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : $roleReveal";
+
+        // CORRECTION 3 : MENTION CUPIDON DANS LE POP-UP
+        if (lover != null && loverWasAlive && !lover.isAlive) {
+          message += "\n\n💔 DRAME !\nSon amant(e) ${lover.name} meurt de chagrin instantanément !";
+        }
+
+        // Cas Pokémon
         if ((deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") && deceased.pokemonRevengeTarget != null) {
           Player revengeTarget = deceased.pokemonRevengeTarget!;
           if (!revengeTarget.isAlive) {
@@ -215,10 +245,95 @@ class _MJResultScreenState extends State<MJResultScreen> {
       ),
     );
 
-    // 4. ROUTAGE (Après clic OK)
+    // 4. ACTION CHASSEUR POST-MORTEM (CORRECTION 4)
+    if (!deceased.isAlive && deceased.role?.toLowerCase() == "chasseur") {
+      await _handleChasseurAction(context, deceased);
+    }
+
+    // 5. ROUTAGE (Après tout ça)
     if (context.mounted) {
       _routeAfterDecision(context);
     }
+  }
+
+  // CORRECTION 4 : Pop-up + Tri alphabétique Chasseur
+  Future<void> _handleChasseurAction(BuildContext context, Player hunter) async {
+    // A. Pop-up d'avertissement
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.red[900],
+        title: const Text("🔫 DERNIER SOUFFLE", style: TextStyle(color: Colors.white)),
+        content: Text(
+            "${hunter.name} est le Chasseur !\nIl doit éliminer quelqu'un immédiatement.",
+            style: const TextStyle(color: Colors.white)
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("CHOISIR LA CIBLE", style: TextStyle(color: Colors.white))
+          )
+        ],
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    // B. Interface de choix de cible (Triée)
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        // Filtrage et Tri
+        final targets = widget.allPlayers.where((p) => p.isAlive).toList();
+        targets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1D1E33),
+          title: const Text("Tir du Chasseur", style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: ListView.builder(
+              itemCount: targets.length,
+              itemBuilder: (c, i) => ListTile(
+                title: Text(targets[i].name, style: const TextStyle(color: Colors.white)),
+                trailing: const Icon(Icons.gps_fixed, color: Colors.redAccent),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmChasseurKill(context, targets[i]);
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmChasseurKill(BuildContext context, Player target) {
+    playSfx("gunshot.mp3");
+    Player dead = GameLogic.eliminatePlayer(context, widget.allPlayers, target, isVote: false, reason: "Tir du Chasseur");
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("CIBLE ABATTUE", style: TextStyle(color: Colors.white)),
+        content: Text(
+            "${dead.name} a été tué par le Chasseur.\nSon rôle était : ${dead.role?.toUpperCase()}",
+            style: const TextStyle(color: Colors.white70)
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK", style: TextStyle(color: Colors.orangeAccent))
+          )
+        ],
+      ),
+    );
   }
 
   void _handleNoOneDies(BuildContext context) async {
@@ -251,7 +366,15 @@ class _MJResultScreenState extends State<MJResultScreen> {
         backgroundColor: const Color(0xFF1D1E33),
         title: Text(title, style: const TextStyle(color: Colors.orangeAccent)),
         content: Text(content, style: const TextStyle(color: Colors.white70)),
-        actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); _routeAfterDecision(context); }, child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))],
+        actions: [
+          TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _routeAfterDecision(context);
+              },
+              child: const Text("OK", style: TextStyle(color: Colors.orangeAccent))
+          )
+        ],
       ),
     );
   }
@@ -278,8 +401,12 @@ class _MJResultScreenState extends State<MJResultScreen> {
         );
       }
     } else {
+      // CORRECTION 5 : CYCLE JOUR/NUIT AUTOMATIQUE
+      // On incrémente le tour ici avant de revenir au menu
+      GameLogic.nextTurn(widget.allPlayers);
+
       if (context.mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context); // Retour au GameMenu qui verra que isDayTime = false et pourra lancer la nuit
       }
     }
   }
