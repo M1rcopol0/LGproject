@@ -32,13 +32,11 @@ class LGEvolueInterface extends StatelessWidget {
     // 3. Déterminer si le groupe est totalement immobilisé
     bool isEntirelyBlocked = aliveWolves.isNotEmpty && votingWolves.isEmpty;
 
-    // Log de l'état de la meute au chargement
     debugPrint("🐺 LOG [Loups] : Meute chargée. Vivants: ${aliveWolves.length}, Votants: ${votingWolves.length}. Bloquée: $isEntirelyBlocked");
 
     // 4. Filtrer les victimes potentielles
-    final potentialVictims = players.where((p) =>
-    p.isAlive && p.team != "loups"
-    ).toList();
+    // CORRECTION : Friendly Fire autorisé (les loups peuvent se manger entre eux)
+    final potentialVictims = players.where((p) => p.isAlive).toList();
 
     return Stack(
       children: [
@@ -90,7 +88,7 @@ class LGEvolueInterface extends StatelessWidget {
                 child: Opacity(
                   opacity: isEntirelyBlocked ? 0.3 : 1.0,
                   child: TargetSelectorInterface(
-                    players: potentialVictims.isNotEmpty ? potentialVictims : players.where((p) => p.isAlive).toList(),
+                    players: potentialVictims,
                     maxTargets: 1,
                     isProtective: false,
                     onTargetsSelected: (selected) {

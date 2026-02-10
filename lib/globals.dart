@@ -193,7 +193,7 @@ List<NightAction> nightActionsOrder = [
   NightAction(role: "Loup-garou chaman", instruction: "Consultez l'identité d'un joueur.", sound: "shaman_ritual.mp3"),
   NightAction(role: "Sorcière", instruction: "Utilisez vos potions.", sound: "witch_brew.mp3"), // AJOUT
   NightAction(role: "Maître du temps", instruction: "Éliminez deux personnes.", sound: "clock_tick.mp3"),
-  NightAction(role: "Pantin", instruction: "Maudissez 2 joueurs.", sound: "curse.mp3"),
+  NightAction(role: "Pantin", instruction: "Maudissez un joueur.", sound: "curse.mp3"),
   NightAction(role: "Dingo", instruction: "Tentez un tir.", sound: "dingo_laugh.mp3"),
   NightAction(role: "Enculateur du bled", instruction: "Protégez un joueur du vote.", sound: "unzip.mp3"),
   NightAction(role: "Kung-Fu Panda", instruction: "Désignez un joueur qui devra crier.", sound: "gong.mp3"), // AJOUT

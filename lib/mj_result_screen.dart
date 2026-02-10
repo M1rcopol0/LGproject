@@ -96,17 +96,30 @@ class _MJResultScreenState extends State<MJResultScreen> {
     try { globalAudioPlayer.stop(); } catch (e) {}
 
     if (target.isImmunizedFromVote) {
-      _showSpecialPopUp(context, "🛡️ PROTECTION", "${Player.formatName(target.name)} est protégé(e) !");
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("🛡️ ${Player.formatName(target.name)} est protégé(e) contre le vote !"),
+            backgroundColor: Colors.blueGrey,
+            duration: const Duration(seconds: 2),
+          )
+      );
       return;
     }
 
     playSfx("cloche.mp3");
     Player? lover = target.isLinkedByCupidon ? target.lover : null;
     bool loverWasAlive = lover?.isAlive ?? false;
+
+    // Élimination logique
     Player deceased = GameLogic.eliminatePlayer(context, widget.allPlayers, target, isVote: true);
+
+    // Pause pour laisser les Succès s'afficher
+    await Future.delayed(const Duration(milliseconds: 500));
 
     String message = _buildDeathMessage(target, deceased, lover, loverWasAlive);
     String title = deceased.isAlive ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT";
+
+    if (!context.mounted) return;
 
     await showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
@@ -168,10 +181,6 @@ class _MJResultScreenState extends State<MJResultScreen> {
     if (context.mounted) _routeAfterDecision(context);
   }
 
-  void _showSpecialPopUp(BuildContext context, String title, String content) {
-    showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: Text(title, style: const TextStyle(color: Colors.orangeAccent)), content: Text(content, style: const TextStyle(color: Colors.white70)), actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); _routeAfterDecision(context); }, child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))]));
-  }
-
   void _routeAfterDecision(BuildContext context) async {
     // 1. Check victoire Exorciste (Prioritaire)
     if (exorcistWin) {
@@ -190,8 +199,10 @@ class _MJResultScreenState extends State<MJResultScreen> {
     if (winner == null) {
       // PARTIE CONTINUE -> RETOUR MENU
       if (context.mounted) {
-        widget.onComplete(); // Signale au menu de passer au state suivant (Election Chef ou Nuit)
-        Navigator.pop(context); // Ferme MJResultScreen (IMPORTANT)
+        // CORRECTION : On ferme d'abord l'écran MJ, PUIS on lance la suite (ex: élection chef)
+        // Cela évite que le Navigator.pop ne ferme par erreur la boîte de dialogue de l'élection.
+        Navigator.pop(context);
+        widget.onComplete();
       }
     } else {
       // PARTIE TERMINÉE -> ÉCRAN FIN
