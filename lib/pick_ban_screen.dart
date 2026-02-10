@@ -14,6 +14,36 @@ class _PickBanScreenState extends State<PickBanScreen> {
   late List<RoleItem> wolfRoles;
   late List<RoleItem> soloRoles;
 
+  // Définition du Preset 2.0
+  final List<String> preset2_0 = [
+    "Chasseur",
+    "Cupidon",
+    "Grand-mère",
+    "Kung-Fu Panda",
+    "Saltimbanque",
+    "Sorcière",
+    "Villageois",
+    "Voyante",
+    "Loup-garou évolué"
+  ];
+
+  // Définition du Preset 3.0 (Les autres + Grand-mère + LG évolué)
+  final List<String> preset3_0 = [
+    // Village (Exclus du 2.0)
+    "Archiviste", "Devin", "Dingo", "Zookeeper", "Enculateur du bled",
+    "Exorciste", "Houston", "Maison", "Tardos", "Voyageur",
+    // Inclus aussi dans 3.0
+    "Grand-mère",
+
+    // Loups (Exclus du 2.0)
+    "Loup-garou chaman", "Somnifère",
+    // Inclus aussi dans 3.0
+    "Loup-garou évolué",
+
+    // Solos (Tous, car aucun dans la 2.0)
+    "Chuchoteur", "Maître du temps", "Pantin", "Phyl", "Dresseur", "Ron-Aldo"
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +105,22 @@ class _PickBanScreenState extends State<PickBanScreen> {
     globalPickBan["solo"] = selectedSolos;
   }
 
+  // Fonction pour appliquer un preset
+  void _applyPreset(List<String> targetRoles) {
+    setState(() {
+      for (var r in villageRoles) {
+        r.isSelected = targetRoles.contains(r.name);
+      }
+      for (var r in wolfRoles) {
+        r.isSelected = targetRoles.contains(r.name);
+      }
+      for (var r in soloRoles) {
+        r.isSelected = targetRoles.contains(r.name);
+      }
+      _saveToGlobals();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,6 +147,34 @@ class _PickBanScreenState extends State<PickBanScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // --- BOUTONS DE PRESETS ---
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey[800],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  ),
+                  onPressed: () => _applyPreset(preset2_0),
+                  child: const Text("PRESET 2.0", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple[800],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  ),
+                  onPressed: () => _applyPreset(preset3_0),
+                  child: const Text("PRESET 3.0", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+
           _buildFactionHeader("VILLAGE", Colors.greenAccent),
           _buildRoleGrid(villageRoles),
           const SizedBox(height: 20),
