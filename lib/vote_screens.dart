@@ -10,8 +10,13 @@ import 'mj_result_screen.dart'; // Pour la redirection finale
 // =============================================================================
 class VotePlayerSelectionScreen extends StatefulWidget {
   final List<Player> allPlayers;
+  final VoidCallback onComplete; // Ajout du callback de complétion
 
-  const VotePlayerSelectionScreen({super.key, required this.allPlayers});
+  const VotePlayerSelectionScreen({
+    super.key,
+    required this.allPlayers,
+    required this.onComplete
+  });
 
   @override
   State<VotePlayerSelectionScreen> createState() => _VotePlayerSelectionScreenState();
@@ -25,7 +30,7 @@ class _VotePlayerSelectionScreenState extends State<VotePlayerSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    // On récupère la liste des votants
+    // On récupère la liste des votants (vivants, actifs, et non absents/archivistes)
     voters = widget.allPlayers.where((p) => p.isAlive && p.isPlaying && !p.isAwayAsMJ).toList();
     voters.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
@@ -55,12 +60,17 @@ class _VotePlayerSelectionScreenState extends State<VotePlayerSelectionScreen> {
     debugPrint("🕵️ LOG [Vote] : Fin des votes individuels. Calcul des résultats...");
     GameLogic.processVillageVote(context, widget.allPlayers);
 
+    if (!mounted) return;
+
     // On empile l'écran de résultat par-dessus l'orchestrateur.
-    // Le GameMenu attend toujours que l'orchestrateur se finisse.
+    // On lui passe le onComplete du menu pour qu'il gère la fin du tour.
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MJResultScreen(allPlayers: widget.allPlayers),
+        builder: (_) => MJResultScreen(
+          allPlayers: widget.allPlayers,
+          onComplete: widget.onComplete,
+        ),
       ),
     );
 
@@ -82,7 +92,7 @@ class _VotePlayerSelectionScreenState extends State<VotePlayerSelectionScreen> {
 
     final currentPlayer = voters[currentIndex];
 
-    // Affichage conditionnel selon la phase
+    // Affichage conditionnel selon la phase (Passez le tel VS Vote)
     if (isPassingPhase) {
       return _PassScreenContent(
         voter: currentPlayer,
@@ -318,7 +328,7 @@ class _IndividualVoteScreenContentState extends State<_IndividualVoteScreenConte
     if (selectedTarget != null) {
       widget.voter.targetVote = selectedTarget;
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
-      AchievementLogic.checkTraitorFan(context, widget.voter, selectedTarget!);
+      AchievementLogic.trackVote(widget.voter, selectedTarget!); // Utilisation de trackVote pour les succès
       if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
         wolfVotedWolf = true;
       }

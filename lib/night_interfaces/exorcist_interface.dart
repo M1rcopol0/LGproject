@@ -28,10 +28,31 @@ class _ExorcistInterfaceState extends State<ExorcistInterface> {
   }
 
   void _pickRandomTarget() {
-    // CORRECTION POINT 5 : Choisir un joueur ALÉATOIRE à mimer (autre que lui-même)
-    final candidates = widget.allPlayers
-        .where((p) => p.isAlive && p.name != widget.player.name)
-        .toList();
+    // Filtrage des candidats éligibles au mimétisme
+    final candidates = widget.allPlayers.where((p) {
+      // 1. Doit être vivant et ne pas être l'Exorciste lui-même
+      if (!p.isAlive || p.name == widget.player.name) return false;
+
+      String role = p.role?.toLowerCase() ?? "";
+
+      // 2. Archiviste : Ne pas mimer s'il est devenu MJ (absent)
+      if (role == "archiviste" && p.isAwayAsMJ) {
+        return false;
+      }
+
+      // 3. Voyageur : Ne pas mimer s'il est rentré définitivement (contraint ou non)
+      // (canTravelAgain passe à false dès qu'il rentre au village)
+      if (role == "voyageur" && !p.canTravelAgain) {
+        return false;
+      }
+
+      // 4. Pokémon : Ne pas mimer s'il a été ressuscité (forme alternative/réduite)
+      if ((role == "pokémon" || role == "pokemon") && p.wasRevivedInThisGame) {
+        return false;
+      }
+
+      return true;
+    }).toList();
 
     if (candidates.isNotEmpty) {
       setState(() {
@@ -93,8 +114,8 @@ class _ExorcistInterfaceState extends State<ExorcistInterface> {
                 icon: const Icon(Icons.check_circle, size: 30),
                 label: const Text("C'EST RÉUSSI !", style: TextStyle(fontSize: 18)),
                 onPressed: () {
-                  // Victoire immédiate
-                  widget.onAction("EXORCISM_SUCCESS", null);
+                  // Envoi de "SUCCESS" pour déclencher la victoire villageoise (voir night_actions_screen.dart)
+                  widget.onAction("SUCCESS", null);
                 },
               ),
               const SizedBox(height: 20),
@@ -106,8 +127,9 @@ class _ExorcistInterfaceState extends State<ExorcistInterface> {
               ),
             ] else ...[
               const Text(
-                "Personne à mimer (Tout le monde est mort ?)",
+                "Personne à mimer (Aucun joueur éligible).",
                 style: TextStyle(color: Colors.white54),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
               ElevatedButton(

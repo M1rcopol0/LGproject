@@ -22,19 +22,23 @@ class _PantinInterfaceState extends State<PantinInterface> {
     setState(() {
       if (_selectedTargets.contains(p)) {
         _selectedTargets.remove(p);
-      } else if (_selectedTargets.length < 2) {
+      } else {
+        // CORRECTION : On vide la liste pour ne garder qu'une seule cible
+        _selectedTargets.clear();
         _selectedTargets.add(p);
       }
     });
   }
 
   void _confirmSelection() {
-    if (_selectedTargets.length == 2 || (widget.players.where((p) => p.isAlive && p.role?.toLowerCase() != "pantin" && p.pantinCurseTimer == null).length < 2 && _selectedTargets.length == widget.players.where((p) => p.isAlive && p.role?.toLowerCase() != "pantin" && p.pantinCurseTimer == null).length)) {
-      debugPrint("🎭 LOG [Pantin] : Application des malédictions directes.");
+    // On vérifie qu'il y a bien 1 cible (ou 0 si on force le passage car pas de cibles dispo)
+    bool canConfirm = _selectedTargets.length == 1;
+    bool noTargetsAvailable = widget.players.where((p) => p.isAlive && p.role?.toLowerCase() != "pantin" && p.pantinCurseTimer == null).isEmpty;
+
+    if (canConfirm || (noTargetsAvailable && _selectedTargets.isEmpty)) {
+      debugPrint("🎭 LOG [Pantin] : Application de la malédiction.");
 
       for (var target in _selectedTargets) {
-        // CORRECTION : Suppression du ricochet.
-        // La malédiction s'applique directement à l'habitant, même s'il est dans la maison.
         debugPrint("🎭 LOG [Pantin] : Malédiction appliquée sur ${target.name}.");
         target.pantinCurseTimer = 2;
       }
@@ -59,7 +63,7 @@ class _PantinInterfaceState extends State<PantinInterface> {
         const Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            "PANTIN : Choisissez 2 joueurs à maudire.\nIls mourront dans 2 nuits.",
+            "PANTIN : Choisissez 1 joueur à maudire.\nIl mourra dans 2 nuits.",
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
           ),
@@ -91,9 +95,9 @@ class _PantinInterfaceState extends State<PantinInterface> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: ElevatedButton(
-            onPressed: (_selectedTargets.length == 2)
+            onPressed: (_selectedTargets.length == 1)
                 ? _confirmSelection
-                : (availableTargets.length < 2 && _selectedTargets.length == availableTargets.length ? _handleForcePass : null),
+                : (availableTargets.isEmpty ? _handleForcePass : null),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 disabledBackgroundColor: Colors.white10
@@ -109,15 +113,13 @@ class _PantinInterfaceState extends State<PantinInterface> {
   }
 
   void _handleForcePass() {
+    _selectedTargets.clear();
     _confirmSelection();
-    if (_selectedTargets.length < 2) {
-      widget.onTargetsSelected(_selectedTargets);
-    }
   }
 
   String _getButtonText(int availableCount) {
-    if (_selectedTargets.length == 2) return "MAUDIRE LES CIBLES";
-    if (availableCount < 2) return "PASSER (Pas assez de cibles)";
-    return "SÉLECTIONNEZ 2 CIBLES";
+    if (_selectedTargets.length == 1) return "MAUDIRE LA CIBLE";
+    if (availableCount == 0) return "PASSER (Personne à maudire)";
+    return "SÉLECTIONNEZ 1 CIBLE";
   }
 }

@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/player.dart';
 import 'logic.dart';
-import 'vote_screens.dart'; // Contient VotePlayerSelectionScreen
+import 'vote_screens.dart';
+import 'mj_result_screen.dart';
 import 'night_actions_screen.dart';
 import 'settings_screen.dart';
 import 'wiki_page.dart';
@@ -17,6 +18,11 @@ import 'models/achievement.dart';
 import 'trophy_service.dart';
 import 'cloud_service.dart';
 import 'achievements_page.dart';
+
+// Import des widgets modulaires
+import 'widgets/game_info_header.dart';
+import 'widgets/player_list_card.dart';
+import 'widgets/game_action_buttons.dart';
 
 class GameMenuScreen extends StatefulWidget {
   final List<Player> players;
@@ -39,7 +45,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     _currentSeconds = (globalTimerMinutes * 60).toInt();
     _recoverActivePlayers();
 
-    // Au retour sur le menu, on vérifie l'intégrité
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkGameStateIntegrity();
     });
@@ -58,8 +63,185 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   List<Player> get _activePlayers => widget.players.where((p) => p.isPlaying).toList();
 
   // ==========================================================
+  // GESTION DU TIMER
+  // ==========================================================
+
+  void _toggleTimer() {
+    if (_isTimerRunning) {
+      _timer?.cancel();
+      setState(() => _isTimerRunning = false);
+    } else {
+      _startTimer();
+    }
+  }
+
+  void _startTimer() {
+    if (_isTimerRunning) return;
+    setState(() => _isTimerRunning = true);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_currentSeconds > 0) {
+        setState(() => _currentSeconds--);
+      } else {
+        _timer?.cancel();
+        setState(() => _isTimerRunning = false);
+        playSfx("alarm.mp3");
+      }
+    });
+  }
+
+  void _resetTimer() {
+    _timer?.cancel();
+    setState(() {
+      _isTimerRunning = false;
+      _currentSeconds = (globalTimerMinutes * 60).toInt();
+    });
+  }
+
+  String _formatTime(int seconds) {
+    int m = seconds ~/ 60;
+    int s = seconds % 60;
+    return "$m:${s.toString().padLeft(2, '0')}";
+  }
+
+  // ==========================================================
+  // NAVIGATION & FLUX DE JEU
+  // ==========================================================
+
+  void _goToNight({bool force = false}) {
+    bool isFirstNight = (globalTurnNumber == 1 && !nightOnePassed);
+
+    if (!force && !hasVotedThisTurn && !isFirstNight) {
+      _showVoteForgottenDialog();
+      return;
+    }
+
+    debugPrint("🌙 LOG [Menu] : Passage à la nuit (Fin Jour $globalTurnNumber).");
+
+    // 1. Préparation des variables via Logic
+    // On n'incrémente PAS le tour ici.
+    GameLogic.nextTurn(_activePlayers);
+
+    _resetTimer();
+    isDayTime = false;
+    playMusic("ambiance_nuit.mp3");
+
+    // 2. Navigation vers l'écran de nuit
+    Navigator.push(context, MaterialPageRoute(builder: (_) => NightActionsScreen(players: _activePlayers))).then((_) async {
+      // 3. RETOUR (MATIN)
+      if (!mounted) return;
+
+      setState(() {
+        // Mise à jour des compteurs temporels
+        nightOnePassed = true;
+        globalTurnNumber++;
+        isDayTime = true;
+        hasVotedThisTurn = false;
+        _resetTimer();
+      });
+
+      debugPrint("🔴 DEBUG_TRACE [Menu] : Retour de nuit. Check Exorciste: $exorcistWin");
+
+      if (exorcistWin) {
+        debugPrint("🏆 LOG [Menu] : Victoire Exorciste détectée au réveil !");
+        await GameSaveService.clearSave(); // Nettoyage save
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "EXORCISTE", players: widget.players)),
+                (route) => false
+        );
+        return; // On arrête tout ici
+      }
+
+      // Vérification standard (ex: plus de Loups, plus de Villageois)
+      _checkGameStateIntegrity();
+
+      // 4. Si la partie continue, on sauvegarde le nouvel état (Matin du Jour X)
+      if (!_isGameOverProcessing) {
+        debugPrint("✅ LOG [Menu] : Matin du Jour $globalTurnNumber - Sauvegarde...");
+        await GameSaveService.saveGame();
+      }
+    });
+  }
+
+  void _showVoteForgottenDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("⚠️ Vote Oublié", style: TextStyle(color: Colors.redAccent)),
+        content: const Text("Le village n'a pas voté ce jour."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER", style: TextStyle(color: Colors.white54))),
+          TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _goToNight(force: true);
+              },
+              child: const Text("FORCER LA NUIT", style: TextStyle(color: Colors.redAccent))
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _goToVote() async {
+    _resetTimer();
+    await playSfx("vote_music.mp3");
+
+    void onVoteComplete() {
+      hasVotedThisTurn = true;
+      setState(() {
+        _checkGameOver();
+        if (!_isGameOverProcessing) {
+          bool chiefAlive = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
+          if (!chiefAlive) _showChiefElectionDialog();
+        }
+        isDayTime = false;
+        _resetTimer();
+      });
+    }
+
+    debugPrint("🗳️ LOG [Menu] : Option Vote Anonyme = $globalVoteAnonyme");
+
+    if (globalVoteAnonyme) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => VotePlayerSelectionScreen(
+        allPlayers: _activePlayers,
+        onComplete: onVoteComplete,
+      )));
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => MJResultScreen(
+        allPlayers: _activePlayers,
+        onComplete: onVoteComplete,
+      )));
+    }
+  }
+
+  void _startGame() async {
+    if (_activePlayers.length < 3) return;
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const RouletteScreen()));
+    setState(() {
+      GameLogic.assignRoles(_activePlayers);
+      globalRolesDistributed = true;
+      globalTurnNumber = 1;
+      isDayTime = true;
+      nightOnePassed = false;
+    });
+    await GameSaveService.saveGame();
+  }
+
+  // ==========================================================
   // MENU DEV / ADMINISTRATION MJ
   // ==========================================================
+
+  void _handlePlayerTap(Player p) {
+    if (!globalRolesDistributed) {
+      setState(() => p.isPlaying = !p.isPlaying);
+      return;
+    }
+    if (!p.isPlaying) return;
+    _showPlayerAdminMenu(p);
+  }
 
   void _showPlayerAdminMenu(Player p) {
     showModalBottomSheet(
@@ -76,8 +258,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
             Text(p.role?.toUpperCase() ?? "SANS RÔLE",
                 style: const TextStyle(color: Colors.white54, fontSize: 14)),
             const Divider(color: Colors.white10, height: 30),
-
-            // 1. TUER / RESSUSCITER
             ListTile(
               leading: Icon(p.isAlive ? Icons.dangerous : Icons.favorite, color: p.isAlive ? Colors.redAccent : Colors.greenAccent),
               title: Text(p.isAlive ? "ÉLIMINER LE JOUEUR" : "RESSUSCITER LE JOUEUR", style: const TextStyle(color: Colors.white)),
@@ -90,8 +270,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 }
               },
             ),
-
-            // 2. APPLIQUER EFFET
             ListTile(
               leading: const Icon(Icons.auto_fix_high, color: Colors.blueAccent),
               title: const Text("APPLIQUER UN EFFET / ÉTAT", style: TextStyle(color: Colors.white)),
@@ -100,13 +278,10 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 _showEffectsMenu(p);
               },
             ),
-
-            // 3. NOMMER CHEF
             ListTile(
               leading: const Icon(Icons.workspace_premium, color: Colors.amber),
               title: const Text("NOMMER CHEF DU VILLAGE", style: TextStyle(color: Colors.white)),
               onTap: () {
-                debugPrint("👑 LOG [Chef] : Manuel - Nouveau leader -> ${p.name}");
                 setState(() {
                   for (var pl in widget.players) pl.isVillageChief = false;
                   p.isVillageChief = true;
@@ -114,8 +289,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 Navigator.pop(ctx);
               },
             ),
-
-            // 4. GESTION SUCCÈS (NOUVEAU)
             ListTile(
               leading: const Icon(Icons.emoji_events, color: Colors.purpleAccent),
               title: const Text("GÉRER LES SUCCÈS (MJ)", style: TextStyle(color: Colors.white)),
@@ -124,20 +297,12 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                 _showAchievementManager(p);
               },
             ),
-
-            // 5. RETOUR
-            ListTile(
-              leading: const Icon(Icons.arrow_back, color: Colors.white54),
-              title: const Text("RETOUR AU VILLAGE", style: TextStyle(color: Colors.white54)),
-              onTap: () => Navigator.pop(ctx),
-            ),
           ],
         ),
       ),
     );
   }
 
-  // --- MANAGER DE SUCCÈS IN-GAME ---
   void _showAchievementManager(Player p) {
     showDialog(
       context: context,
@@ -150,12 +315,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
           child: FutureBuilder<List<String>>(
             future: TrophyService.getUnlockedAchievements(p.name),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Colors.purpleAccent));
-              }
-
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
               List<String> unlocked = List.from(snapshot.data ?? []);
-
               return StatefulBuilder(
                   builder: (context, setStateInner) {
                     return ListView.builder(
@@ -163,11 +324,8 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                       itemBuilder: (context, index) {
                         final ach = AchievementData.allAchievements[index];
                         final isUnlocked = unlocked.contains(ach.id);
-
                         return CheckboxListTile(
-                          title: Text(ach.title, style: TextStyle(color: isUnlocked ? Colors.white : Colors.white54, fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal)),
-                          subtitle: Text(ach.description, style: const TextStyle(color: Colors.white30, fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          secondary: Text(ach.icon, style: const TextStyle(fontSize: 24)),
+                          title: Text(ach.title, style: TextStyle(color: isUnlocked ? Colors.white : Colors.white54)),
                           value: isUnlocked,
                           activeColor: ach.color,
                           checkColor: Colors.black,
@@ -178,9 +336,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
                             } else {
                               await TrophyService.removeAchievement(p.name, ach.id);
                               unlocked.remove(ach.id);
-                              if (context.mounted) {
-                                CloudService.forceUploadData(context);
-                              }
                             }
                             setStateInner(() {});
                           },
@@ -192,9 +347,7 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
             },
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER", style: TextStyle(color: Colors.white54)))
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER"))],
       ),
     );
   }
@@ -203,126 +356,32 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0A0E21),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(20),
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
-        child: Column(
+        child: ListView(
           children: [
-            const Text("MODIFIER LES ÉTATS", style: TextStyle(color: Colors.blueAccent, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView(
-                children: [
-                  _effectSwitch("Dans la Maison", p.isInHouse, (v) => p.isInHouse = v),
-                  _effectSwitch("Protégé (Dresseur)", p.isProtectedByPokemon, (v) => p.isProtectedByPokemon = v),
-                  _effectSwitch("Endormi (Venin/Somni)", p.isEffectivelyAsleep, (v) => p.isEffectivelyAsleep = v),
-                  _effectSwitch("Censuré (Muet)", p.isMutedDay, (v) => p.isMutedDay = v),
-                  _effectSwitch("Immunisé Vote (Bled)", p.isImmunizedFromVote, (v) => p.isImmunizedFromVote = v),
-                  _effectSwitch("Révélé (Devin)", p.isRevealedByDevin, (v) => p.isRevealedByDevin = v),
-
-                  // --- BOMBE MANUELLE ---
-                  ListTile(
-                    title: const Text("Porteur de Bombe", style: TextStyle(color: Colors.white)),
-                    trailing: Switch(
-                      value: p.isBombed,
-                      activeColor: Colors.redAccent,
-                      onChanged: (val) {
-                        setState(() {
-                          p.isBombed = val;
-                          if (!val) p.attachedBombTimer = 0;
-                        });
-                        if (val) _askIntDialog("Temps avant explosion (tours)", 2, (t) => setState(() => p.attachedBombTimer = t));
-                      },
-                    ),
-                    subtitle: p.isBombed ? Text("Explosion dans ${p.attachedBombTimer} tours", style: const TextStyle(color: Colors.redAccent, fontSize: 12)) : null,
-                  ),
-
-                  // --- MALÉDICTION PANTIN ---
-                  ListTile(
-                    title: const Text("Maudit (Pantin)", style: TextStyle(color: Colors.white)),
-                    trailing: Switch(
-                      value: p.pantinCurseTimer != null,
-                      activeColor: Colors.purple,
-                      onChanged: (val) {
-                        setState(() {
-                          p.pantinCurseTimer = val ? 2 : null;
-                        });
-                        if (val) _askIntDialog("Temps avant mort (tours)", 2, (t) => setState(() => p.pantinCurseTimer = t));
-                      },
-                    ),
-                    subtitle: p.pantinCurseTimer != null ? Text("Mort dans ${p.pantinCurseTimer} tours", style: const TextStyle(color: Colors.purpleAccent, fontSize: 12)) : null,
-                  ),
-
-                  // --- VOYAGEUR ---
-                  _effectSwitch("En Voyage", p.isInTravel, (v) => p.isInTravel = v),
-
-                  // --- FAN RON-ALDO ---
-                  _effectSwitch("Fan de Ron-Aldo", p.isFanOfRonAldo, (v) => p.isFanOfRonAldo = v),
-
-                  // --- ABSENCE ARCHIVISTE ---
-                  _effectSwitch("Transcendance (Absent)", p.isAwayAsMJ, (v) => p.isAwayAsMJ = v),
-                ],
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-              onPressed: () {
-                setState(() {});
-                Navigator.pop(ctx);
-              },
-              child: const Text("TERMINER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
+            _effectSwitch("Dans la Maison", p.isInHouse, (v) => setState(() => p.isInHouse = v)),
+            _effectSwitch("Protégé (Dresseur)", p.isProtectedByPokemon, (v) => setState(() => p.isProtectedByPokemon = v)),
+            _effectSwitch("Endormi (Venin/Somni)", p.isEffectivelyAsleep, (v) => setState(() => p.isEffectivelyAsleep = v)),
+            _effectSwitch("Censuré (Muet)", p.isMutedDay, (v) => setState(() => p.isMutedDay = v)),
+            _effectSwitch("Immunisé Vote (Bled)", p.isImmunizedFromVote, (v) => setState(() => p.isImmunizedFromVote = v)),
+            _effectSwitch("Révélé (Devin)", p.isRevealedByDevin, (v) => setState(() => p.isRevealedByDevin = v)),
+            _effectSwitch("En Voyage", p.isInTravel, (v) => setState(() => p.isInTravel = v)),
+            _effectSwitch("Fan de Ron-Aldo", p.isFanOfRonAldo, (v) => setState(() => p.isFanOfRonAldo = v)),
+            _effectSwitch("Transcendance (Absent)", p.isAwayAsMJ, (v) => setState(() => p.isAwayAsMJ = v)),
           ],
         ),
       ),
     );
   }
 
-  void _askIntDialog(String title, int defaultVal, Function(int) onVal) {
-    TextEditingController ctrl = TextEditingController(text: defaultVal.toString());
-    showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1D1E33),
-          title: Text(title, style: const TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(suffixText: "tours"),
-          ),
-          actions: [
-            TextButton(onPressed: () {
-              int? v = int.tryParse(ctrl.text);
-              if (v != null) onVal(v);
-              Navigator.pop(ctx);
-            }, child: const Text("OK"))
-          ],
-        )
-    );
-  }
-
   Widget _effectSwitch(String label, bool value, Function(bool) onChanged) {
-    return SwitchListTile(
-      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
-      value: value,
-      activeColor: Colors.blueAccent,
-      onChanged: (v) {
-        setState(() => onChanged(v));
-      },
-    );
+    return SwitchListTile(title: Text(label, style: const TextStyle(color: Colors.white)), value: value, activeColor: Colors.blueAccent, onChanged: onChanged);
   }
-
-  // ==========================================================
-  // ACTIONS TECHNIQUES
-  // ==========================================================
 
   void _executeManualElimination(Player p) async {
-    debugPrint("💀 LOG [MJ] : Élimination manuelle de ${p.name}");
     hasVotedThisTurn = true;
-    Player v = GameLogic.eliminatePlayer(context, _activePlayers, p);
+    Player v = GameLogic.eliminatePlayer(context, _activePlayers, p, reason: "Élimination Manuelle (MJ)");
     setState(() {});
     playSfx("cloche.mp3");
     await _showDeathResultDialog(v);
@@ -330,7 +389,6 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _executeManualResurrection(Player p) {
-    debugPrint("✨ LOG [MJ] : Résurrection de ${p.name}");
     setState(() {
       p.isAlive = true;
       p.isEffectivelyAsleep = false;
@@ -374,238 +432,65 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
   }
 
   void _checkChiefAlive() {
-    if (_isGameOverProcessing) return;
     bool chiefExists = _activePlayers.any((p) => p.isAlive && p.isVillageChief);
-    if (!chiefExists) {
-      _showChiefElectionDialog();
-    }
+    if (!chiefExists) _showChiefElectionDialog();
   }
 
   void _showChiefElectionDialog() {
     List<Player> eligible = _activePlayers.where((p) => p.isAlive).toList();
-    if (eligible.isEmpty) return;
-    eligible.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
+    eligible.sort((a, b) => a.name.compareTo(b.name));
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
-        title: const Text("ÉLECTION DU CHEF", style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+        title: const Text("ÉLECTION DU CHEF", style: TextStyle(color: Colors.amberAccent)),
         content: SizedBox(
           width: double.maxFinite,
-          height: 400,
+          height: 300,
           child: ListView.builder(
             itemCount: eligible.length,
-            itemBuilder: (context, i) {
-              final p = eligible[i];
-              return Card(
-                color: Colors.white10,
-                child: ListTile(
-                  leading: const Icon(Icons.person, color: Colors.white),
-                  title: Text(Player.formatName(p.name), style: const TextStyle(color: Colors.white)),
-                  onTap: () async {
-                    setState(() {
-                      for (var pl in widget.players) pl.isVillageChief = false;
-                      p.isVillageChief = true;
-                    });
-                    await AchievementLogic.checkMidGameAchievements(context, widget.players);
-                    Navigator.pop(ctx);
-                  },
-                ),
-              );
-            },
+            itemBuilder: (context, i) => ListTile(
+              title: Text(eligible[i].name, style: const TextStyle(color: Colors.white)),
+              onTap: () {
+                setState(() {
+                  for (var pl in widget.players) pl.isVillageChief = false;
+                  eligible[i].isVillageChief = true;
+                });
+                Navigator.pop(ctx);
+              },
+            ),
           ),
         ),
       ),
     );
   }
 
-  void _handlePlayerTap(Player p) {
-    if (!globalRolesDistributed) {
-      setState(() => p.isPlaying = !p.isPlaying);
-      return;
-    }
-    if (!p.isPlaying) return;
-    _showPlayerAdminMenu(p);
-  }
-
-  void _goToNight({bool force = false}) {
-    bool isFirstNight = (globalTurnNumber == 1 && !nightOnePassed);
-
-    if (!force && !hasVotedThisTurn && !isFirstNight) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1D1E33),
-          title: const Text("⚠️ Vote Oublié", style: TextStyle(color: Colors.redAccent)),
-          content: const Text("Le village n'a pas voté ce jour. Voulez-vous forcer le passage à la nuit (Sauter le vote) ?"),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER", style: TextStyle(color: Colors.white54))),
-            TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _goToNight(force: true);
-                },
-                child: const Text("FORCER LA NUIT", style: TextStyle(color: Colors.redAccent))
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    if (force) {
-      debugPrint("🌙 LOG [Menu] : Passage forcé à la nuit. Incrémentation du tour.");
-      GameLogic.nextTurn(_activePlayers);
-    }
-
-    _resetTimer();
-    isDayTime = false;
-    playMusic("ambiance_nuit.mp3");
-
-    Navigator.push(context, MaterialPageRoute(builder: (_) => NightActionsScreen(players: _activePlayers))).then((_) {
-      setState(() {
-        isDayTime = true;
-        hasVotedThisTurn = false;
-        _resetTimer();
-        _checkGameStateIntegrity();
-      });
-    });
-  }
-
-  void _goToVote() async {
-    _resetTimer();
-    await playSfx("vote_music.mp3");
-
-    // L'orchestrateur de vote (VotePlayerSelectionScreen) gère désormais tout le flux :
-    // Sélection des joueurs -> Vote -> Résultats du MJ -> Retour ici.
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => VotePlayerSelectionScreen(allPlayers: _activePlayers)
-        )
-    ).then((_) {
-      // Au retour de la séquence de vote (après les résultats)
-      setState(() {
-        hasVotedThisTurn = true;
-
-        // Comme le MJResultScreen a appelé GameLogic.nextTurn(),
-        // le jeu est techniquement déjà passé à "isDayTime = false" (Nuit),
-        // mais on le force ici pour l'UI du menu.
-        isDayTime = false;
-
-        _resetTimer();
-        _checkGameStateIntegrity();
-      });
-    });
-  }
-
   void _addPlayerDialog(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> savedNames = prefs.getStringList("saved_players_list") ?? [];
-    List<String> allRoles = [...globalPickBan["village"]!, ...globalPickBan["loups"]!, ...globalPickBan["solo"]!];
     String currentNameInput = "";
-    String currentRoleInput = "";
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1D1E33),
         title: const Text("NOUVEAU JOUEUR", style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Autocomplete<String>(
-              optionsBuilder: (text) => text.text.isEmpty ? const Iterable<String>.empty() : savedNames.where((opt) => opt.toLowerCase().startsWith(text.text.toLowerCase())),
-              onSelected: (val) => currentNameInput = val,
-              fieldViewBuilder: (ctx, controller, focus, onSubmitted) {
-                controller.addListener(() => currentNameInput = controller.text);
-                return TextField(controller: controller, focusNode: focus, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Nom", labelStyle: TextStyle(color: Colors.white54)));
-              },
-            ),
-            const SizedBox(height: 10),
-            Autocomplete<String>(
-              optionsBuilder: (text) => text.text.isEmpty ? const Iterable<String>.empty() : allRoles.where((opt) => opt.toLowerCase().contains(text.text.toLowerCase())),
-              onSelected: (val) => currentRoleInput = val,
-              fieldViewBuilder: (ctx, controller, focus, onSubmitted) {
-                controller.addListener(() => currentRoleInput = controller.text);
-                return TextField(controller: controller, focusNode: focus, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Rôle (Optionnel)", labelStyle: TextStyle(color: Colors.white54)));
-              },
-            ),
-          ],
+        content: TextField(
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) => currentNameInput = v,
+          decoration: const InputDecoration(labelText: "Nom"),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER", style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
-              onPressed: () {
-                String cleanName = Player.formatName(currentNameInput);
-
-                if (cleanName.isNotEmpty) {
-                  int existingIdx = widget.players.indexWhere((p) => p.name.toLowerCase() == cleanName.toLowerCase());
-
-                  setState(() {
-                    String? role = currentRoleInput.isNotEmpty ? currentRoleInput.trim() : null;
-                    String team = role != null ? GameLogic.getTeamForRole(role) : "village";
-
-                    if (existingIdx != -1) {
-                      widget.players[existingIdx].isPlaying = true;
-                      widget.players[existingIdx].isAlive = true;
-                      if (role != null) {
-                        widget.players[existingIdx].role = role;
-                        widget.players[existingIdx].team = team;
-                        widget.players[existingIdx].isRoleLocked = true;
-                      }
-                    } else {
-                      Player newP = Player(name: cleanName, isPlaying: true);
-                      if (role != null) {
-                        newP.role = role;
-                        newP.team = team;
-                        newP.isRoleLocked = true;
-                      }
-                      widget.players.add(newP);
-                    }
-
-                    if (!savedNames.any((n) => n.toLowerCase() == cleanName.toLowerCase())) {
-                      savedNames.add(cleanName);
-                      prefs.setStringList("saved_players_list", savedNames);
-                    }
-                  });
-                  Navigator.pop(ctx);
-                }
-              }, child: const Text("AJOUTER", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULER")),
+          ElevatedButton(onPressed: () {
+            if (currentNameInput.isNotEmpty) {
+              setState(() => widget.players.add(Player(name: currentNameInput, isPlaying: true)));
+              Navigator.pop(ctx);
+            }
+          }, child: const Text("AJOUTER"))
         ],
       ),
     );
-  }
-
-  void _startTimer() {
-    if (_isTimerRunning) return;
-    setState(() => _isTimerRunning = true);
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_currentSeconds > 0) {
-        setState(() => _currentSeconds--);
-      } else {
-        _timer?.cancel();
-        setState(() => _isTimerRunning = false);
-        playSfx("alarm.mp3");
-      }
-    });
-  }
-
-  void _resetTimer() {
-    _timer?.cancel();
-    setState(() {
-      _isTimerRunning = false;
-      _currentSeconds = (globalTimerMinutes * 60).toInt();
-    });
-  }
-
-  String _formatTime(int seconds) {
-    int m = seconds ~/ 60;
-    int s = seconds % 60;
-    return "$m:${s.toString().padLeft(2, '0')}";
   }
 
   Future<void> _showDeathResultDialog(Player victim) async {
@@ -647,112 +532,36 @@ class _GameMenuScreenState extends State<GameMenuScreen> {
       ),
       body: Column(
         children: [
-          // BANNIÈRE D'ÉTAT OU TIMER
-          Container(
-            margin: const EdgeInsets.all(15), padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (!globalRolesDistributed) ...[
-                  const Icon(Icons.groups, color: Colors.greenAccent),
-                  const SizedBox(width: 10),
-                  Text("${_activePlayers.length} Participants", style: const TextStyle(fontSize: 18, color: Colors.white)),
-                ] else ...[
-                  const Icon(Icons.timer, color: Colors.orangeAccent),
-                  const SizedBox(width: 10),
-                  Text(_formatTime(_currentSeconds), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const Spacer(),
-                  IconButton(icon: Icon(_isTimerRunning ? Icons.pause : Icons.play_arrow, color: Colors.white), onPressed: _isTimerRunning ? () { _timer?.cancel(); setState(() => _isTimerRunning = false); } : _startTimer),
-                  IconButton(icon: const Icon(Icons.replay, color: Colors.white54), onPressed: _resetTimer),
-                ]
-              ],
-            ),
+          GameInfoHeader(
+            isGameStarted: globalRolesDistributed,
+            playerCount: _activePlayers.length,
+            timeString: _formatTime(_currentSeconds),
+            isTimerRunning: _isTimerRunning,
+            onToggleTimer: _toggleTimer,
+            onResetTimer: _resetTimer,
           ),
-
-          // LISTE DES JOUEURS
           Expanded(
             child: ListView.builder(
               itemCount: displayList.length,
               itemBuilder: (context, index) {
                 final p = displayList[index];
-                bool isDead = globalRolesDistributed && !p.isAlive;
-
-                return Card(
-                  color: isDead ? Colors.red.withOpacity(0.1) : Colors.white10,
-                  margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-                  child: ListTile(
-                    onTap: () => _handlePlayerTap(p),
-                    leading: Icon(isDead ? Icons.dangerous : Icons.person, color: isDead ? Colors.red : Colors.greenAccent),
-                    title: Row(
-                      children: [
-                        Flexible(child: Text(p.name, style: TextStyle(color: Colors.white, decoration: isDead ? TextDecoration.lineThrough : null), overflow: TextOverflow.ellipsis)),
-                        const SizedBox(width: 5),
-                        p.buildStatusIcons(),
-                      ],
-                    ),
-                    subtitle: globalRolesDistributed
-                        ? Text(p.role?.toUpperCase() ?? "INCONNU", style: const TextStyle(color: Colors.white38, fontSize: 10))
-                        : (p.isRoleLocked ? Text("🔒 ${p.role?.toUpperCase()}", style: const TextStyle(color: Colors.amberAccent, fontSize: 10)) : null),
-                    trailing: !globalRolesDistributed ? Checkbox(value: p.isPlaying, activeColor: Colors.orangeAccent, onChanged: (v) => setState(() => p.isPlaying = v!)) : null,
-                  ),
+                return PlayerListCard(
+                  player: p,
+                  isGameStarted: globalRolesDistributed,
+                  onTap: () => _handlePlayerTap(p),
+                  onCheckChanged: !globalRolesDistributed
+                      ? (v) => setState(() => p.isPlaying = v!)
+                      : null,
                 );
               },
             ),
           ),
-
-          // BARRE D'ACTIONS INFÉRIEURE
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: Color(0xFF1D1E33), borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-            child: Column(
-              children: [
-                if (globalRolesDistributed) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                          onPressed: _goToVote,
-                          icon: const Icon(Icons.how_to_vote, color: Colors.white),
-                          label: const Text("VOTE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                          onPressed: () => _goToNight(force: false),
-                          icon: const Icon(Icons.nights_stay, color: Colors.white),
-                          label: const Text("NUIT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                    onPressed: () async {
-                      if (_activePlayers.length < 3) return;
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const RouletteScreen()));
-                      setState(() {
-                        GameLogic.assignRoles(_activePlayers);
-                        globalRolesDistributed = true;
-                        isDayTime = false;
-                      });
-                      await GameSaveService.saveGame();
-                    },
-                    child: const Text("LANCER LA PARTIE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 10),
-                  TextButton.icon(
-                    onPressed: () => _addPlayerDialog(context),
-                    icon: const Icon(Icons.add, color: Colors.orangeAccent),
-                    label: const Text("AJOUTER UN JOUEUR", style: TextStyle(color: Colors.orangeAccent)),
-                  ),
-                ],
-              ],
-            ),
+          GameActionButtons(
+            isGameStarted: globalRolesDistributed,
+            onVote: _goToVote,
+            onNight: () => _goToNight(force: false),
+            onStartGame: _startGame,
+            onAddPlayer: () => _addPlayerDialog(context),
           ),
         ],
       ),

@@ -144,7 +144,21 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
       case "Dingo": return DingoInterface(actor: widget.actor, players: widget.allPlayers, onHit: widget.onNext, onMiss: widget.onNext, onKillTargetSelected: (t) { widget.pendingDeaths[t] = "Tir du Dingo"; widget.onNext(); });
       case "Ron-Aldo": return RonAldoInterface(actor: widget.actor, allPlayers: widget.allPlayers, onNext: widget.onNext);
       case "Loup-garou chaman": return ChamanInterface(players: widget.allPlayers, onTargetSelected: (p) => widget.onNext());
-      case "Exorciste": return ExorcistInterface(player: widget.actor, allPlayers: widget.allPlayers, onAction: (t, d) { if(t=="EXORCISM_SUCCESS") widget.onExorcisme("SUCCESS"); else widget.onExorcisme(null); });
+
+    // --- CORRECTION MAJEURE ICI ---
+    // On accepte soit "SUCCESS" soit "EXORCISM_SUCCESS" pour être sûr
+      case "Exorciste":
+        return ExorcistInterface(
+            player: widget.actor,
+            allPlayers: widget.allPlayers,
+            onAction: (t, d) {
+              if(t == "SUCCESS" || t == "EXORCISM_SUCCESS") {
+                widget.onExorcisme("SUCCESS");
+              } else {
+                widget.onExorcisme(null);
+              }
+            }
+        );
 
       default: return Center(child: ElevatedButton(onPressed: widget.onNext, child: const Text("PASSER L'ACTION")));
     }

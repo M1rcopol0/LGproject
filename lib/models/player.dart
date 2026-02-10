@@ -58,6 +58,7 @@ class Player {
   int scapegoatUses;
   bool hasScapegoatPower;
   List<String> archivisteActionsUsed;
+  int archivisteScapegoatCharges; // NOUVEAU : Charges du pouvoir Bouc Émissaire (2)
 
   // --- PHYL ---
   List<Player> phylTargets;
@@ -192,6 +193,7 @@ class Player {
     this.scapegoatUses = 1,
     this.hasScapegoatPower = false,
     this.archivisteActionsUsed = const [],
+    this.archivisteScapegoatCharges = 0, // NOUVEAU
     this.phylTargets = const [],
     this.isSavedByTimeMaster = false,
     this.timeMasterTargets = const [],
@@ -323,6 +325,8 @@ class Player {
     wasMaisonConverted = false;
     hostedEnemiesCount = 0;
     isRoi = false;
+    archivisteActionsUsed = [];
+    archivisteScapegoatCharges = 0;
 
     // RESET RÔLES 2.0
     isProtectedBySaltimbanque = false;
@@ -397,6 +401,14 @@ class Player {
       ));
     }
 
+    // Icône Bouc (si possède le pouvoir)
+    if (hasScapegoatPower) {
+      icons.add(const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2.0),
+        child: Icon(Icons.pets, size: 14, color: Colors.white),
+      ));
+    }
+
     if (role?.toLowerCase() == "dingo" && dingoStrikeCount > 0) {
       icons.add(Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -463,6 +475,7 @@ class Player {
       'scapegoatUses': scapegoatUses,
       'hasScapegoatPower': hasScapegoatPower,
       'archivisteActionsUsed': archivisteActionsUsed,
+      'archivisteScapegoatCharges': archivisteScapegoatCharges, // NOUVEAU
       'votes': votes,
       'isVoteCancelled': isVoteCancelled,
       'totalVotesReceivedDuringGame': totalVotesReceivedDuringGame,
@@ -565,6 +578,7 @@ class Player {
       ..scapegoatUses = map['scapegoatUses'] ?? 1
       ..hasScapegoatPower = map['hasScapegoatPower'] ?? false
       ..archivisteActionsUsed = List<String>.from(map['archivisteActionsUsed'] ?? [])
+      ..archivisteScapegoatCharges = map['archivisteScapegoatCharges'] ?? 0 // NOUVEAU
       ..votes = map['votes'] ?? 0
       ..isVoteCancelled = map['isVoteCancelled'] ?? false
       ..totalVotesReceivedDuringGame = map['totalVotesReceivedDuringGame'] ?? 0

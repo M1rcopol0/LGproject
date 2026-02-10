@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Nécessaire pour lire les prefs auto_cloud_sync
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/player.dart';
 import 'models/achievement.dart';
 import 'globals.dart';
 import 'trophy_service.dart';
 import 'achievement_logic.dart';
-import 'cloud_service.dart'; // Nécessaire pour la synchro
+import 'cloud_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'main.dart'; // Pour resetAllGameData()
 
 class GameOverScreen extends StatefulWidget {
   final String winnerType;
@@ -38,10 +39,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
     if (_hasProcessed) return;
     _hasProcessed = true;
 
-    // 1. Filtrer les joueurs actifs (ceux qui ont joué)
     List<Player> activePlayers = widget.players.where((p) => p.isPlaying).toList();
 
-    // 2. Déterminer les vainqueurs
     List<Player> computedWinners = activePlayers.where((p) {
       final role = p.role?.toUpperCase().trim() ?? "";
       final team = p.team.toLowerCase();
@@ -67,8 +66,11 @@ class _GameOverScreenState extends State<GameOverScreen> {
           return role == "PANTIN";
         case "CHUCHOTEUR":
           return role == "CHUCHOTEUR";
-        case "EXORCISTE": // Cas spécifique géré par checkWinner dans logic.dart
-          return role == "EXORCISTE"; // L'exorciste gagne seul dans la logique interne, mais affiché comme Village
+
+      // CORRECTION : Si Exorciste gagne, TOUS les villageois gagnent
+        case "EXORCISTE":
+          return team == "village" && !p.isFanOfRonAldo;
+
         default:
           return role == widget.winnerType;
       }
@@ -82,7 +84,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
       if (widget.winnerType == "VILLAGE" || widget.winnerType == "EXORCISTE") roleGroup = "VILLAGE";
       if (widget.winnerType == "LOUPS-GAROUS") roleGroup = "LOUPS-GAROUS";
 
-      // 3. Préparer les stats globales de la partie
       Map<String, dynamic> customStats = {
         'winner_role': widget.winnerType,
         'turn_count': globalTurnNumber,
@@ -102,19 +103,13 @@ class _GameOverScreenState extends State<GameOverScreen> {
         'exorcisme_success_win': exorcistWin,
       };
 
-      // 4. Enregistrer la victoire dans la base locale (CRUCIAL : AVANT les succès)
-      // On utilise await pour être sûr que le fichier est écrit avant de lire les stats pour les succès
       await TrophyService.recordWin(winners, roleGroup, customData: customStats);
 
-      // 5. Vérifier les succès de Fin de Partie (Roi du CDI, Première Victoire, etc.)
-      // Maintenant que recordWin est passé, "totalWins" est à jour pour "Première Victoire".
       if (mounted) {
         await AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
       }
 
-      // 6. Vérifier les succès individuels complexes pour CHAQUE vainqueur
       for (var winner in winners) {
-        // On recharge les stats fraîches (qui contiennent la victoire qu'on vient d'ajouter)
         Map<String, dynamic> stats = await TrophyService.getStats();
         Map<String, dynamic> playerStats = stats[winner.name] ?? {};
         Map<String, dynamic> counters = playerStats['counters'] ?? {};
@@ -131,7 +126,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'somnifere_uses_left': winner.somnifereUses,
           'roleChangesCount': winner.roleChangesCount,
           'mutedPlayersCount': winner.mutedPlayersCount,
-          // 'maxSimultaneousCurses': winner.maxSimultaneousCurses, // RETIRÉ
           'was_revived': winner.wasRevivedInThisGame,
           'totalVotesReceivedDuringGame': winner.totalVotesReceivedDuringGame,
           'hasBetrayedRonAldo': winner.hasBetrayedRonAldo,
@@ -147,11 +141,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'devin_revealed_same_twice': winner.hasRevealedSamePlayerTwice,
           'traveler_killed_wolf': winner.travelerKilledWolf,
           'cumulative_hosted_count': winner.hostedCountThisGame,
-          // 'time_master_used_power': winner.timeMasterUsedPower, // RETIRÉ
           'tardos_suicide': winner.tardosSuicide,
         };
-
-        debugPrint("🔍 LOG [GameOver] : Check ${winner.name} -> BledUnique=${winner.protectedPlayersHistory.length}");
 
         for (var ach in AchievementData.allAchievements) {
           try {
@@ -170,14 +161,12 @@ class _GameOverScreenState extends State<GameOverScreen> {
       }
     }
 
-    // 7. SYNCHRO CLOUD AUTOMATIQUE
     try {
       final prefs = await SharedPreferences.getInstance();
       bool autoSync = prefs.getBool('auto_cloud_sync') ?? false;
 
       if (autoSync && mounted) {
         debugPrint("☁️ LOG [GameOver] : Lancement de la sauvegarde automatique Google Sheets...");
-        // On n'attend pas (await) pour ne pas bloquer l'UI, le service gère les SnackBars en fond
         CloudService.uploadData(context);
       }
     } catch (e) {
@@ -196,14 +185,20 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
     switch (widget.winnerType) {
       case "VILLAGE":
-      case "EXORCISTE": // Affichage identique pour Exorciste
         title = "VICTOIRE DU VILLAGE";
-        message = widget.winnerType == "EXORCISTE"
-            ? "L'Exorciste a purifié le village !"
-            : "La paix revient enfin sur le village.";
+        message = "La paix revient enfin sur le village.";
         themeColor = Colors.greenAccent;
-        icon = widget.winnerType == "EXORCISTE" ? Icons.cleaning_services : Icons.gite;
+        icon = Icons.gite;
         break;
+
+    // Cas EXORCISTE affiché comme Village mais avec style spécial
+      case "EXORCISTE":
+        title = "VICTOIRE DU VILLAGE";
+        message = "L'Exorciste a purifié le mal !";
+        themeColor = Colors.indigoAccent;
+        icon = Icons.auto_awesome;
+        break;
+
       case "LOUPS-GAROUS":
         title = "VICTOIRE DES LOUPS";
         message = "Le village a été dévoré...";

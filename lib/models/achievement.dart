@@ -132,7 +132,9 @@ class AchievementData {
       title: "Vite fait, bien fait !",
       description: "Faites gagner le village grâce à vos talents de mime.",
       icon: "🎭", rarity: 3,
-      checkCondition: (data) => data['exorcisme_success_win'] == true,
+      checkCondition: (data) =>
+      data['exorcisme_success_win'] == true &&
+          data['player_role']?.toString().toLowerCase() == "exorciste",
     ),
 
     // --- Grand-mère ---

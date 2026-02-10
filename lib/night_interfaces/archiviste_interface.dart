@@ -33,13 +33,12 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
 
   // --- LOGIQUE DU DÉPÔT DU DESTIN ---
   void _generateDestinyNumber() {
-    // Si on a déjà généré un chiffre pour cette session d'écran, on ne le change pas
     if (_generatedDestinyNumber != null) return;
 
     int maxRange = 15;
-    if (widget.actor.mjNightsCount >= 2) maxRange = 3;      // 3ème nuit et +
-    else if (widget.actor.mjNightsCount == 1) maxRange = 7; // 2ème nuit
-    else maxRange = 15;                                     // 1ère nuit
+    if (widget.actor.mjNightsCount >= 2) maxRange = 3;
+    else if (widget.actor.mjNightsCount == 1) maxRange = 7;
+    else maxRange = 15;
 
     setState(() {
       _generatedDestinyNumber = Random().nextInt(maxRange) + 1;
@@ -67,7 +66,7 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
       widget.actor.team = team;
       widget.actor.isAwayAsMJ = false;
       widget.actor.needsToChooseTeam = false;
-      widget.actor.mjNightsCount = 0; // Reset pour une future transcendance éventuelle
+      widget.actor.mjNightsCount = 0;
     });
     widget.onComplete("Vous avez choisi le camp : ${team.toUpperCase()}. Vous reviendrez au village à l'aube.");
   }
@@ -77,15 +76,30 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
     setState(() {
       widget.actor.isAwayAsMJ = true;
       widget.actor.hasUsedSwapMJ = true;
-      widget.actor.mjNightsCount = 0; // Départ compteur
+      widget.actor.mjNightsCount = 0;
     });
     widget.onComplete("Vous quittez le village pour remplacer le MJ. Bonne chance !");
+  }
+
+  // --- ACTION BOUC ÉMISSAIRE (GLOBAL) ---
+  void _activateGlobalScapegoat() {
+    setState(() {
+      widget.actor.archivisteScapegoatCharges--;
+      // On active le flag sur l'Archiviste pour que le jeu sache que le pouvoir est actif ce tour-ci
+      widget.actor.hasScapegoatPower = true;
+
+      if (!widget.actor.archivisteActionsUsed.contains("scapegoat")) {
+        widget.actor.archivisteActionsUsed.add("scapegoat");
+      }
+    });
+
+    _recordAction("scapegoat", "Activation du Bouc Émissaire (Global).");
+    widget.onComplete("Le Bouc Émissaire a été activé pour le vote de demain.");
   }
 
   @override
   void initState() {
     super.initState();
-    // Si on est en mode "Away", on génère le chiffre dès l'arrivée sur l'écran
     if (widget.actor.isAwayAsMJ && !widget.actor.needsToChooseTeam) {
       _generateDestinyNumber();
     }
@@ -103,18 +117,25 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   // --- VUES ---
 
   Widget _buildMainPowerMenu() {
+    bool hasMute = widget.actor.archivisteActionsUsed.contains("mute");
+    bool hasCancel = widget.actor.archivisteActionsUsed.contains("cancel_vote");
+
+    int charges = widget.actor.archivisteScapegoatCharges;
+    bool hasScapegoat = charges > 0;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _powerBtn("ANNULER UN VOTE", Icons.block, () => setState(() => _currentView = 'cancelVote')),
-        _powerBtn("CENSURER UN JOUEUR", Icons.mic_off, () => setState(() => _currentView = 'mute')),
+        if (!hasCancel)
+          _powerBtn("ANNULER UN VOTE", Icons.block, () => setState(() => _currentView = 'cancelVote')),
 
-        if (widget.actor.scapegoatUses > 0)
-          _powerBtn("BOUC ÉMISSAIRE (${widget.actor.scapegoatUses})", Icons.keyboard_return, () {
-            _recordAction("scapegoat", "Arme le pouvoir Bouc Émissaire pour le prochain vote.");
-            widget.actor.hasScapegoatPower = true;
-            widget.actor.scapegoatUses--;
-            widget.onComplete("Pouvoir Bouc Émissaire activé pour le prochain vote.");
+        if (!hasMute)
+          _powerBtn("CENSURER UN JOUEUR", Icons.mic_off, () => setState(() => _currentView = 'mute')),
+
+        if (hasScapegoat)
+          _powerBtn("ACTIVER BOUC ÉMISSAIRE ($charges/2)", Icons.pets, () {
+            // ACTION IMMÉDIATE : Pas de sélection de joueur
+            _activateGlobalScapegoat();
           }),
 
         if (!widget.actor.hasUsedSwapMJ)
@@ -132,7 +153,6 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
     );
   }
 
-  // NOUVELLE VUE : LE DÉFI DU MJ
   Widget _buildDestinyView() {
     int maxRange = 15;
     if (widget.actor.mjNightsCount >= 2) maxRange = 3;
@@ -158,7 +178,6 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
             ),
             const SizedBox(height: 30),
 
-            // AFFICHAGE DU CHIFFRE SECRET
             Container(
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
               decoration: BoxDecoration(
@@ -179,7 +198,6 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
 
             const SizedBox(height: 40),
 
-            // BOUTONS DE RÉSOLUTION
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
@@ -231,16 +249,19 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
   }
 
   Widget _buildPlayerSelector() {
-    // CORRECTION : TRI ALPHABÉTIQUE
     final list = widget.players.where((p) => p.isAlive).toList();
     list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    String title = "";
+    if (_currentView == 'cancelVote') title = "ANNULER LE VOTE DE :";
+    else if (_currentView == 'mute') title = "CENSURER :";
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            _currentView == 'cancelVote' ? "ANNULER LE VOTE DE :" : "CENSURER :",
+            title,
             style: const TextStyle(color: Colors.amber, fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
@@ -250,15 +271,19 @@ class _ArchivisteInterfaceState extends State<ArchivisteInterface> {
             itemBuilder: (ctx, i) => ListTile(
               title: Text(Player.formatName(list[i].name), style: const TextStyle(color: Colors.white)),
               onTap: () {
+                String msg = "";
                 if (_currentView == 'cancelVote') {
                   list[i].isVoteCancelled = true;
                   _recordAction("cancel_vote", "A annulé le vote de ${list[i].name}");
+                  msg = "${list[i].name} ne pourra pas voter.";
                 }
-                if (_currentView == 'mute') {
+                else if (_currentView == 'mute') {
                   list[i].isMutedDay = true;
                   _recordAction("mute", "A censuré ${list[i].name} pour le prochain jour.");
+                  widget.actor.mutedPlayersCount++;
+                  msg = "${list[i].name} est censuré !";
                 }
-                widget.onComplete(_currentView == 'mute' ? "${list[i].name} est censuré !" : "${list[i].name} ne pourra pas voter.");
+                widget.onComplete(msg);
               },
             ),
           ),
