@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'lobby_screen.dart';
 import 'player_directory_screen.dart'; // NOUVEL IMPORT
 import 'settings_screen.dart';
-import '../wiki_page.dart';
+import 'wiki_screen.dart';
 import 'trophy_hub_screen.dart';
 import '../globals.dart';
 import '../models/player.dart';

@@ -7,7 +7,7 @@ import 'screens/vote_screens.dart';
 import 'screens/mj_result_screen.dart';
 import 'screens/night_actions_screen.dart';
 import 'screens/settings_screen.dart';
-import 'wiki_page.dart';
+import 'screens/wiki_screen.dart';
 import 'screens/roulette_screen.dart';
 import 'globals.dart';
 import 'screens/fin_screen.dart';
@@ -16,8 +16,8 @@ import 'logic/achievement_logic.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'models/achievement.dart';
 import 'services/trophy_service.dart';
-import 'cloud_service.dart';
-import 'achievements_page.dart';
+import 'services/cloud_service.dart';
+import 'screens/achievements_screen.dart';
 
 // Import des widgets modulaires
 import 'widgets/game_info_header.dart';

@@ -12,7 +12,7 @@ import '../globals.dart';
 import '../services/backup_service.dart';
 import '../services/trophy_service.dart';
 import '../models/player.dart';
-import '../cloud_service.dart'; // Nécessaire pour forceUploadData
+import '../services/cloud_service.dart'; // Nécessaire pour forceUploadData
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

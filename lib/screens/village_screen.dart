@@ -15,8 +15,8 @@ import '../models/achievement.dart';
 import 'night_actions_screen.dart';
 import 'vote_screens.dart';
 import 'mj_result_screen.dart';
-import '../achievements_page.dart';
-import '../wiki_page.dart';
+import 'achievements_screen.dart';
+import 'wiki_screen.dart';
 import 'settings_screen.dart';
 
 // Widgets

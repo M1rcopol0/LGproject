@@ -5,7 +5,7 @@ import '../models/achievement.dart';
 import '../globals.dart';
 import '../services/trophy_service.dart';
 import '../logic/achievement_logic.dart';
-import '../cloud_service.dart';
+import '../services/cloud_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../main.dart'; // Pour resetAllGameData()
 
