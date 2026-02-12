@@ -17,6 +17,9 @@ bool nightOnePassed = false;
 // --- PARAMETRES DE VOTE ---
 bool globalVoteAnonyme = true;
 
+// --- MÉMOIRE DE SESSION (jamais persistée, perdue au kill) ---
+Map<String, int> distributionMemory = {};
+
 void resetGameState() {
   globalTimerMinutes = 2.0;
   isDayTime = false;

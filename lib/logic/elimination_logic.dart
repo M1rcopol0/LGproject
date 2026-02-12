@@ -5,29 +5,42 @@ import 'achievement_logic.dart';
 import '../services/trophy_service.dart';
 
 class EliminationLogic {
-  static Player eliminatePlayer(BuildContext context, List<Player> allPlayers, Player target,
+
+  /// Tue un joueur et gère TOUTES les réactions en chaîne (Amants, Sacrifices, etc.).
+  /// Retourne la liste de TOUS les morts (Cible + Amant...).
+  static List<Player> eliminatePlayer(BuildContext context, List<Player> allPlayers, Player target,
       {bool isVote = false, String reason = ""}) {
 
+    List<Player> deadPeople = [];
+
+    // 1. Rafraîchissement de la cible pour s'assurer d'avoir l'objet à jour
     Player realTarget = allPlayers.firstWhere((p) => p.name == target.name, orElse: () => target);
 
-    if (!realTarget.isAlive) return realTarget;
+    if (!realTarget.isAlive) return []; // Déjà mort, on ne fait rien
 
     final String roleLower = realTarget.role?.toLowerCase() ?? "";
 
+    // =========================================================================
+    // VÉRIFICATION DES IMMUNITÉS ET SURVIES
+    // =========================================================================
+
+    // --- IMMUNITÉ ARCHIVISTE ---
     if (realTarget.isAwayAsMJ) {
       debugPrint("🛡️ LOG [Archiviste] : Cible absente (Switch MJ). Immunité totale.");
-      return realTarget;
+      return [];
     }
 
-    // --- LOGIQUE PANTIN ---
+    // --- PANTIN (Survie au premier vote) ---
     if (roleLower == "pantin") {
       bool isManualKill = reason.contains("Manuel") || reason.contains("MJ");
 
       if (!isVote && !isManualKill) {
+        // Le Pantin ne meurt pas la nuit s'il est attaqué
         debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
-        return realTarget;
+        return [];
       } else if (isVote) {
         if (!realTarget.hasSurvivedVote) {
+          // --- LOGIQUE CLUTCH PANTIN (Succès) ---
           try {
             List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
             survivors.sort((a, b) => b.votes.compareTo(a.votes));
@@ -47,12 +60,12 @@ class EliminationLogic {
 
           realTarget.hasSurvivedVote = true;
           debugPrint("🎭 LOG [Pantin] : Le Pantin survit à son premier vote.");
-          return realTarget;
+          return [];
         }
       }
     }
 
-    // --- CLUTCH PANTIN ---
+    // --- CLUTCH PANTIN (Si le Pantin n'est pas la cible mais vote contre le mourant) ---
     if (isVote && roleLower != "pantin") {
       try {
         Player pantin = allPlayers.firstWhere((p) => p.isAlive && p.role?.toLowerCase() == "pantin");
@@ -76,20 +89,24 @@ class EliminationLogic {
       } catch (e) {}
     }
 
-    // --- CORRECTION BOUC ÉMISSAIRE ---
+    // --- BOUC ÉMISSAIRE (Consommation du pouvoir) ---
     if (isVote && realTarget.hasScapegoatPower) {
       realTarget.hasScapegoatPower = false;
       debugPrint("🐏 LOG [Archevêque] : Bouc émissaire consommé, mais la sentence est exécutée.");
     }
 
+    // --- VOYAGEUR (Retour forcé) ---
     if (roleLower == "voyageur" && realTarget.isInTravel) {
       realTarget.isInTravel = false;
       realTarget.canTravelAgain = false;
       debugPrint("✈️ LOG [Voyageur] : Forcé au retour du voyage.");
-      return realTarget;
+      // S'il n'est pas voté (donc attaqué de nuit), il revient mais ne meurt pas (selon règles précédentes)
+      if (!isVote) return [];
     }
 
-    Player victim = realTarget;
+    // =========================================================================
+    // GESTION DES SACRIFICES (REDIRECTIONS)
+    // =========================================================================
 
     // --- LOGIQUE MAISON ---
     if (realTarget.isInHouse && !reason.contains("Malédiction")) {
@@ -100,63 +117,118 @@ class EliminationLogic {
 
       if (houseOwner != null) {
         if (houseOwner.isFanOfRonAldo) {
+          // La maison est fan, elle ne s'effondre pas, la cible meurt normalement
           debugPrint("🏠 CAPTEUR [Mort] : Maison fan de Ron-Aldo -> pas d'effondrement, cible directe: ${realTarget.name}.");
-          victim = realTarget;
         } else {
-          victim = houseOwner;
+          // La maison s'effondre, le propriétaire meurt A LA PLACE de la cible
           houseOwner.isHouseDestroyed = true;
           for (var p in allPlayers) { p.isInHouse = false; }
-          victim.isAlive = false;
-          AchievementLogic.checkHouseCollapse(context, houseOwner);
+
           debugPrint("🏠 LOG [Maison] : Effondrement ! Le propriétaire meurt à la place de ${realTarget.name}");
-          return victim;
+          AchievementLogic.checkHouseCollapse(context, houseOwner);
+
+          // RÉCURSIVITÉ : On tue le propriétaire à la place
+          return eliminatePlayer(context, allPlayers, houseOwner, isVote: isVote, reason: "Effondrement Maison");
         }
       }
     }
-    // --- RON-ALDO ---
+
+    // --- LOGIQUE RON-ALDO ---
     else if (roleLower == "ron-aldo") {
       try {
         Player firstFan = allPlayers.firstWhere(
-              (p) => p.isFanOfRonAldo && p.fanJoinOrder == 1,
+              (p) => p.isFanOfRonAldo && p.fanJoinOrder == 1 && p.isAlive,
           orElse: () => Player(name: "None"),
         );
 
-        if (firstFan.name != "None" && firstFan.isAlive) {
-          victim = firstFan;
-          debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${victim.name}) se sacrifie !");
-          AchievementLogic.checkFanSacrifice(context, victim, realTarget);
-        } else {
-          debugPrint("🛡️ CAPTEUR [Mort] : Ron-Aldo sans fan disponible -> mort directe.");
+        if (firstFan.name != "None") {
+          debugPrint("🛡️ LOG [Ron-Aldo] : Le Premier Fan (${firstFan.name}) se sacrifie !");
+          AchievementLogic.checkFanSacrifice(context, firstFan, realTarget);
+
+          // RÉCURSIVITÉ : On tue le Fan à la place
+          return eliminatePlayer(context, allPlayers, firstFan, isVote: isVote, reason: "Sacrifice pour Ron-Aldo");
         }
       } catch (e) {
         debugPrint("⚠️ Erreur logique Ron-Aldo : $e");
       }
     }
 
-    if (isVote && nightChamanTarget != null && victim.name == nightChamanTarget!.name) {
+    // =========================================================================
+    // APPLICATION DE LA MORT
+    // =========================================================================
+
+    // Si on arrive ici, le joueur meurt effectivement.
+    realTarget.isAlive = false;
+    deadPeople.add(realTarget);
+    debugPrint("💀 LOG [Mort] : ${realTarget.name} (${realTarget.role}) a quitté la partie. Raison: $reason");
+
+    // --- CHAMAN SNIPER ---
+    if (isVote && nightChamanTarget != null && realTarget.name == nightChamanTarget!.name) {
       debugPrint("💀 CAPTEUR [Mort] : Chaman sniper détecté ! Cible du chaman ${nightChamanTarget!.name} éliminée au vote.");
       chamanSniperAchieved = true;
     }
 
-    victim.isAlive = false;
-    debugPrint("💀 LOG [Mort] : ${victim.name} (${victim.role}) a quitté la partie.");
-
+    // --- FIRST BLOOD ---
     if (!anybodyDeadYet) {
       anybodyDeadYet = true;
-      firstDeadPlayerName = victim.name;
-      AchievementLogic.checkFirstBlood(context, victim);
+      firstDeadPlayerName = realTarget.name;
+      AchievementLogic.checkFirstBlood(context, realTarget);
     }
 
+    // --- POKEMON T1 (Mort Nuit 1) ---
     if (roleLower == "pokémon" && globalTurnNumber == 1 && !isDayTime) {
       pokemonDiedTour1 = true;
     }
 
-    AchievementLogic.checkDeathAchievements(context, victim, allPlayers);
+    // --- ACHIEVEMENTS GÉNÉRAUX ---
+    AchievementLogic.checkDeathAchievements(context, realTarget, allPlayers);
 
-    if (isVote && victim.hasSurvivedWolfBite) {
-      AchievementLogic.checkEvolvedHunger(context, victim, allPlayers);
+    // --- FAIM DU LOUP (ÉVOLUÉ) ---
+    if (isVote && realTarget.hasSurvivedWolfBite) {
+      AchievementLogic.checkEvolvedHunger(context, realTarget, allPlayers);
     }
 
-    return victim;
+    // =========================================================================
+    // RÉACTIONS EN CHAÎNE (LIENS)
+    // =========================================================================
+
+    // 1. LIEN AMOUREUX (CUPIDON)
+    if (realTarget.isLinked) {
+      try {
+        // On cherche le partenaire vivant
+        Player lover = allPlayers.firstWhere(
+              (p) => p.isLinked && p.name != realTarget.name && p.isAlive,
+        );
+
+        debugPrint("💔 DRAME : ${realTarget.name} meurt et entraîne son amant ${lover.name} dans la tombe !");
+
+        // RÉCURSIVITÉ : On tue l'amant immédiatement
+        List<Player> loverDeaths = eliminatePlayer(context, allPlayers, lover, isVote: isVote, reason: "Chagrin d'amour");
+        deadPeople.addAll(loverDeaths);
+
+      } catch (e) {
+        // Pas de partenaire vivant trouvé (ou bug de lien)
+      }
+    }
+
+    // 2. LIEN MODÈLE -> ENFANT SAUVAGE (Transformation)
+    try {
+      Player child = allPlayers.firstWhere(
+              (p) => (p.role?.toLowerCase() == "enfant sauvage") && p.isAlive && p.modelPlayer?.name == realTarget.name
+      );
+      debugPrint("👶 TRANSFORMATION : Le modèle est mort. L'Enfant Sauvage ${child.name} passe chez les LOUPS !");
+      child.team = "loups";
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("L'Enfant Sauvage (${child.name}) a rejoint les Loups !"), backgroundColor: Colors.red)
+        );
+      }
+    } catch(e) {}
+
+    // Note : Le lien Dresseur -> Pokémon n'est PAS géré ici car le Pokémon ne meurt pas automatiquement
+    // si le Dresseur meurt (sauf sacrifice de nuit spécifique).
+
+    return deadPeople;
   }
 }

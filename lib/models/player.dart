@@ -131,7 +131,7 @@ class Player {
   bool hasBakedQuiche;
   bool hasSavedSelfWithQuiche;
 
-  // --- NOUVEAUX RÔLES (Mise à jour demandée) ---
+  // --- NOUVEAUX RÔLES ---
 
   // SALTIMBANQUE
   bool isProtectedBySaltimbanque;
@@ -141,15 +141,15 @@ class Player {
   bool isLinkedByCupidon;
   Player? lover;
 
+  // ENFANT SAUVAGE
+  Player? modelPlayer; // Le modèle de l'enfant sauvage
+
   // SORCIÈRE
   bool hasUsedSorciereRevive;
   bool hasUsedSorciereKill;
 
   // KUNG-FU PANDA
   bool mustScreamKungFu; // Si le joueur a été ciblé par le Panda
-
-  // CHASSEUR
-  // (Pas de variable spéciale, la logique est dans eliminatePlayer)
 
   // --- STATS GLOBALES ET SUCCÈS ---
   int roleChangesCount;
@@ -168,7 +168,7 @@ class Player {
     this.previousRole,
     this.team = "village",
     this.isAlive = true,
-    this.isPlaying = false,
+    this.isPlaying = false, // Par défaut false pour le lobby
     this.isVillageChief = false,
     this.isRoleLocked = false,
     this.isInHouse = false,
@@ -195,7 +195,7 @@ class Player {
     this.scapegoatUses = 1,
     this.hasScapegoatPower = false,
     this.archivisteActionsUsed = const [],
-    this.archivisteScapegoatCharges = 0, // NOUVEAU
+    this.archivisteScapegoatCharges = 0,
     this.phylTargets = const [],
     this.isSavedByTimeMaster = false,
     this.timeMasterTargets = const [],
@@ -249,26 +249,28 @@ class Player {
     this.hasHeardWolfSecrets = false,
     this.canacleanPresent = false,
     this.isSelected = false,
-
     List<String>? votedAgainstHistory,
     this.hostedRonAldoThisTurn = false,
     this.wasMaisonConverted = false,
     this.hostedEnemiesCount = 0,
     this.isRoi = false,
-
-    // NOUVEAUX RÔLES
     this.isProtectedBySaltimbanque = false,
     this.lastSaltimbanqueTarget,
     this.isLinkedByCupidon = false,
     this.lover,
+    this.modelPlayer,
     this.hasUsedSorciereRevive = false,
     this.hasUsedSorciereKill = false,
     this.mustScreamKungFu = false,
-
-  }) : name = formatName(name),
+  })  : name = formatName(name),
         revealedPlayersHistory = revealedPlayersHistory ?? [],
         protectedPlayersHistory = protectedPlayersHistory ?? {},
         votedAgainstHistory = votedAgainstHistory ?? [];
+
+  // --- GETTERS & HELPERS ---
+
+  bool get isLinked => isLinkedByCupidon;
+  bool get isWolf => team == "loups";
 
   static String formatName(String input) {
     if (input.trim().isEmpty) return input;
@@ -281,7 +283,7 @@ class Player {
     }).join(' ');
   }
 
-  bool get isWolf => team == "loups";
+  // --- MÉTHODES ---
 
   void changeRole(String newRole, String newTeam) {
     previousRole = role; // Sauvegarde de l'ancien rôle
@@ -335,6 +337,7 @@ class Player {
     lastSaltimbanqueTarget = null;
     isLinkedByCupidon = false;
     lover = null;
+    modelPlayer = null;
     hasUsedSorciereRevive = false;
     hasUsedSorciereKill = false;
     mustScreamKungFu = false;
@@ -350,16 +353,12 @@ class Player {
     isSavedByTimeMaster = false;
     pokemonRevengeTarget = null;
     hasReturnedThisTurn = false;
-
-    // RESET TEMPORAIRE
     hostedRonAldoThisTurn = false;
-
-    // Saltimbanque : la protection ne dure qu'une nuit
     isProtectedBySaltimbanque = false;
     mustScreamKungFu = false;
   }
 
-  // Serialization delegue a PlayerSerializer (voir player_serialization.dart)
+  // Sérialisation déléguée à PlayerSerializer
   Map<String, dynamic> toJson() => PlayerSerializer.toJson(this);
   factory Player.fromMap(Map<String, dynamic> map) => PlayerSerializer.fromMap(map);
 }

@@ -18,6 +18,7 @@ void resetGlobalState() {
   globalGovernanceMode = "MAIRE";
   globalTimerMinutes = 2.0;
   globalPlayers = [];
+  distributionMemory = {};
 
   // Achievement flags
   anybodyDeadYet = false;

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:fluffer/models/player.dart';
-import 'package:fluffer/logic/logic.dart';
-import 'package:fluffer/screens/fin_screen.dart';
-import 'package:fluffer/logic/achievement_logic.dart';
-import 'package:fluffer/services/game_save_service.dart';
-import 'package:fluffer/globals.dart';
+import '../models/player.dart';
+import '../logic/logic.dart';
+import '../screens/fin_screen.dart';
+import '../logic/achievement_logic.dart';
+import '../services/game_save_service.dart';
+import '../services/audio_service.dart';
+import '../globals.dart';
 
 class PokemonInterface extends StatelessWidget {
   final Player player;
@@ -47,7 +48,8 @@ class PokemonInterface extends StatelessWidget {
               const SizedBox(height: 40),
               ElevatedButton(
                 onPressed: () => onAction(null),
-                child: const Text("CONTINUER"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                child: const Text("CONTINUER", style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -56,7 +58,6 @@ class PokemonInterface extends StatelessWidget {
     }
 
     // Cas Actif (Dresseur Mort) : Sélection de cible pour attaque nocturne
-    // TRI ALPHABÉTIQUE
     final targets = allPlayers.where((p) => p.isAlive && p.name != player.name).toList();
     targets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -113,7 +114,7 @@ class PokemonInterface extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              onAction(target); // Renvoie la cible au Dispatcher (sera ajoutée à pendingDeaths)
+              onAction(target);
             },
             child: const Text("FOUDROYER", style: TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.bold)),
           ),
@@ -126,8 +127,8 @@ class PokemonInterface extends StatelessWidget {
 /// GESTIONNAIRE CENTRALISÉ DE LA MORT DU POKÉMON (VENGEANCE)
 class PokemonDeathHandler {
 
-  /// Lance la séquence de vengeance complète
-  static Future<void> handleVengeance({
+  /// Lance la séquence de vengeance complète (appelé par MJResultScreen ou NightDeathResolver)
+  static Future<List<Player>> handleVengeance({
     required BuildContext context,
     required List<Player> allPlayers,
     required Player pokemon,
@@ -155,7 +156,7 @@ class PokemonDeathHandler {
       ),
     );
 
-    if (!context.mounted) return;
+    if (!context.mounted) return [];
 
     // 2. Sélection de la cible
     // RÈGLE : Le Pokémon ne peut PAS tuer le Dresseur
@@ -165,7 +166,6 @@ class PokemonDeathHandler {
         p.role?.toLowerCase() != "dresseur"
     ).toList();
 
-    // TRI ALPHABÉTIQUE
     validTargets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     final Player? selectedTarget = await showDialog<Player>(
@@ -194,17 +194,16 @@ class PokemonDeathHandler {
       ),
     );
 
-    // Si aucune cible n'est sélectionnée (ex: annulation ou liste vide), on arrête là.
     if (selectedTarget == null) {
-      debugPrint("⚡ LOG [Pokémon] : Aucune cible sélectionnée pour la vengeance.");
-      return;
+      debugPrint("⚡ LOG [Pokémon] : Aucune cible sélectionnée.");
+      return [];
     }
 
-    if (!context.mounted) return;
+    if (!context.mounted) return [];
 
-    // 3. Exécution du Kill Immédiat
+    // 3. Exécution du Kill (Peut entraîner des morts en chaîne via List<Player>)
     playSfx("gunshot.mp3");
-    Player deadPlayer = GameLogic.eliminatePlayer(
+    List<Player> victims = GameLogic.eliminatePlayer(
         context,
         allPlayers,
         selectedTarget,
@@ -213,6 +212,7 @@ class PokemonDeathHandler {
     );
 
     // 4. Dialogue de confirmation
+    String msg = victims.map((v) => "- ${v.name} (${v.role})").join("\n");
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -220,7 +220,7 @@ class PokemonDeathHandler {
         backgroundColor: const Color(0xFF1D1E33),
         title: const Text("CIBLE FOUDROYÉE", style: TextStyle(color: Colors.white)),
         content: Text(
-          "${deadPlayer.name} a été grillé sur place.\nSon rôle était : ${deadPlayer.role?.toUpperCase()}",
+          "Le tonnerre a frappé :\n$msg",
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -233,12 +233,11 @@ class PokemonDeathHandler {
     );
 
     // 5. CHECK VICTOIRE IMMÉDIAT
-    String? winner = GameLogic.checkWinner(allPlayers);
+    String? winner = WinConditionLogic.checkWinner(allPlayers);
 
     if (winner != null && context.mounted) {
       debugPrint("🏆 LOG [Pokémon] : Le tonnerre a donné la victoire à $winner !");
 
-      // Gestion des succès de fin
       try {
         List<Player> winnersList = allPlayers.where((p) =>
         (winner == "VILLAGE" && p.team == "village") ||
@@ -252,18 +251,19 @@ class PokemonDeathHandler {
 
       await GameSaveService.clearSave();
 
-      // Navigation forcée vers l'écran de fin
       SchedulerBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
                 builder: (context) => GameOverScreen(
-                    winnerType: winner,
-                    players: List.from(allPlayers)
+                  winnerType: winner,
+                  players: allPlayers,
                 )
             ),
                 (route) => false
         );
       });
     }
+
+    return victims;
   }
 }

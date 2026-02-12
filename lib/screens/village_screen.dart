@@ -7,6 +7,7 @@ import '../globals.dart';
 import '../services/game_save_service.dart';
 import '../logic/achievement_logic.dart';
 import '../services/trophy_service.dart';
+import '../services/audio_service.dart'; // Pour centraliser l'audio
 import '../player_storage.dart';
 import 'fin_screen.dart';
 import '../models/achievement.dart';
@@ -15,8 +16,8 @@ import '../models/achievement.dart';
 import 'night_actions_screen.dart';
 import 'vote_screens.dart';
 import 'mj_result_screen.dart';
-import 'achievements_screen.dart';
-import 'wiki_screen.dart';
+import '../screens/achievements_screen.dart';
+import '../screens/wiki_screen.dart';
 import 'settings_screen.dart';
 
 // Widgets
@@ -25,7 +26,7 @@ import '../widgets/player_list_card.dart';
 import '../widgets/game_action_buttons.dart';
 
 class VillageScreen extends StatefulWidget {
-  final List<Player> players; // Ce sont les joueurs ACTIFS de la partie
+  final List<Player> players;
   const VillageScreen({super.key, required this.players});
 
   @override
@@ -115,12 +116,6 @@ class _VillageScreenState extends State<VillageScreen> {
         _resetTimer();
       });
 
-      if (exorcistWin) {
-        debugPrint("🏆 LOG [Village] : Victoire Exorciste !");
-        await _handleGameOver("EXORCISTE");
-        return;
-      }
-
       _checkGameStateIntegrity();
       if (!_isGameOverProcessing) {
         await GameSaveService.saveGame();
@@ -140,7 +135,7 @@ class _VillageScreenState extends State<VillageScreen> {
           bool chiefAlive = widget.players.any((p) => p.isAlive && p.isVillageChief);
           if (!chiefAlive) _showChiefElectionDialog();
         }
-        isDayTime = false; // Fin de journée après le vote
+        isDayTime = true; // Reste jour après le vote pour le débrief
         _resetTimer();
       });
     }
@@ -178,7 +173,7 @@ class _VillageScreenState extends State<VillageScreen> {
   // --- ADMINISTRATION (MJ) ---
 
   void _handlePlayerTap(Player p) {
-    if (!p.isPlaying) return; // Sécurité
+    if (!p.isPlaying) return;
     _showPlayerAdminMenu(p);
   }
 
@@ -199,12 +194,12 @@ class _VillageScreenState extends State<VillageScreen> {
 
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.blueAccent),
-              title: const Text("ÉDITER (Nom/Tél)", style: TextStyle(color: Colors.white)),
+              title: const Text("ÉDITER (Nom/Tél)"),
               onTap: () { Navigator.pop(ctx); _showEditPlayerDialog(p); },
             ),
             ListTile(
               leading: Icon(p.isAlive ? Icons.dangerous : Icons.favorite, color: p.isAlive ? Colors.redAccent : Colors.greenAccent),
-              title: Text(p.isAlive ? "ÉLIMINER" : "RESSUSCITER", style: const TextStyle(color: Colors.white)),
+              title: Text(p.isAlive ? "ÉLIMINER" : "RESSUSCITER"),
               onTap: () {
                 Navigator.pop(ctx);
                 p.isAlive ? _executeManualElimination(p) : _executeManualResurrection(p);
@@ -212,12 +207,12 @@ class _VillageScreenState extends State<VillageScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.auto_fix_high, color: Colors.cyanAccent),
-              title: const Text("APPLIQUER UN EFFET", style: TextStyle(color: Colors.white)),
+              title: const Text("APPLIQUER UN EFFET"),
               onTap: () { Navigator.pop(ctx); _showEffectsMenu(p); },
             ),
             ListTile(
               leading: const Icon(Icons.workspace_premium, color: Colors.amber),
-              title: const Text("NOMMER CHEF", style: TextStyle(color: Colors.white)),
+              title: const Text("NOMMER CHEF"),
               onTap: () {
                 setState(() {
                   for (var pl in widget.players) pl.isVillageChief = false;
@@ -228,7 +223,7 @@ class _VillageScreenState extends State<VillageScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.emoji_events, color: Colors.purpleAccent),
-              title: const Text("GÉRER SUCCÈS", style: TextStyle(color: Colors.white)),
+              title: const Text("GÉRER SUCCÈS"),
               onTap: () { Navigator.pop(ctx); _showAchievementManager(p); },
             ),
           ],
@@ -242,10 +237,10 @@ class _VillageScreenState extends State<VillageScreen> {
     TextEditingController phoneCtrl = TextEditingController(text: p.phoneNumber ?? "");
     showDialog(context: context, builder: (ctx) => AlertDialog(
       backgroundColor: const Color(0xFF1D1E33),
-      title: const Text("Édition MJ", style: TextStyle(color: Colors.white)),
+      title: const Text("Édition MJ"),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Nom")),
-        TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Tél"), keyboardType: TextInputType.phone),
+        TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Nom")),
+        TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: "Tél"), keyboardType: TextInputType.phone),
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
@@ -265,37 +260,45 @@ class _VillageScreenState extends State<VillageScreen> {
 
   void _showEffectsMenu(Player p) {
     showModalBottomSheet(context: context, backgroundColor: const Color(0xFF0A0E21), builder: (ctx) => Container(padding: const EdgeInsets.all(20), child: ListView(children: [
-      SwitchListTile(title: const Text("Dans la Maison", style: TextStyle(color: Colors.white)), value: p.isInHouse, onChanged: (v) => setState(() => p.isInHouse = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Protégé (Dresseur)", style: TextStyle(color: Colors.white)), value: p.isProtectedByPokemon, onChanged: (v) => setState(() => p.isProtectedByPokemon = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Endormi (Venin/Somni)", style: TextStyle(color: Colors.white)), value: p.isEffectivelyAsleep, onChanged: (v) => setState(() => p.isEffectivelyAsleep = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Censuré (Muet)", style: TextStyle(color: Colors.white)), value: p.isMutedDay, onChanged: (v) => setState(() => p.isMutedDay = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Immunisé Vote (Bled)", style: TextStyle(color: Colors.white)), value: p.isImmunizedFromVote, onChanged: (v) => setState(() => p.isImmunizedFromVote = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Révélé (Devin)", style: TextStyle(color: Colors.white)), value: p.isRevealedByDevin, onChanged: (v) => setState(() => p.isRevealedByDevin = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("En Voyage", style: TextStyle(color: Colors.white)), value: p.isInTravel, onChanged: (v) => setState(() => p.isInTravel = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Fan de Ron-Aldo", style: TextStyle(color: Colors.white)), value: p.isFanOfRonAldo, onChanged: (v) => setState(() => p.isFanOfRonAldo = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Transcendance (Absent)", style: TextStyle(color: Colors.white)), value: p.isAwayAsMJ, onChanged: (v) => setState(() => p.isAwayAsMJ = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Dans la Maison"), value: p.isInHouse, onChanged: (v) => setState(() => p.isInHouse = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Protégé (Dresseur)"), value: p.isProtectedByPokemon, onChanged: (v) => setState(() => p.isProtectedByPokemon = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Endormi (Venin/Somni)"), value: p.isEffectivelyAsleep, onChanged: (v) => setState(() => p.isEffectivelyAsleep = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Censuré (Muet)"), value: p.isMutedDay, onChanged: (v) => setState(() => p.isMutedDay = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Immunisé Vote (Bled)"), value: p.isImmunizedFromVote, onChanged: (v) => setState(() => p.isImmunizedFromVote = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Révélé (Devin)"), value: p.isRevealedByDevin, onChanged: (v) => setState(() => p.isRevealedByDevin = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("En Voyage"), value: p.isInTravel, onChanged: (v) => setState(() => p.isInTravel = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Fan de Ron-Aldo"), value: p.isFanOfRonAldo, onChanged: (v) => setState(() => p.isFanOfRonAldo = v), activeColor: Colors.blueAccent),
+      SwitchListTile(title: const Text("Transcendance (Absent)"), value: p.isAwayAsMJ, onChanged: (v) => setState(() => p.isAwayAsMJ = v), activeColor: Colors.blueAccent),
     ])));
   }
 
   void _showAchievementManager(Player p) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: Text("Succès de ${p.name}", style: const TextStyle(color: Colors.white)), content: SizedBox(width: double.maxFinite, height: 400, child: FutureBuilder<List<String>>(future: TrophyService.getUnlockedAchievements(p.name), builder: (context, snapshot) { if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator()); List<String> unlocked = List.from(snapshot.data ?? []); return StatefulBuilder(builder: (context, setStateInner) { return ListView.builder(itemCount: AchievementData.allAchievements.length, itemBuilder: (context, index) { final ach = AchievementData.allAchievements[index]; final isUnlocked = unlocked.contains(ach.id); return CheckboxListTile(title: Text(ach.title, style: TextStyle(color: isUnlocked ? Colors.white : Colors.white54)), value: isUnlocked, activeColor: ach.color, checkColor: Colors.black, onChanged: (val) async { if (val == true) { await TrophyService.unlockAchievement(p.name, ach.id); unlocked.add(ach.id); } else { await TrophyService.removeAchievement(p.name, ach.id); unlocked.remove(ach.id); } setStateInner(() {}); },);},);});},),), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER"))]));
+    showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: Text("Succès de ${p.name}"), content: SizedBox(width: double.maxFinite, height: 400, child: FutureBuilder<List<String>>(future: TrophyService.getUnlockedAchievements(p.name), builder: (context, snapshot) { if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator()); List<String> unlocked = List.from(snapshot.data ?? []); return StatefulBuilder(builder: (context, setStateInner) { return ListView.builder(itemCount: AchievementData.allAchievements.length, itemBuilder: (context, index) { final ach = AchievementData.allAchievements[index]; final isUnlocked = unlocked.contains(ach.id); return CheckboxListTile(title: Text(ach.title, style: TextStyle(color: isUnlocked ? Colors.white : Colors.white54)), value: isUnlocked, activeColor: ach.color, checkColor: Colors.black, onChanged: (val) async { if (val == true) { await TrophyService.unlockAchievement(p.name, ach.id); unlocked.add(ach.id); } else { await TrophyService.removeAchievement(p.name, ach.id); unlocked.remove(ach.id); } setStateInner(() {}); },);},);});},),), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER"))]));
   }
 
   void _executeManualElimination(Player p) async {
-    debugPrint("🚀 CAPTEUR [Navigation] : Élimination manuelle MJ de ${p.name} (${p.role}).");
-    hasVotedThisTurn = true;
-    Player v = GameLogic.eliminatePlayer(context, widget.players, p, reason: "Élimination Manuelle (MJ)");
+    debugPrint("🚀 CAPTEUR [Navigation] : Élimination manuelle MJ de ${p.name}.");
+
+    // Correction : eliminationPlayer renvoie une Liste
+    List<Player> victims = GameLogic.eliminatePlayer(context, widget.players, p, reason: "Élimination Manuelle (MJ)");
+
     setState(() {});
     playSfx("cloche.mp3");
 
-    // Popup confirmation
-    await showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: const Text("MORT CONFIRMÉE", style: TextStyle(color: Colors.white)), content: Text("${v.name} était ${v.role?.toUpperCase()}.", style: const TextStyle(color: Colors.white70)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))]));
+    String msg = victims.isEmpty ? "Cible immunisée." : "${victims.map((v) => v.name).join(', ')} a/ont quitté la partie.";
+
+    await showDialog(context: context, builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("SENTENCE MJ"),
+        content: Text(msg),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))]
+    ));
 
     _checkGameStateIntegrity();
   }
 
   void _executeManualResurrection(Player p) {
-    debugPrint("🚀 CAPTEUR [Navigation] : Résurrection manuelle MJ de ${p.name} (${p.role}).");
+    debugPrint("🚀 CAPTEUR [Navigation] : Résurrection manuelle MJ de ${p.name}.");
     setState(() {
       p.isAlive = true;
       p.isEffectivelyAsleep = false;
@@ -318,7 +321,7 @@ class _VillageScreenState extends State<VillageScreen> {
 
   void _checkGameOver() {
     if (_isGameOverProcessing) return;
-    String? winner = GameLogic.checkWinner(widget.players);
+    String? winner = WinConditionLogic.checkWinner(widget.players);
     if (winner != null && (globalTurnNumber > 1 || nightOnePassed)) {
       _handleGameOver(winner);
     }
@@ -342,7 +345,7 @@ class _VillageScreenState extends State<VillageScreen> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: winnerRole, players: widget.players)),
-          (route) => false, // Retour à la racine (qui relancera le Lobby propre)
+          (route) => false,
     );
   }
 
@@ -366,7 +369,7 @@ class _VillageScreenState extends State<VillageScreen> {
                 setState(() {
                   for (var pl in widget.players) pl.isVillageChief = false;
                   eligible[i].isVillageChief = true;
-                  debugPrint("🚀 CAPTEUR [Navigation] : Élection chef: ${eligible[i].name} (${eligible[i].role}).");
+                  debugPrint("🚀 CAPTEUR [Navigation] : Élection chef: ${eligible[i].name}.");
                 });
                 Navigator.pop(ctx);
               },
@@ -385,14 +388,13 @@ class _VillageScreenState extends State<VillageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Tri par nom pour l'affichage
     List<Player> displayList = List.from(widget.players);
     displayList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
-        title: Text(isDayTime ? "JOUR $globalTurnNumber" : "NUIT $globalTurnNumber", style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(isDayTime ? "JOUR $globalTurnNumber" : "NUIT $globalTurnNumber"),
         backgroundColor: const Color(0xFF1D1E33),
         actions: [
           IconButton(icon: const Icon(FontAwesomeIcons.trophy, color: Colors.amber, size: 20), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AchievementsPage()))),
@@ -404,7 +406,7 @@ class _VillageScreenState extends State<VillageScreen> {
         children: [
           GameInfoHeader(
             isGameStarted: true,
-            playerCount: widget.players.where((p) => p.isAlive).length, // Affiche les vivants
+            playerCount: widget.players.where((p) => p.isAlive).length,
             timeString: _formatTime(_currentSeconds),
             isTimerRunning: _isTimerRunning,
             onToggleTimer: _toggleTimer,
@@ -419,19 +421,17 @@ class _VillageScreenState extends State<VillageScreen> {
                 return PlayerListCard(
                   player: p,
                   isGameStarted: true,
-                  onTap: () => _handlePlayerTap(p), // Ouvre le menu MJ
-                  onCheckChanged: null, // Pas de case à cocher en jeu
+                  onTap: () => _handlePlayerTap(p),
+                  onCheckChanged: null,
                 );
               },
             ),
           ),
 
-          // BOUTONS ACTIONS DE JEU
           GameActionButtons(
             isGameStarted: true,
             onVote: _goToVote,
             onNight: () => _goToNight(force: false),
-            // onStartGame et onAddPlayer ne sont pas utilisés ici (phase de jeu)
           ),
         ],
       ),

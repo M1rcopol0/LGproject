@@ -16,6 +16,7 @@ class RoleDistributionLogic {
     "Zookeeper": 7,
     "Houston": 7,
     "Devin": 8,
+    "Dingo": 8,
     "Tardos": 8,
     "Maison": 8,
     "Archiviste": 9,
@@ -40,6 +41,30 @@ class RoleDistributionLogic {
     "Pantin": 18,
   };
 
+  static const _wolfRoles = [
+    "Loup-garou évolué", "Loup-garou chaman", "Somnifère"
+  ];
+  static const _soloRoles = [
+    "Chuchoteur", "Maître du temps", "Pantin", "Phyl",
+    "Dresseur", "Ron-Aldo", "Pokémon"
+  ];
+
+  /// Tirage pondéré : favorise les rôles peu distribués cette session.
+  static String _weightedPick(List<String> pool, Random random) {
+    List<double> weights = pool.map((r) =>
+      1.0 / (1 + (distributionMemory[r] ?? 0))
+    ).toList();
+
+    double totalWeight = weights.reduce((a, b) => a + b);
+    double roll = random.nextDouble() * totalWeight;
+    double cumul = 0;
+    for (int i = 0; i < pool.length; i++) {
+      cumul += weights[i];
+      if (roll < cumul) return pool[i];
+    }
+    return pool.last;
+  }
+
   static void distribute(List<Player> players) {
     if (players.length < 3) return;
 
@@ -52,22 +77,15 @@ class RoleDistributionLogic {
     List<String> poolLoups = List.from(globalPickBan["loups"] ?? []);
     List<String> poolVillage = List.from(globalPickBan["village"] ?? []);
 
-    // Nettoyage
-    poolSolo.remove("Pokémon");
-
-    // Sécurités Overflow
-    // On force un Loup de base si aucun loup n'est sélectionné
-    if (!poolLoups.contains("Loup-garou évolué")) poolLoups.add("Loup-garou évolué");
-
-    // CORRECTION : On NE force PAS l'ajout du Villageois ici.
-    // Il sera utilisé uniquement comme valeur par défaut ("bestRole = 'Villageois'")
-    // si le poolVillage est vide ou s'épuise.
+    // Pokémon reste dans poolSolo (paire avec Dresseur)
+    // Pas de LG évolué forcé — overflow uniquement
+    // Villageois dans le pool uniquement si sélectionné — overflow sinon
 
     // --- B. Gestion des rôles verrouillés (Locked) ---
     int lockedHostileScore = 0;
     int lockedVillageScore = 0;
     int lockedPlayersCount = 0;
-    bool dresseurLocked = false;
+    int lockedHostileCount = 0;
 
     for (var p in players.where((p) => p.isRoleLocked)) {
       String r = p.role ?? "Villageois";
@@ -76,133 +94,223 @@ class RoleDistributionLogic {
 
       int score = roleValues[r] ?? 2;
 
-      if (["Loup-garou évolué", "Loup-garou chaman", "Somnifère"].contains(r)) {
+      if (_wolfRoles.contains(r)) {
         lockedHostileScore += score;
-        if (r != "Loup-garou évolué") poolLoups.remove(r);
+        lockedHostileCount++;
+        poolLoups.remove(r);
       }
-      else if (["Chuchoteur", "Maître du temps", "Pantin", "Phyl", "Dresseur", "Ron-Aldo"].contains(r)) {
+      else if (_soloRoles.contains(r)) {
         lockedHostileScore += score;
+        lockedHostileCount++;
         poolSolo.remove(r);
-        if (r == "Dresseur") dresseurLocked = true;
       }
       else {
-        if (r != "Pokémon") lockedVillageScore += score;
-        if (r != "Villageois") poolVillage.remove(r);
+        lockedVillageScore += score;
+        poolVillage.remove(r);
       }
     }
 
-    // --- C. Détermination des quotas Hostiles ---
-    // Environ 1/3 de joueurs hostiles
-    int targetHostileSlots = max(1, (totalPlayers / 3).floor());
+    // --- C. Nombre de slots hostiles (heuristique ~1/3) ---
+    int hostileSlots = max(1, (totalPlayers / 3).floor());
+    int availableHostileSlots = max(0, hostileSlots - lockedHostileCount);
 
+    // --- Pré-distribution : 5 lancers par batch, garder le plus équilibré ---
+    const int rollsPerBatch = 5;
+    const int maxBatches = 10;
     List<String> rolesToAdd = [];
 
-    // --- ÉTAPE 1 : Loup garanti (au moins 1 dans chaque partie) ---
-    {
-      String wolf = "Loup-garou évolué";
-      if (poolLoups.isNotEmpty) {
-        poolLoups.shuffle();
-        wolf = poolLoups.first;
-        if (wolf != "Loup-garou évolué") poolLoups.remove(wolf);
-      }
-      rolesToAdd.add(wolf);
-      targetHostileSlots--;
-    }
+    for (int batch = 1; batch <= maxBatches; batch++) {
+      // Stocker les résultats des 5 lancers
+      List<List<String>> batchResults = [];
+      List<double> batchRatios = [];
 
-    // --- ÉTAPE 2 : Slots restants (50/50 Solo/Loup) ---
-    String? selectedSolo;
-    bool hasDresseur = dresseurLocked;
+      for (int roll = 0; roll < rollsPerBatch; roll++) {
+        List<String> hostileRoles = [];
+        List<String> villageRoles = [];
 
-    while (targetHostileSlots > 0) {
-      bool canPickSolo = (selectedSolo == null)
-          && poolSolo.isNotEmpty
-          && (lockedHostileScore == 0);
+        // Copies des pools pour ce lancer
+        List<String> trialLoups = List.from(poolLoups);
+        List<String> trialSolo = List.from(poolSolo);
+        List<String> trialVillage = List.from(poolVillage);
 
-      if (canPickSolo && random.nextBool()) {
-        String candidate = poolSolo[random.nextInt(poolSolo.length)];
-        int slotsNeeded = (candidate == "Dresseur") ? 2 : 1;
+        // Gestion paire Dresseur/Pokémon pour les locked
+        if (assignedRoles.contains("Dresseur") && !assignedRoles.contains("Pokémon")) {
+          hostileRoles.add("Pokémon");
+          trialSolo.remove("Pokémon");
+        }
+        if (assignedRoles.contains("Pokémon") && !assignedRoles.contains("Dresseur")) {
+          hostileRoles.add("Dresseur");
+          trialSolo.remove("Dresseur");
+        }
 
-        if (slotsNeeded <= targetHostileSlots) {
-          selectedSolo = candidate;
-          rolesToAdd.add(selectedSolo);
-          targetHostileSlots--;
+        // Solo déjà choisi si un solo est locked
+        bool soloChosen = assignedRoles.any((r) => _soloRoles.contains(r));
 
-          if (candidate == "Dresseur") {
-            hasDresseur = true;
-            if (!assignedRoles.contains("Pokémon")) {
-              rolesToAdd.add("Pokémon");
+        // --- D. Remplissage hostile (50/50 dès le premier slot) ---
+        int slotsToFill = max(0, availableHostileSlots - hostileRoles.length);
+
+        int filled = 0;
+        while (filled < slotsToFill) {
+          int slotsLeft = slotsToFill - filled;
+
+          if (trialLoups.isEmpty && trialSolo.isEmpty) {
+            hostileRoles.add("Loup-garou évolué");
+            filled++;
+          }
+          else if (!soloChosen && trialSolo.isNotEmpty) {
+            if (random.nextBool()) {
+              // === SOLO ===
+              String candidate = _weightedPick(trialSolo, random);
+
+              if (candidate == "Dresseur" || candidate == "Pokémon") {
+                bool bothAvailable = trialSolo.contains("Dresseur")
+                    && trialSolo.contains("Pokémon");
+                if (bothAvailable && slotsLeft >= 2) {
+                  hostileRoles.addAll(["Dresseur", "Pokémon"]);
+                  trialSolo.remove("Dresseur");
+                  trialSolo.remove("Pokémon");
+                  filled += 2;
+                  soloChosen = true;
+                } else {
+                  List<String> otherSolos = trialSolo
+                      .where((s) => s != "Dresseur" && s != "Pokémon")
+                      .toList();
+                  if (otherSolos.isNotEmpty) {
+                    String picked = _weightedPick(otherSolos, random);
+                    hostileRoles.add(picked);
+                    trialSolo.remove(picked);
+                    filled++;
+                    soloChosen = true;
+                  } else if (trialLoups.isNotEmpty) {
+                    String picked = _weightedPick(trialLoups, random);
+                    hostileRoles.add(picked);
+                    trialLoups.remove(picked);
+                    filled++;
+                  } else {
+                    hostileRoles.add("Loup-garou évolué");
+                    filled++;
+                  }
+                }
+              } else {
+                hostileRoles.add(candidate);
+                trialSolo.remove(candidate);
+                filled++;
+                soloChosen = true;
+              }
+            } else {
+              // === LOUP ===
+              if (trialLoups.isNotEmpty) {
+                String picked = _weightedPick(trialLoups, random);
+                hostileRoles.add(picked);
+                trialLoups.remove(picked);
+                filled++;
+              } else {
+                hostileRoles.add("Loup-garou évolué");
+                filled++;
+              }
             }
-            targetHostileSlots = max(0, targetHostileSlots - 1);
           }
-          continue;
+          else {
+            if (trialLoups.isNotEmpty) {
+              String picked = _weightedPick(trialLoups, random);
+              hostileRoles.add(picked);
+              trialLoups.remove(picked);
+              filled++;
+            } else {
+              hostileRoles.add("Loup-garou évolué");
+              filled++;
+            }
+          }
+        }
+
+        // --- E. Remplissage village (score matching) ---
+        int totalHostileScore = lockedHostileScore;
+        for (var r in hostileRoles) {
+          totalHostileScore += (roleValues[r] ?? 0);
+        }
+
+        int villageSlotsToFill = totalPlayers - lockedPlayersCount - hostileRoles.length;
+        int currentVillageScore = lockedVillageScore;
+
+        for (int j = 0; j < villageSlotsToFill; j++) {
+          int slotsLeft = villageSlotsToFill - j;
+          int scoreDeficit = totalHostileScore - currentVillageScore;
+          double neededPerSlot = (slotsLeft > 0) ? (scoreDeficit / slotsLeft) : 2.0;
+
+          String bestRole = "Villageois";
+          int minDiff = 999;
+
+          trialVillage.shuffle(random);
+
+          if (trialVillage.isNotEmpty) {
+            for (var r in trialVillage) {
+              int val = roleValues[r] ?? 2;
+              int freqPenalty = distributionMemory[r] ?? 0;
+              int diff = (val - neededPerSlot).abs().ceil() + freqPenalty;
+              if (diff < minDiff) {
+                minDiff = diff;
+                bestRole = r;
+              }
+            }
+          }
+
+          villageRoles.add(bestRole);
+          currentVillageScore += (roleValues[bestRole] ?? 2);
+
+          if (trialVillage.contains(bestRole)) {
+            trialVillage.remove(bestRole);
+          }
+        }
+
+        // Calculer le ratio de ce lancer
+        int totalScore = totalHostileScore + currentVillageScore;
+        double ratio = (totalScore > 0)
+            ? min(totalHostileScore, currentVillageScore) / totalScore
+            : 0.5;
+
+        batchResults.add([...hostileRoles, ...villageRoles]);
+        batchRatios.add(ratio);
+      }
+
+      // --- F. Sélection du meilleur lancer du batch ---
+      int acceptableCount = batchRatios.where((r) => r >= 0.40).length;
+
+      // Trouver le lancer le plus proche de 50%
+      int bestIndex = 0;
+      double bestDistance = (batchRatios[0] - 0.5).abs();
+      for (int i = 1; i < rollsPerBatch; i++) {
+        double dist = (batchRatios[i] - 0.5).abs();
+        if (dist < bestDistance) {
+          bestDistance = dist;
+          bestIndex = i;
         }
       }
 
-      // Sinon : Loup
-      String wolf = "Loup-garou évolué";
-      if (poolLoups.isNotEmpty) {
-        poolLoups.shuffle();
-        wolf = poolLoups.first;
-        if (wolf != "Loup-garou évolué") poolLoups.remove(wolf);
+      // Log chaque lancer du batch
+      for (int i = 0; i < rollsPerBatch; i++) {
+        String status = batchRatios[i] >= 0.40 ? "✅" : "❌";
+        debugPrint("🎲 Batch $batch lancer ${i + 1} : "
+            "ratio=${(batchRatios[i] * 100).toStringAsFixed(1)}% $status");
       }
-      rolesToAdd.add(wolf);
-      targetHostileSlots--;
-    }
 
-    // --- D. Calcul du Score Hostile Total ---
-    int totalHostileScore = lockedHostileScore;
-    for (var r in rolesToAdd) {
-      // On additionne les scores des rôles hostiles générés (hors Villageois/Pokémon)
-      if (!poolVillage.contains(r) && r != "Pokémon" && r != "Villageois") {
-        totalHostileScore += (roleValues[r] ?? 0);
-      }
-    }
-
-    debugPrint("⚖️ BALANCE : Score Hostile Cible = $totalHostileScore");
-
-    // --- ÉTAPE 3 : Remplissage du Village (Équilibrage) ---
-    int villageSlotsToFill = totalPlayers - (lockedPlayersCount + rolesToAdd.length);
-    int currentVillageScore = lockedVillageScore;
-
-    for (int i = 0; i < villageSlotsToFill; i++) {
-      int slotsLeft = villageSlotsToFill - i;
-      int scoreDeficit = totalHostileScore - currentVillageScore;
-      double neededPerSlot = (slotsLeft > 0) ? (scoreDeficit / slotsLeft) : 2.0;
-
-      // Par défaut, le fallback est "Villageois" (Overflow)
-      String bestRole = "Villageois";
-      int minDiff = 999;
-
-      poolVillage.shuffle();
-
-      // Si le pool contient des rôles, on cherche le meilleur match
-      if (poolVillage.isNotEmpty) {
-        for (var r in poolVillage) {
-          int val = roleValues[r] ?? 2;
-          int diff = (val - neededPerSlot).abs().ceil();
-
-          if (diff < minDiff) {
-            minDiff = diff;
-            bestRole = r;
-          }
+      if (acceptableCount >= 2) {
+        rolesToAdd = batchResults[bestIndex];
+        debugPrint("⚖️ BALANCE : meilleur lancer=${bestIndex + 1} "
+            "ratio=${(batchRatios[bestIndex] * 100).toStringAsFixed(1)}% "
+            "($acceptableCount/5 acceptables, batch $batch)");
+        break;
+      } else {
+        debugPrint("⚠️ Batch $batch rejeté ($acceptableCount/5 acceptables, minimum 2 requis)");
+        if (batch == maxBatches) {
+          rolesToAdd = batchResults[bestIndex];
+          debugPrint("⚠️ Max batches atteint, distribution forcée "
+              "(meilleur ratio=${(batchRatios[bestIndex] * 100).toStringAsFixed(1)}%)");
         }
       }
-      // SINON : poolVillage est vide, bestRole reste "Villageois".
-      // C'est ici que l'overflow s'active uniquement si nécessaire.
-
-      rolesToAdd.add(bestRole);
-      currentVillageScore += (roleValues[bestRole] ?? 2);
-
-      // On retire le rôle choisi s'il est unique
-      if (bestRole != "Villageois" && bestRole != "Kung-Fu Panda") {
-        poolVillage.remove(bestRole);
-      }
     }
 
-    debugPrint("⚖️ BALANCE : Score Village Final = $currentVillageScore vs Hostile $totalHostileScore");
-
-    // --- E. Attribution Finale ---
-    rolesToAdd.shuffle();
+    // --- G. Attribution Finale ---
+    rolesToAdd.shuffle(random);
 
     int addIndex = 0;
     for (var p in players) {
@@ -219,7 +327,7 @@ class RoleDistributionLogic {
 
       // Assignation de l'équipe
       String r = p.role ?? "";
-      if (["Loup-garou évolué", "Loup-garou chaman", "Somnifère"].contains(r)) {
+      if (_wolfRoles.contains(r)) {
         p.team = "loups";
       } else if (["Chuchoteur", "Maître du temps", "Pantin", "Phyl", "Dresseur", "Ron-Aldo"].contains(r)) {
         p.team = "solo";
@@ -227,6 +335,15 @@ class RoleDistributionLogic {
         p.team = "village";
       }
     }
+
+    // --- H. Enregistrement mémoire de session ---
+    for (var p in players) {
+      String role = p.role ?? "";
+      if (role.isNotEmpty) {
+        distributionMemory[role] = (distributionMemory[role] ?? 0) + 1;
+      }
+    }
+    debugPrint("📝 Mémoire de session : $distributionMemory");
 
     for (var p in players) {
       debugPrint("🎭 [Result] ${p.name} -> ${p.role} (${p.team})");
