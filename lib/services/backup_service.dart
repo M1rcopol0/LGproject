@@ -5,8 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'globals.dart';
-import 'models/player.dart';
+import '../globals.dart';
+import '../models/player.dart';
 
 class BackupService {
   // Clés identiques à celles utilisées dans TrophyService et main.dart

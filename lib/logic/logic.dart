@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'models/player.dart';
-import 'logic/team_logic.dart';
-import 'logic/turn_logic.dart';
-import 'logic/vote_logic.dart';
-import 'logic/elimination_logic.dart';
-import 'logic/game_setup_logic.dart';
-import 'logic/win_condition_logic.dart';
+import '../models/player.dart';
+import 'team_logic.dart';
+import 'turn_logic.dart';
+import 'vote_logic.dart';
+import 'elimination_logic.dart';
+import 'game_setup_logic.dart';
+import 'win_condition_logic.dart';
 
 // Re-export des sous-modules pour les imports directs
-export 'logic/team_logic.dart';
-export 'logic/turn_logic.dart';
-export 'logic/vote_logic.dart';
-export 'logic/elimination_logic.dart';
-export 'logic/game_setup_logic.dart';
-export 'logic/win_condition_logic.dart';
+export 'team_logic.dart';
+export 'turn_logic.dart';
+export 'vote_logic.dart';
+export 'elimination_logic.dart';
+export 'game_setup_logic.dart';
+export 'win_condition_logic.dart';
 
 class GameLogic {
   static String getTeamForRole(String role) => TeamLogic.getTeamForRole(role);

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'models/player.dart';
-import 'globals.dart';
+import '../../models/player.dart';
+import '../../globals.dart';
 
 // Imports des modules de nuit
-import 'logic/night/night_preparation.dart';
-import 'logic/night/night_explosion.dart';
-import 'logic/night/night_info_generator.dart';
-import 'logic/night/night_death_resolver.dart';
-import 'logic/night/night_cleanup.dart';
+import 'night_preparation.dart';
+import 'night_explosion.dart';
+import 'night_info_generator.dart';
+import 'night_death_resolver.dart';
+import 'night_cleanup.dart';
 
 class NightResult {
   final List<Player> deadPlayers;

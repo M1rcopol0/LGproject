@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'models/player.dart';
-import 'logic.dart';
-import 'achievement_logic.dart';
-import 'globals.dart';
+import '../models/player.dart';
+import '../logic/logic.dart';
+import '../logic/achievement_logic.dart';
+import '../globals.dart';
 import 'mj_result_screen.dart'; // Pour la redirection finale
 
 // =============================================================================

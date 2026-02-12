@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Pour lire la config SMS
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/player.dart';
-import '../logic.dart';
+import '../logic/logic.dart';
 import '../globals.dart';
-import '../game_save_service.dart';
+import '../services/game_save_service.dart';
 import '../player_storage.dart';
-import '../roulette_screen.dart';
-import '../settings_screen.dart';
+import '../screens/roulette_screen.dart';
+import '../screens/settings_screen.dart';
 import '../wiki_page.dart';
 import '../achievements_page.dart';
 import '../widgets/game_info_header.dart';
@@ -53,20 +54,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
       return;
     }
 
-    // --- CORRECTION IMPORTANTE : RAFRAÎCHISSEMENT DES NUMÉROS ---
+    // --- 1. RAFRAÎCHISSEMENT DES NUMÉROS ---
     // On s'assure que les joueurs sélectionnés ont bien le dernier numéro connu dans l'annuaire.
-    // Cela règle le problème où le Lobby garde une vieille version du joueur en mémoire.
     for (var p in activePlayers) {
       String? freshPhone = await PlayerDirectory.getPhoneNumber(p.name);
-      // On met à jour l'objet joueur courant avec le numéro frais
       p.phoneNumber = freshPhone;
     }
-    // -----------------------------------------------------------
 
-    // 1. Animation de la Roulette
+    // --- 2. ANIMATION ROULETTE ---
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const RouletteScreen()));
 
-    // 2. Distribution des rôles
+    // --- 3. DISTRIBUTION DES RÔLES ---
     setState(() {
       GameLogic.assignRoles(activePlayers);
       globalRolesDistributed = true;
@@ -75,13 +73,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
       nightOnePassed = false;
     });
 
-    // 3. ENVOI AUTOMATIQUE DES SMS
-    // On lance l'envoi. Grâce à la boucle ci-dessus, les numéros sont à jour.
+    // --- 4. ENVOI SMS CONDITIONNEL ---
     if (mounted) {
-      SmsService.sendRolesToAll(context, activePlayers);
+      final prefs = await SharedPreferences.getInstance();
+      // On lit le réglage défini dans SettingsScreen (par défaut : true)
+      bool smsEnabled = prefs.getBool('cfg_sms_auto_send') ?? true;
+
+      if (smsEnabled) {
+        debugPrint("📱 Option SMS activée : Lancement de l'envoi...");
+        // Les joueurs ont maintenant leurs numéros à jour et leurs rôles assignés
+        SmsService.sendRolesToAll(context, activePlayers);
+      } else {
+        debugPrint("🔕 Option SMS désactivée : Aucun envoi.");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("🔕 Envoi SMS désactivé dans les paramètres."), duration: Duration(seconds: 2)),
+          );
+        }
+      }
     }
 
-    // 4. Sauvegarde
+    // --- 5. SAUVEGARDE & NAVIGATION ---
     await GameSaveService.saveGame();
 
     if (!mounted) return;

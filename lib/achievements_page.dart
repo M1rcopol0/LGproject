@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'models/achievement.dart';
-import 'trophy_service.dart';
+import 'services/trophy_service.dart';
 
 class AchievementsPage extends StatelessWidget {
   final String? playerName; // DEVENU OPTIONNEL POUR ÉVITER L'ERREUR DE COMPILATION

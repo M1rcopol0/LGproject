@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'models/player.dart';
-import 'globals.dart';
+import '../models/player.dart';
+import '../globals.dart';
 
 class RoleDistributionLogic {
 

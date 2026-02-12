@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
-import '../night_actions_logic.dart'; // Pour NightResult
+import '../logic/night/night_actions_logic.dart'; // Pour NightResult
 
 class MorningSummaryDialog extends StatelessWidget {
   final NightResult result;

@@ -1,9 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'models/player.dart';
-import 'models/achievement.dart';
-import 'widgets/achievement_toast.dart';
+import '../models/player.dart';
+import '../models/achievement.dart';
+import '../widgets/achievement_toast.dart';
 
 class _AchievementTask {
   final Achievement achievement;

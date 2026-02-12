@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'models/player.dart';
-import 'logic.dart';
-import 'achievement_logic.dart';
-import 'fin.dart';
-import 'game_save_service.dart';
-import 'globals.dart';
-import 'widgets/mj_vote_card.dart';
+import '../models/player.dart';
+import '../logic/logic.dart';
+import '../logic/achievement_logic.dart';
+import 'fin_screen.dart';
+import '../services/game_save_service.dart';
+import '../globals.dart';
+import '../widgets/mj_vote_card.dart';
 
 class MJResultScreen extends StatefulWidget {
   final List<Player> allPlayers;

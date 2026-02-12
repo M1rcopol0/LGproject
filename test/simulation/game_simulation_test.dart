@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fluffer/globals.dart';
-import 'package:fluffer/logic.dart';
+import 'package:fluffer/logic/logic.dart';
 import 'package:fluffer/models/player.dart';
-import 'package:fluffer/night_actions_logic.dart';
+import 'package:fluffer/logic/night/night_actions_logic.dart';
 import 'package:fluffer/logic/night/night_preparation.dart';
-import 'package:fluffer/role_distribution_logic.dart';
+import 'package:fluffer/logic/role_distribution_logic.dart';
 
 import '../helpers/test_helpers.dart';
 

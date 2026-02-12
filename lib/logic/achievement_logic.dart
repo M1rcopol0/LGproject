@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'models/player.dart';
-import 'globals.dart';
+import '../models/player.dart';
+import '../globals.dart';
 
 // Sous-modules
-import 'logic/achievement_scanner.dart';
-import 'logic/achievement_events.dart';
+import 'achievement_scanner.dart';
+import 'achievement_events.dart';
 
 // Re-exports pour les fichiers qui importent directement les sous-modules
-export 'logic/achievement_scanner.dart';
-export 'logic/achievement_events.dart';
+export 'achievement_scanner.dart';
+export 'achievement_events.dart';
 
 class AchievementLogic {
   static List<String> _traitorsThisTurn = [];

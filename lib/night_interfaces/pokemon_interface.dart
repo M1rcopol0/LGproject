@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:fluffer/models/player.dart';
-import 'package:fluffer/logic.dart';
-import 'package:fluffer/fin.dart';
-import 'package:fluffer/achievement_logic.dart';
-import 'package:fluffer/game_save_service.dart';
+import 'package:fluffer/logic/logic.dart';
+import 'package:fluffer/screens/fin_screen.dart';
+import 'package:fluffer/logic/achievement_logic.dart';
+import 'package:fluffer/services/game_save_service.dart';
 import 'package:fluffer/globals.dart';
 
 class PokemonInterface extends StatelessWidget {

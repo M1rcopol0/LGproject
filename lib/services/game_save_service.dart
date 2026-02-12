@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'models/player.dart';
-import 'globals.dart';
+import '../models/player.dart';
+import '../globals.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class GameSaveService {

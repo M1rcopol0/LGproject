@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'models/player.dart';
-import 'globals.dart';
-import 'night_actions_logic.dart';
-import 'game_save_service.dart';
-import 'night_interfaces/role_action_dispatcher.dart';
-import 'achievement_logic.dart';
-import 'fin.dart';
-import 'widgets/morning_summary_dialog.dart';
-import 'logic.dart';
-import 'night_interfaces/pokemon_interface.dart'; // Assurez-vous d'avoir ce fichier
+import '../models/player.dart';
+import '../globals.dart';
+import '../logic/night/night_actions_logic.dart';
+import '../services/game_save_service.dart';
+import '../night_interfaces/role_action_dispatcher.dart';
+import '../logic/achievement_logic.dart';
+import 'fin_screen.dart';
+import '../widgets/morning_summary_dialog.dart';
+import '../logic/logic.dart';
+import '../night_interfaces/pokemon_interface.dart'; // Assurez-vous d'avoir ce fichier
 
 class NightActionsScreen extends StatefulWidget {
   final List<Player> players;

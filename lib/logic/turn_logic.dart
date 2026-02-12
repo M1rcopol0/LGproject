@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../globals.dart';
-import '../achievement_logic.dart';
+import 'achievement_logic.dart';
 
 class TurnLogic {
   static void nextTurn(List<Player> allPlayers) {

@@ -2,22 +2,22 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/player.dart';
-import '../logic.dart';
+import '../logic/logic.dart';
 import '../globals.dart';
-import '../game_save_service.dart';
-import '../achievement_logic.dart';
-import '../trophy_service.dart';
+import '../services/game_save_service.dart';
+import '../logic/achievement_logic.dart';
+import '../services/trophy_service.dart';
 import '../player_storage.dart';
-import '../fin.dart';
+import 'fin_screen.dart';
 import '../models/achievement.dart';
 
 // Écrans de phase
-import '../night_actions_screen.dart';
-import '../vote_screens.dart';
-import '../mj_result_screen.dart';
+import 'night_actions_screen.dart';
+import 'vote_screens.dart';
+import 'mj_result_screen.dart';
 import '../achievements_page.dart';
 import '../wiki_page.dart';
-import '../settings_screen.dart';
+import 'settings_screen.dart';
 
 // Widgets
 import '../widgets/game_info_header.dart';

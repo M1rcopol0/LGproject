@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluffer/models/player.dart';
-import 'package:fluffer/achievement_logic.dart';
-import 'package:fluffer/trophy_service.dart';
+import 'package:fluffer/logic/achievement_logic.dart';
+import 'package:fluffer/services/trophy_service.dart';
 import 'package:fluffer/globals.dart';
 
 class NightInfoGenerator {

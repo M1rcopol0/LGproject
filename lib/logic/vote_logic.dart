@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../globals.dart';
-import '../achievement_logic.dart';
+import 'achievement_logic.dart';
 
 class VoteLogic {
   static void validateVoteStats(BuildContext context, List<Player> allPlayers) {

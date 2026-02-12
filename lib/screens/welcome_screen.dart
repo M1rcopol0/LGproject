@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/lobby_screen.dart';
-import 'screens/player_directory_screen.dart'; // NOUVEL IMPORT
+import 'lobby_screen.dart';
+import 'player_directory_screen.dart'; // NOUVEL IMPORT
 import 'settings_screen.dart';
-import 'wiki_page.dart';
+import '../wiki_page.dart';
 import 'trophy_hub_screen.dart';
-import 'globals.dart';
-import 'models/player.dart';
-import 'game_save_service.dart';
+import '../globals.dart';
+import '../models/player.dart';
+import '../services/game_save_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WelcomeScreen extends StatefulWidget {

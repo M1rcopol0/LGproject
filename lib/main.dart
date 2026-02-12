@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:talker_flutter/talker_flutter.dart';
-import 'loading_screen.dart';
+import 'screens/loading_screen.dart';
 import 'globals.dart';
 import 'models/player.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

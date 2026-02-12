@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/player.dart';
 import '../models/achievement.dart';
-import '../trophy_service.dart';
+import '../services/trophy_service.dart';
 import '../globals.dart';
 import 'achievement_events.dart';
 

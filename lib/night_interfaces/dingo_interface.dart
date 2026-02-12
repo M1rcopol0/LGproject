@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluffer/models/player.dart';
 import 'package:fluffer/globals.dart';
-import 'package:fluffer/achievement_logic.dart'; // <--- IMPORT OBLIGATOIRE POUR LE SUCCÈS
+import 'package:fluffer/logic/achievement_logic.dart'; // <--- IMPORT OBLIGATOIRE POUR LE SUCCÈS
 import 'target_selector_interface.dart';
 
 class DingoInterface extends StatelessWidget {

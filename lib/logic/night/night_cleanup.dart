@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluffer/models/player.dart';
 import 'package:fluffer/globals.dart';
-import 'package:fluffer/achievement_logic.dart';
+import 'package:fluffer/logic/achievement_logic.dart';
 
 class NightCleanup {
   static void run({

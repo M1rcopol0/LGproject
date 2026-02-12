@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../globals.dart';
-import '../achievement_logic.dart';
-import '../role_distribution_logic.dart';
+import 'achievement_logic.dart';
+import 'role_distribution_logic.dart';
 import 'team_logic.dart';
 
 class GameSetupLogic {

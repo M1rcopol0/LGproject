@@ -6,12 +6,13 @@ import 'package:share_plus/share_plus.dart'; // Pour envoyer le fichier
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:talker_flutter/talker_flutter.dart'; // Pour récupérer l'historique
 
+// IMPORTS JEU
 import 'pick_ban_screen.dart';
-import 'globals.dart';
-import 'backup_service.dart';
-import 'trophy_service.dart';
-import 'models/player.dart';
-import 'cloud_service.dart'; // Nécessaire pour forceUploadData
+import '../globals.dart';
+import '../services/backup_service.dart';
+import '../services/trophy_service.dart';
+import '../models/player.dart';
+import '../cloud_service.dart'; // Nécessaire pour forceUploadData
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +23,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   double _volume = 1.0;
   bool _autoCloudSync = false;
+  // Variable locale pour l'état du switch SMS
+  bool _smsAutoEnabled = true;
 
   @override
   void initState() {
@@ -34,6 +37,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _volume = prefs.getDouble('app_volume') ?? 1.0;
       _autoCloudSync = prefs.getBool('auto_cloud_sync') ?? false;
+      // Chargement du réglage SMS (par défaut : true)
+      _smsAutoEnabled = prefs.getBool('cfg_sms_auto_send') ?? true;
     });
   }
 
@@ -51,6 +56,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('auto_cloud_sync', value);
     setState(() {
       _autoCloudSync = value;
+    });
+  }
+
+  // --- NOUVELLE FONCTION POUR LE SWITCH SMS ---
+  Future<void> _setSmsAuto(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('cfg_sms_auto_send', value);
+    setState(() {
+      _smsAutoEnabled = value;
     });
   }
 
@@ -214,7 +228,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 20),
           _buildSectionTitle("Gameplay"),
 
-          // --- NOUVEAU SWITCH DE VOTE ---
           _buildSwitchTile(
             title: "Vote Anonyme (App)",
             subtitle: "Activé : Chaque joueur vote sur le téléphone.\nDésactivé : Vote à main levée, saisie directe.",
@@ -227,10 +240,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             },
           ),
-          // --------------------------------
 
           const SizedBox(height: 20),
           _buildSectionTitle("Configuration"),
+
+          // --- NOUVEAU SWITCH SMS ---
+          _buildSwitchTile(
+            title: "Envoi Auto SMS",
+            subtitle: "Envoie le rôle aux joueurs au début de la partie.",
+            icon: Icons.sms,
+            value: _smsAutoEnabled,
+            onChanged: (val) => _setSmsAuto(val),
+          ),
+          // --------------------------
+
+          const SizedBox(height: 10),
 
           // --- TIMER ---
           Padding(

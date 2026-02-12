@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../globals.dart';
-import '../achievement_logic.dart';
-import '../trophy_service.dart';
+import 'achievement_logic.dart';
+import '../services/trophy_service.dart';
 
 class EliminationLogic {
   static Player eliminatePlayer(BuildContext context, List<Player> allPlayers, Player target,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'trophy_service.dart';
-import 'globals.dart';
-import 'models/achievement.dart';
+import '../services/trophy_service.dart';
+import '../globals.dart';
+import '../models/achievement.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'models/player.dart'; // Nécessaire pour le type Player
-import 'cloud_service.dart'; // Ajout pour le Force Upload
+import '../models/player.dart'; // Nécessaire pour le type Player
+import '../cloud_service.dart'; // Ajout pour le Force Upload
 
 class TrophyHubScreen extends StatefulWidget {
   const TrophyHubScreen({super.key});
