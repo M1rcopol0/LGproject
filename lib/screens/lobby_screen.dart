@@ -13,6 +13,8 @@ import '../widgets/game_info_header.dart';
 import '../widgets/player_list_card.dart';
 import '../widgets/game_action_buttons.dart';
 import 'village_screen.dart';
+// IMPORT DU SERVICE SMS
+import '../services/sms_service.dart';
 
 class LobbyScreen extends StatefulWidget {
   final List<Player> players;
@@ -51,8 +53,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
       return;
     }
 
+    // --- CORRECTION IMPORTANTE : RAFRAÎCHISSEMENT DES NUMÉROS ---
+    // On s'assure que les joueurs sélectionnés ont bien le dernier numéro connu dans l'annuaire.
+    // Cela règle le problème où le Lobby garde une vieille version du joueur en mémoire.
+    for (var p in activePlayers) {
+      String? freshPhone = await PlayerDirectory.getPhoneNumber(p.name);
+      // On met à jour l'objet joueur courant avec le numéro frais
+      p.phoneNumber = freshPhone;
+    }
+    // -----------------------------------------------------------
+
+    // 1. Animation de la Roulette
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const RouletteScreen()));
 
+    // 2. Distribution des rôles
     setState(() {
       GameLogic.assignRoles(activePlayers);
       globalRolesDistributed = true;
@@ -61,6 +75,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
       nightOnePassed = false;
     });
 
+    // 3. ENVOI AUTOMATIQUE DES SMS
+    // On lance l'envoi. Grâce à la boucle ci-dessus, les numéros sont à jour.
+    if (mounted) {
+      SmsService.sendRolesToAll(context, activePlayers);
+    }
+
+    // 4. Sauvegarde
     await GameSaveService.saveGame();
 
     if (!mounted) return;
@@ -177,7 +198,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
               },
             ),
           ),
-          // ICI : On n'appelle que Start et Add
           GameActionButtons(
             isGameStarted: false,
             onStartGame: _startGame,

@@ -3,17 +3,27 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 class PlayerDirectory {
-  static const String _key = "registered_players";
-  static const String _legacyKey = "saved_players_list";
+  static const String _directoryKey = "registered_players";
+  // On n'utilise plus _legacyKey pour la lecture, seulement pour le backup si besoin
 
-  // --- SYNCHRONISATION (RÉCUPÉRATION DES ANCIENS JOUEURS) ---
+  // --- LECTURE (SINGLE SOURCE OF TRUTH) ---
+  // Cette fonction remplace l'ancien chargement. Elle retourne la liste des noms directement depuis l'annuaire.
+  static Future<List<String>> getSavedPlayers() async {
+    Map<String, dynamic> directory = await getDirectory();
+    // On retourne les clés (les noms), triées alphabétiquement
+    List<String> names = directory.keys.toList();
+    names.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return names;
+  }
+
+  // --- SYNCHRONISATION INITIALE ---
+  // À appeler au démarrage (main.dart) pour importer les vieux joueurs dans l'annuaire si c'est la 1ère fois
   static Future<void> synchronizeWithLegacy(List<String> legacyNames) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> directory = await getDirectory();
     bool changed = false;
 
     for (String name in legacyNames) {
-      // Si le joueur existe dans la liste simple mais pas dans l'annuaire complet
       if (!directory.containsKey(name)) {
         directory[name] = {
           "gamesPlayed": 0,
@@ -26,8 +36,8 @@ class PlayerDirectory {
     }
 
     if (changed) {
-      await prefs.setString(_key, jsonEncode(directory));
-      debugPrint("📂 Annuaire synchronisé : ${legacyNames.length} joueurs traités.");
+      await prefs.setString(_directoryKey, jsonEncode(directory));
+      debugPrint("📂 Annuaire synchronisé avec les anciennes données.");
     }
   }
 
@@ -36,6 +46,7 @@ class PlayerDirectory {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> directory = await getDirectory();
 
+    // On écrase ou on crée (permet de mettre à jour le tel si on ré-ajoute le même nom)
     if (!directory.containsKey(name)) {
       directory[name] = {
         "gamesPlayed": 0,
@@ -47,11 +58,11 @@ class PlayerDirectory {
       directory[name]["phoneNumber"] = phoneNumber;
     }
 
-    await prefs.setString(_key, jsonEncode(directory));
-    await _updateLegacyList(directory.keys.toList()); // Synchro inverse
+    await prefs.setString(_directoryKey, jsonEncode(directory));
+    // Pas besoin de sauvegarder une autre liste, l'annuaire suffit.
   }
 
-  // --- MISE À JOUR PROFIL (NOM + TÉL) ---
+  // --- MISE À JOUR PROFIL ---
   static Future<void> updatePlayerProfile(String oldName, String newName, String? newPhone) async {
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> directory = await getDirectory();
@@ -62,31 +73,30 @@ class PlayerDirectory {
     playerData["phoneNumber"] = newPhone;
 
     if (oldName != newName) {
-      // Si changement de nom, on déplace la donnée
-      if (directory.containsKey(newName)) {
-        // Conflit : on garde l'ancien (ou on écrase, ici simple update)
-        directory[newName]["phoneNumber"] = newPhone;
-      } else {
-        directory[newName] = playerData;
-      }
+      // Si le nom change, on crée une nouvelle entrée et on supprime l'ancienne
+      directory[newName] = playerData; // Conserve les stats
       directory.remove(oldName);
     } else {
       directory[oldName] = playerData;
     }
 
-    await prefs.setString(_key, jsonEncode(directory));
-    await _updateLegacyList(directory.keys.toList()); // Synchro inverse
+    await prefs.setString(_directoryKey, jsonEncode(directory));
   }
 
-  // Helper pour maintenir la liste compatible avec le reste du jeu
-  static Future<void> _updateLegacyList(List<String> names) async {
+  // --- SUPPRESSION ---
+  static Future<void> deletePlayer(String name) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_legacyKey, names);
+    Map<String, dynamic> directory = await getDirectory();
+
+    if (directory.containsKey(name)) {
+      directory.remove(name);
+      await prefs.setString(_directoryKey, jsonEncode(directory));
+    }
   }
 
   static Future<Map<String, dynamic>> getDirectory() async {
     final prefs = await SharedPreferences.getInstance();
-    String? data = prefs.getString(_key);
+    String? data = prefs.getString(_directoryKey);
     if (data == null) return {};
     return jsonDecode(data);
   }

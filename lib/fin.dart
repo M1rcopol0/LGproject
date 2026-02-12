@@ -33,14 +33,15 @@ class _GameOverScreenState extends State<GameOverScreen> {
     super.initState();
     debugPrint("🏁 LOG [GameOver] : Arrivée sur l'écran de fin. Vainqueur annoncé : ${widget.winnerType}");
 
-    // Petit délai pour laisser l'interface se construire avant le traitement lourd
-    // Cela évite le freeze/crash immédiat sur certains appareils
-    Future.delayed(const Duration(milliseconds: 300), _processGameEnd);
+    // CORRECTION CRITIQUE : Délai augmenté à 800ms.
+    // Cela permet à l'animation de transition (Fade) de se terminer AVANT
+    // de surcharger le processeur avec le calcul des stats.
+    Future.delayed(const Duration(milliseconds: 800), _processGameEnd);
   }
 
   Future<void> _processGameEnd() async {
-    // Évite la double exécution si le widget se reconstruit
-    if (_hasProcessed) return;
+    // Évite la double exécution si le widget se reconstruit ou n'est plus monté
+    if (_hasProcessed || !mounted) return;
     _hasProcessed = true;
 
     try {
@@ -248,7 +249,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
       case "ARCHIVISTE":
         title = "HISTOIRE RÉÉCRITE";
-        message = "L'Archiviste a supprimé tout le monde des registres.";
+        message = "L'Archiviste a supprimé tout le monde.";
         themeColor = Colors.brown;
         icon = Icons.auto_stories;
         break;
@@ -276,7 +277,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
       case "MAÎTRE DU TEMPS":
         title = "TEMPS ÉCOULÉ";
-        message = "L'ordre chronologique a été rétabli par le vide.";
+        message = "L'ordre chronologique a été rétabli.";
         themeColor = Colors.cyanAccent;
         icon = Icons.hourglass_bottom;
         break;
@@ -308,19 +309,20 @@ class _GameOverScreenState extends State<GameOverScreen> {
         themeColor = Colors.grey;
     }
 
-    return WillPopScope(
-      // Empêche le retour arrière physique sur Android pour éviter de revenir en jeu fini par erreur
-      onWillPop: () async => false,
+    // CORRECTION VISUELLE : PopScope remplace WillPopScope (déprécié)
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         backgroundColor: const Color(0xFF0A0E21),
         body: Container(
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
+            // CORRECTION VISUELLE : Dégradé simplifié pour éviter la surcharge GPU
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [themeColor.withOpacity(0.3), const Color(0xFF0A0E21), const Color(0xFF0A0E21)],
+              colors: [themeColor.withOpacity(0.3), const Color(0xFF0A0E21)],
             ),
           ),
           child: _isLoading
@@ -338,7 +340,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
                         shape: BoxShape.circle,
                         color: themeColor.withOpacity(0.1),
                         border: Border.all(color: themeColor, width: 2),
-                        boxShadow: [BoxShadow(color: themeColor.withOpacity(0.4), blurRadius: 30, spreadRadius: 5)],
+                        // CORRECTION VISUELLE : Suppression du BoxShadow ici
+                        // boxShadow: [BoxShadow(color: themeColor.withOpacity(0.4), blurRadius: 30, spreadRadius: 5)],
                       ),
                       child: Icon(icon, size: 80, color: themeColor),
                     ),
@@ -349,7 +352,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
                       style: TextStyle(
                         fontSize: 32, fontWeight: FontWeight.bold, color: themeColor,
                         letterSpacing: 2,
-                        shadows: [Shadow(color: themeColor, blurRadius: 10)],
+                        // CORRECTION VISUELLE : Suppression des shadows sur le texte
+                        // shadows: [Shadow(color: themeColor, blurRadius: 10)],
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -390,12 +394,11 @@ class _GameOverScreenState extends State<GameOverScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: themeColor,
                           foregroundColor: Colors.black,
-                          elevation: 10,
+                          elevation: 5, // Réduction de l'élévation
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         ),
                         onPressed: () async {
                           debugPrint("🏠 LOG [GameOver] : Reset de la partie et retour à l'accueil.");
-                          // On réinitialise proprement avant de quitter
                           await resetAllGameData();
                           if (context.mounted) {
                             Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);

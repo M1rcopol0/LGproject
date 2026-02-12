@@ -129,10 +129,6 @@ class _MJResultScreenState extends State<MJResultScreen> {
     );
 
     if (!deceased.isAlive) {
-      // --- SUPPRESSION TOTALE DE LA LOGIQUE DE MORT LIÉE (DRESSEUR/POKEMON) ---
-      // Si c'est le Dresseur : il meurt, point barre. Le Pokémon reste en vie.
-      // Si c'est le Pokémon : il a sa vengeance, puis il meurt. Le Dresseur reste en vie.
-
       // CAS POKÉMON : VENGEANCE
       if (deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") {
         debugPrint("💀 CAPTEUR [Mort] : Vengeance Pokémon déclenchée pour ${deceased.name}.");
@@ -273,18 +269,33 @@ class _MJResultScreenState extends State<MJResultScreen> {
 
   void _navigateToGameOver(String winner) {
     debugPrint("🚀 LOG [Route] : Navigation SAFE vers GameOverScreen.");
+
+    // --- CORRECTION CRITIQUE POUR ÉVITER LE CRASH ---
+    // 1. On arrête l'audio explicitement avant de naviguer
+    try {
+      globalAudioPlayer.stop();
+    } catch (e) {
+      debugPrint("⚠️ Erreur arrêt audio: $e");
+    }
+
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-                builder: (context) => GameOverScreen(
-                    winnerType: winner,
-                    players: List.from(widget.allPlayers)
-                )
+      if (!mounted) return;
+
+      // 2. On utilise une FadeTransition (plus légère) au lieu de l'animation par défaut
+      // Cela évite de surcharger le GPU/Impeller lors du chargement de l'écran de fin
+      Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => GameOverScreen(
+                winnerType: winner,
+                players: List.from(widget.allPlayers)
             ),
-                (Route<dynamic> route) => false
-        );
-      }
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 500),
+          ),
+              (Route<dynamic> route) => false
+      );
     });
   }
 }

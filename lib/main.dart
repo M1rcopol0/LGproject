@@ -44,7 +44,7 @@ void main() async {
     globalTalker.error("Erreur chargement audio", e);
   }
 
-  // 5. Charger les données du jeu
+  // 5. Charger les données du jeu (Joueurs + Annuaire)
   await loadSavedData();
 
   runApp(const LoupGarouApp());
@@ -53,19 +53,38 @@ void main() async {
 Future<void> loadSavedData() async {
   try {
     final prefs = await SharedPreferences.getInstance();
-    List<String>? savedNames = prefs.getStringList('saved_players_list');
 
-    if (savedNames != null && savedNames.isNotEmpty) {
-      globalPlayers = savedNames.map((name) => Player(name: name, isPlaying: false)).toList();
-      debugPrint("📂 Données chargées : ${globalPlayers.length} joueurs récupérés.");
+    // --- ÉTAPE 1 : MIGRATION (Si nécessaire) ---
+    // On vérifie s'il existe une vieille liste de sauvegarde "simple"
+    List<String>? legacyNames = prefs.getStringList('saved_players_list');
 
-      // --- CORRECTION CRITIQUE : SYNCHRONISATION DE L'ANNUAIRE ---
-      // Cela permet de remplir l'annuaire (PlayerDirectory) avec les joueurs existants
-      // si c'est la première fois qu'on lance la version avec annuaire.
-      await PlayerDirectory.synchronizeWithLegacy(savedNames);
+    if (legacyNames != null && legacyNames.isNotEmpty) {
+      debugPrint("📂 Migration détectée : Synchronisation des anciens joueurs vers l'Annuaire...");
+      // On injecte les anciens noms dans le nouvel annuaire structuré
+      await PlayerDirectory.synchronizeWithLegacy(legacyNames);
     }
+
+    // --- ÉTAPE 2 : CHARGEMENT DEPUIS LA SOURCE UNIQUE (ANNUAIRE) ---
+    // On récupère la liste des noms depuis l'annuaire (qui est maintenant la source de vérité)
+    List<String> loadedNames = await PlayerDirectory.getSavedPlayers();
+
+    if (loadedNames.isNotEmpty) {
+      // On recrée les objets Player globaux
+      globalPlayers = loadedNames.map((name) => Player(name: name, isPlaying: false)).toList();
+
+      // --- ÉTAPE 3 : HYDRATATION (Numéros de téléphone) ---
+      // On récupère les numéros de téléphone pour chaque joueur
+      for (var p in globalPlayers) {
+        p.phoneNumber = await PlayerDirectory.getPhoneNumber(p.name);
+      }
+
+      debugPrint("📂 Données chargées avec succès : ${globalPlayers.length} joueurs (avec numéros).");
+    } else {
+      debugPrint("📂 Aucun joueur trouvé dans l'annuaire.");
+    }
+
   } catch (e) {
-    debugPrint("❌ Erreur chargement sauvegarde : $e");
+    debugPrint("❌ Erreur critique lors du chargement de la sauvegarde : $e");
   }
 }
 
@@ -118,7 +137,7 @@ class LoupGarouApp extends StatelessWidget {
 
       onGenerateRoute: (settings) {
         if (settings.name == routeGameMenu) {
-          // CORRECTION : On pointe vers le LobbyScreen (Préparation) au lieu de l'ancien GameMenuScreen
+          // On pointe vers le LobbyScreen (Préparation) au lieu de l'ancien GameMenuScreen
           return MaterialPageRoute(
             settings: settings,
             builder: (context) => LobbyScreen(players: globalPlayers),
