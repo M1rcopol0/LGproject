@@ -97,27 +97,8 @@ class RoleDistributionLogic {
 
     List<String> rolesToAdd = [];
 
-    // --- ÉTAPE 1 : Tirage du Solo (1 max) ---
-    String? selectedSolo;
-    if (poolSolo.isNotEmpty && lockedHostileScore == 0) {
-      selectedSolo = poolSolo[random.nextInt(poolSolo.length)];
-      rolesToAdd.add(selectedSolo);
-      targetHostileSlots--; // Prend 1 slot
-    }
-
-    // Cas Spécial Dresseur
-    bool hasDresseur = (selectedSolo == "Dresseur" || dresseurLocked);
-    if (hasDresseur) {
-      // Le Dresseur + Pokémon consomment un slot de Loup supplémentaire
-      targetHostileSlots = max(0, targetHostileSlots - 1);
-
-      if (!assignedRoles.contains("Pokémon")) {
-        rolesToAdd.add("Pokémon");
-      }
-    }
-
-    // --- ÉTAPE 2 : Tirage des Loups ---
-    for (int i = 0; i < targetHostileSlots; i++) {
+    // --- ÉTAPE 1 : Loup garanti (au moins 1 dans chaque partie) ---
+    {
       String wolf = "Loup-garou évolué";
       if (poolLoups.isNotEmpty) {
         poolLoups.shuffle();
@@ -125,6 +106,47 @@ class RoleDistributionLogic {
         if (wolf != "Loup-garou évolué") poolLoups.remove(wolf);
       }
       rolesToAdd.add(wolf);
+      targetHostileSlots--;
+    }
+
+    // --- ÉTAPE 2 : Slots restants (50/50 Solo/Loup) ---
+    String? selectedSolo;
+    bool hasDresseur = dresseurLocked;
+
+    while (targetHostileSlots > 0) {
+      bool canPickSolo = (selectedSolo == null)
+          && poolSolo.isNotEmpty
+          && (lockedHostileScore == 0);
+
+      if (canPickSolo && random.nextBool()) {
+        String candidate = poolSolo[random.nextInt(poolSolo.length)];
+        int slotsNeeded = (candidate == "Dresseur") ? 2 : 1;
+
+        if (slotsNeeded <= targetHostileSlots) {
+          selectedSolo = candidate;
+          rolesToAdd.add(selectedSolo);
+          targetHostileSlots--;
+
+          if (candidate == "Dresseur") {
+            hasDresseur = true;
+            if (!assignedRoles.contains("Pokémon")) {
+              rolesToAdd.add("Pokémon");
+            }
+            targetHostileSlots = max(0, targetHostileSlots - 1);
+          }
+          continue;
+        }
+      }
+
+      // Sinon : Loup
+      String wolf = "Loup-garou évolué";
+      if (poolLoups.isNotEmpty) {
+        poolLoups.shuffle();
+        wolf = poolLoups.first;
+        if (wolf != "Loup-garou évolué") poolLoups.remove(wolf);
+      }
+      rolesToAdd.add(wolf);
+      targetHostileSlots--;
     }
 
     // --- D. Calcul du Score Hostile Total ---

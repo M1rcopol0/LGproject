@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
+import 'package:fluffer/models/player.dart';
 import 'target_selector_interface.dart';
 
 class VoyageurInterface extends StatefulWidget {
@@ -77,17 +77,27 @@ class _VoyageurInterfaceState extends State<VoyageurInterface> {
           const SizedBox(height: 40),
 
           if (isTraveling) ...[
-            _btn(Icons.timelapse, "CONTINUER LE VOYAGE", Colors.blueGrey, widget.onStayTraveling),
+            _btn(Icons.timelapse, "CONTINUER LE VOYAGE", Colors.blueGrey, () {
+              debugPrint("🎭 CAPTEUR [Action] : Voyageur continue le voyage.");
+              widget.onStayTraveling();
+            }),
             const SizedBox(height: 10),
-            _btn(Icons.home, "RENTRER (PACIFIQUE)", Colors.green, widget.onReturnWithoutShooting),
+            _btn(Icons.home, "RENTRER (PACIFIQUE)", Colors.green, () {
+              debugPrint("🎭 CAPTEUR [Action] : Voyageur retour pacifique.");
+              widget.onReturnWithoutShooting();
+            }),
             const SizedBox(height: 10),
             if (widget.actor.travelerBullets > 0)
               _btn(Icons.gps_fixed, "RENTRER EN TUANT...", Colors.redAccent, () {
+                debugPrint("🎭 CAPTEUR [Action] : Voyageur prépare un tir. Munitions: ${widget.actor.travelerBullets}.");
                 setState(() => _showKillSelector = true);
               }),
           ] else ...[
             if (canTravel) ...[
-              _btn(Icons.flight, "PARTIR EN VOYAGE", Colors.blueAccent, widget.onDepart),
+              _btn(Icons.flight, "PARTIR EN VOYAGE", Colors.blueAccent, () {
+                debugPrint("🎭 CAPTEUR [Action] : Voyageur part en voyage.");
+                widget.onDepart();
+              }),
               const SizedBox(height: 10),
               _btn(Icons.bed, "RESTER AU VILLAGE", Colors.grey, widget.onStayAtVillage),
             ] else ...[

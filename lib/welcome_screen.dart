@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'game_menu_screen.dart';
+import 'screens/lobby_screen.dart';
+import 'screens/player_directory_screen.dart'; // NOUVEL IMPORT
 import 'settings_screen.dart';
 import 'wiki_page.dart';
 import 'trophy_hub_screen.dart';
 import 'globals.dart';
 import 'models/player.dart';
 import 'game_save_service.dart';
-import 'storage_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -25,7 +26,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     _checkSave();
   }
 
-  // Vérifie l'existence d'une sauvegarde de partie en cours
   void _checkSave() async {
     bool exists = await GameSaveService.hasSaveGame();
     if (mounted) {
@@ -53,7 +53,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         ),
         child: Stack(
           children: [
-            // Haut Gauche : Trophées (Succès et Stats préservés)
+            // Haut Gauche : Trophées
             Positioned(
               top: safePadding.top + 10,
               left: 20,
@@ -69,29 +69,46 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
             ),
 
-            // Haut Droite : Grimoire
+            // Haut Droite : Grimoire + Annuaire (Groupe de boutons)
             Positioned(
               top: safePadding.top + 10,
               right: 20,
-              child: _buildCornerButton(
-                icon: Icons.book,
-                color: Colors.blueAccent,
-                onPressed: () {
-                  playSfx("grimoire_open.mp3");
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WikiPage())
-                  );
-                },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // NOUVEAU BOUTON : ANNUAIRE
+                  _buildCornerButton(
+                    icon: Icons.person, // Bonhomme
+                    color: Colors.greenAccent,
+                    onPressed: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PlayerDirectoryScreen())
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 15),
+                  // BOUTON GRIMOIRE (Existant)
+                  _buildCornerButton(
+                    icon: Icons.book,
+                    color: Colors.blueAccent,
+                    onPressed: () {
+                      playSfx("grimoire_open.mp3");
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WikiPage())
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
 
-            // CONTENU CENTRAL
+            // CONTENU CENTRAL (Inchangé)
             Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. BOUTON REPRENDRE (Si une partie est en cours)
                   if (_hasSave) ...[
                     SizedBox(
                       width: 250,
@@ -108,7 +125,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           if (success && context.mounted) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => GameMenuScreen(players: globalPlayers)),
+                              MaterialPageRoute(builder: (_) => LobbyScreen(players: globalPlayers)),
                             ).then((_) => _checkSave());
                           }
                         },
@@ -119,7 +136,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     const SizedBox(height: 20),
                   ],
 
-                  // 2. BOUTON LANCER (Nouvelle partie - Nettoie la session mais garde le répertoire)
                   SizedBox(
                     width: 250,
                     height: 70,
@@ -131,25 +147,21 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         elevation: 10,
                       ),
                       onPressed: () async {
-                        // A. On réinitialise la session de jeu (RAM + Sauvegarde de partie)
                         await resetAllGameData();
-
-                        // B. On charge les joueurs enregistrés dans globalPlayers pour la préparation
-                        globalPlayers = await StorageService.loadPlayers();
-
-                        // C. On s'assure qu'ils ne sont pas cochés "en jeu" par défaut
+                        final prefs = await SharedPreferences.getInstance();
+                        final names = prefs.getStringList('saved_players_list') ?? [];
+                        globalPlayers = names.map((n) => Player(name: n)).toList();
                         for (var p in globalPlayers) {
                           p.isPlaying = false;
                           p.isRoleLocked = false;
                           p.role = null;
                         }
-
                         if (context.mounted) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               settings: const RouteSettings(name: routeGameMenu),
-                              builder: (_) => GameMenuScreen(players: globalPlayers),
+                              builder: (_) => LobbyScreen(players: globalPlayers),
                             ),
                           ).then((_) => _checkSave());
                         }

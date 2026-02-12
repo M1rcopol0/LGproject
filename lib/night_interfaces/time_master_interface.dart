@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 class TimeMasterInterface extends StatefulWidget {
   final Player player;
@@ -136,17 +136,11 @@ class _TimeMasterInterfaceState extends State<TimeMasterInterface> {
               ),
               onPressed: () {
                 if (_selectedTargets.isEmpty) {
-                  // Action Passer
+                  debugPrint("🎭 CAPTEUR [Action] : Maître du temps passe son tour.");
                   widget.onAction("SKIP", null);
                 } else {
-                  // Action Tuer
-
-                  // 1. On sauvegarde la liste des noms des cibles dans le profil du joueur.
-                  // Cette liste sera lue par NightActionsLogic.resolveNight pour exécuter les morts
-                  // et vérifier le succès "Paradoxe Temporel".
+                  debugPrint("🎭 CAPTEUR [Action] : Maître du temps sélectionne ${_selectedTargets.length} cible(s): ${_selectedTargets.map((p) => p.name).join(', ')}.");
                   widget.player.timeMasterTargets = _selectedTargets.map((p) => p.name).toList();
-
-                  // 2. On envoie l'action pour fermer l'écran
                   widget.onAction("KILL", _selectedTargets);
                 }
               },

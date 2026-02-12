@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart';
+import 'package:fluffer/models/player.dart';
 
 class PantinInterface extends StatefulWidget {
   final List<Player> players;
@@ -36,10 +36,10 @@ class _PantinInterfaceState extends State<PantinInterface> {
     bool noTargetsAvailable = widget.players.where((p) => p.isAlive && p.role?.toLowerCase() != "pantin" && p.pantinCurseTimer == null).isEmpty;
 
     if (canConfirm || (noTargetsAvailable && _selectedTargets.isEmpty)) {
-      debugPrint("🎭 LOG [Pantin] : Application de la malédiction.");
+      debugPrint("🎭 CAPTEUR [Action] : Pantin application de la malédiction.");
 
       for (var target in _selectedTargets) {
-        debugPrint("🎭 LOG [Pantin] : Malédiction appliquée sur ${target.name}.");
+        debugPrint("🎭 CAPTEUR [Action] : Pantin maudit ${target.name} (timer: 2 nuits).");
         target.pantinCurseTimer = 2;
       }
       widget.onTargetsSelected(_selectedTargets);

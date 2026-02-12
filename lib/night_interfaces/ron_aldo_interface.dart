@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 class RonAldoInterface extends StatelessWidget {
   final Player actor;
@@ -85,6 +85,7 @@ class RonAldoInterface extends StatelessWidget {
                   // Logique de conversion : l'ancien rôle est écrasé
                   p.isFanOfRonAldo = true;
                   p.role = "Fan de Ron-Aldo";
+                  p.team = "solo";
 
                   // Calcul de l'ordre d'arrivée
                   int maxOrder = allPlayers

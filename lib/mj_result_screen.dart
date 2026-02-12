@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'models/player.dart';
 import 'logic.dart';
 import 'achievement_logic.dart';
@@ -19,6 +20,7 @@ class MJResultScreen extends StatefulWidget {
 
 class _MJResultScreenState extends State<MJResultScreen> {
   bool _resultsRevealed = false;
+  bool _isNavigating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -92,17 +94,14 @@ class _MJResultScreenState extends State<MJResultScreen> {
   }
 
   void _confirmDeath(BuildContext context, Player target) async {
+    if (_isNavigating) return;
+
     debugPrint("⚖️ LOG [Sentence] : Le MJ a choisi d'éliminer ${target.name}.");
     try { globalAudioPlayer.stop(); } catch (e) {}
 
     if (target.isImmunizedFromVote) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("🛡️ ${Player.formatName(target.name)} est protégé(e) contre le vote !"),
-            backgroundColor: Colors.blueGrey,
-            duration: const Duration(seconds: 2),
-          )
-      );
+      debugPrint("🛡️ CAPTEUR [Vote] : ${target.name} immunisé contre le vote (Bled).");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("🛡️ ${Player.formatName(target.name)} est protégé(e) contre le vote !"), backgroundColor: Colors.blueGrey, duration: const Duration(seconds: 2)));
       return;
     }
 
@@ -110,26 +109,41 @@ class _MJResultScreenState extends State<MJResultScreen> {
     Player? lover = target.isLinkedByCupidon ? target.lover : null;
     bool loverWasAlive = lover?.isAlive ?? false;
 
-    // Élimination logique
+    // 1. MORT PRINCIPALE
     Player deceased = GameLogic.eliminatePlayer(context, widget.allPlayers, target, isVote: true);
-
-    // Pause pour laisser les Succès s'afficher
     await Future.delayed(const Duration(milliseconds: 500));
-
-    String message = _buildDeathMessage(target, deceased, lover, loverWasAlive);
-    String title = deceased.isAlive ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT";
 
     if (!context.mounted) return;
 
-    await showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1E33),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(message, style: const TextStyle(color: Colors.white70)),
-        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))]
-    ));
+    // 2. DIALOGUE MORT PRINCIPALE
+    String message = _buildDeathMessage(target, deceased, lover, loverWasAlive);
+    await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1D1E33),
+            title: Text(deceased.isAlive ? "⚖️ Verdict : SURVIE" : "💀 Sentence : MORT", style: const TextStyle(color: Colors.white)),
+            content: Text(message, style: const TextStyle(color: Colors.white70)),
+            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))]
+        )
+    );
 
-    if (!deceased.isAlive && deceased.role?.toLowerCase() == "chasseur") {
-      await _handleChasseurAction(context, deceased);
+    if (!deceased.isAlive) {
+      // --- SUPPRESSION TOTALE DE LA LOGIQUE DE MORT LIÉE (DRESSEUR/POKEMON) ---
+      // Si c'est le Dresseur : il meurt, point barre. Le Pokémon reste en vie.
+      // Si c'est le Pokémon : il a sa vengeance, puis il meurt. Le Dresseur reste en vie.
+
+      // CAS POKÉMON : VENGEANCE
+      if (deceased.role?.toLowerCase() == "pokémon" || deceased.role?.toLowerCase() == "pokemon") {
+        debugPrint("💀 CAPTEUR [Mort] : Vengeance Pokémon déclenchée pour ${deceased.name}.");
+        await _handleRetaliationAction(context, deceased, "Attaque Tonnerre", "⚡ VENGEANCE ÉLECTRIQUE", "Le Pokémon lance une dernière attaque foudroyante !");
+      }
+
+      // CAS CHASSEUR : VENGEANCE
+      else if (deceased.role?.toLowerCase() == "chasseur") {
+        debugPrint("💀 CAPTEUR [Mort] : Vengeance Chasseur déclenchée pour ${deceased.name}.");
+        await _handleRetaliationAction(context, deceased, "Tir du Chasseur", "🔫 DERNIER SOUFFLE", "Il doit éliminer quelqu'un immédiatement.");
+      }
     }
 
     if (context.mounted) _routeAfterDecision(context);
@@ -144,72 +158,133 @@ class _MJResultScreenState extends State<MJResultScreen> {
 
       String msg = "${Player.formatName(deceased.name)} est éliminé.\n\nSon rôle était : ${deceased.role?.toUpperCase()}";
       if (lover != null && loverWasAlive && !lover.isAlive) msg += "\n\n💔 DRAME !\nSon amant(e) ${lover.name} meurt de chagrin instantanément !";
-      if (deceased.role?.toLowerCase().contains("pokemon") == true && deceased.pokemonRevengeTarget != null && !deceased.pokemonRevengeTarget!.isAlive) {
-        msg += "\n\n⚡ VENGEANCE !\nLe Pokémon a foudroyé ${deceased.pokemonRevengeTarget!.name} !";
-      }
       return msg;
     }
     return "La cible a survécu !";
   }
 
-  Future<void> _handleChasseurAction(BuildContext context, Player hunter) async {
+  Future<void> _handleRetaliationAction(BuildContext context, Player source, String reason, String title, String desc) async {
+    // 1. Info
     await showDialog(
       context: context, barrierDismissible: false,
-      builder: (ctx) => AlertDialog(backgroundColor: Colors.red[900], title: const Text("🔫 DERNIER SOUFFLE", style: TextStyle(color: Colors.white)), content: Text("${hunter.name} est le Chasseur !\nIl doit éliminer quelqu'un immédiatement.", style: const TextStyle(color: Colors.white)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CHOISIR LA CIBLE", style: TextStyle(color: Colors.white)))]),
+      builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.red[900],
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text("${source.name} (${source.role}) est mort.\n$desc", style: const TextStyle(color: Colors.white)),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CHOISIR LA CIBLE", style: TextStyle(color: Colors.white)))]
+      ),
     );
-    if (!context.mounted) return;
-    await showDialog(
+
+    if (!mounted) return;
+
+    // 2. Sélection
+    Player? selectedTarget = await showDialog<Player>(
       context: context, barrierDismissible: false,
       builder: (ctx) {
-        final targets = widget.allPlayers.where((p) => p.isAlive).toList();
+        // CORRECTION : On retire le Dresseur de la liste des cibles possibles si c'est le Pokémon qui tire
+        final targets = widget.allPlayers.where((p) =>
+        p.isAlive &&
+            !(source.role?.toLowerCase().contains("pok") == true && p.role?.toLowerCase() == "dresseur")
+        ).toList();
+
         targets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-        return AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: const Text("Tir du Chasseur", style: TextStyle(color: Colors.white)), content: SizedBox(width: double.maxFinite, height: 300, child: ListView.builder(itemCount: targets.length, itemBuilder: (c, i) => ListTile(title: Text(targets[i].name, style: const TextStyle(color: Colors.white)), trailing: const Icon(Icons.gps_fixed, color: Colors.redAccent), onTap: () { Navigator.pop(ctx); _confirmChasseurKill(context, targets[i]); }))));
+
+        return AlertDialog(
+            backgroundColor: const Color(0xFF1D1E33),
+            title: Text(title, style: const TextStyle(color: Colors.white)),
+            content: SizedBox(width: double.maxFinite, height: 300, child: ListView.builder(
+                itemCount: targets.length,
+                itemBuilder: (c, i) => ListTile(
+                    title: Text(targets[i].name, style: const TextStyle(color: Colors.white)),
+                    trailing: const Icon(Icons.gps_fixed, color: Colors.redAccent),
+                    onTap: () { Navigator.pop(ctx, targets[i]); }
+                )
+            ))
+        );
       },
     );
+
+    if (selectedTarget != null && mounted) {
+      await _confirmRetaliationKill(context, selectedTarget, reason);
+    }
   }
 
-  void _confirmChasseurKill(BuildContext context, Player target) {
+  Future<void> _confirmRetaliationKill(BuildContext context, Player target, String reason) async {
+    debugPrint("💀 CAPTEUR [Mort] : Vengeance tir sur ${target.name} (${target.role}), raison: $reason.");
     playSfx("gunshot.mp3");
-    Player dead = GameLogic.eliminatePlayer(context, widget.allPlayers, target, isVote: false, reason: "Tir du Chasseur");
-    showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: const Text("CIBLE ABATTUE", style: TextStyle(color: Colors.white)), content: Text("${dead.name} a été tué par le Chasseur.\nSon rôle était : ${dead.role?.toUpperCase()}", style: const TextStyle(color: Colors.white70)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))]));
+    Player dead = GameLogic.eliminatePlayer(context, widget.allPlayers, target, isVote: false, reason: reason);
+
+    await showDialog(
+        context: context, barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1D1E33),
+            title: const Text("CIBLE ABATTUE", style: TextStyle(color: Colors.white)),
+            content: Text("${dead.name} a été tué.\nSon rôle était : ${dead.role?.toUpperCase()}", style: const TextStyle(color: Colors.white70)),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))]
+        )
+    );
   }
 
   void _handleNoOneDies(BuildContext context) async {
     try { globalAudioPlayer.stop(); } catch (e) {}
     playSfx("cloche.mp3");
     await showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(backgroundColor: const Color(0xFF1D1E33), title: const Text("⚖️ Verdict : SURVIE", style: TextStyle(color: Colors.white)), content: const Text("Personne ne meurt ce soir.", style: TextStyle(color: Colors.white70)), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)))]));
-    if (context.mounted) _routeAfterDecision(context);
+    if (mounted) _routeAfterDecision(context);
   }
 
   void _routeAfterDecision(BuildContext context) async {
-    // 1. Check victoire Exorciste (Prioritaire)
+    if (_isNavigating) return;
+    _isNavigating = true;
+
+    // 1. Victoire Exorciste
     if (exorcistWin) {
-      debugPrint("🏆 LOG [MJ] : Victoire Exorciste détectée !");
-      Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: "VILLAGE", players: widget.allPlayers)),
-              (route) => false
-      );
+      _navigateToGameOver("VILLAGE");
       return;
     }
 
-    // 2. Check victoire normale
+    // 2. Victoire Classique
     String? winner = GameLogic.checkWinner(widget.allPlayers);
 
     if (winner == null) {
-      // PARTIE CONTINUE -> RETOUR MENU
-      if (context.mounted) {
-        // CORRECTION : On ferme d'abord l'écran MJ, PUIS on lance la suite (ex: élection chef)
-        // Cela évite que le Navigator.pop ne ferme par erreur la boîte de dialogue de l'élection.
+      // PARTIE CONTINUE
+      debugPrint("🚀 CAPTEUR [Navigation] : Partie continue, retour au village.");
+      if (mounted) {
         Navigator.pop(context);
         widget.onComplete();
       }
     } else {
-      // PARTIE TERMINÉE -> ÉCRAN FIN
-      List<Player> winnersList = widget.allPlayers.where((p) => (winner == "VILLAGE" && p.team == "village") || (winner == "LOUPS" && p.team == "loups") || (winner == "SOLO" && p.team == "solo")).toList();
-      await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.allPlayers);
-      GameSaveService.clearSave();
-      if (context.mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: winner, players: widget.allPlayers)), (route) => false);
+      // FIN DE PARTIE
+      debugPrint("🏁 LOG [Route] : Fin détectée ($winner).");
+
+      try {
+        List<Player> winnersList = widget.allPlayers.where((p) => (winner == "VILLAGE" && p.team == "village") || (winner == "LOUPS" && p.team == "loups") || (winner == "SOLO" && p.team == "solo")).toList();
+        await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.allPlayers);
+      } catch (e) {
+        debugPrint("⚠️ Erreur succès : $e");
+      }
+
+      await GameSaveService.clearSave();
+
+      if (mounted) {
+        _navigateToGameOver(winner);
+      }
     }
+  }
+
+  void _navigateToGameOver(String winner) {
+    debugPrint("🚀 LOG [Route] : Navigation SAFE vers GameOverScreen.");
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+                builder: (context) => GameOverScreen(
+                    winnerType: winner,
+                    players: List.from(widget.allPlayers)
+                )
+            ),
+                (Route<dynamic> route) => false
+        );
+      }
+    });
   }
 }

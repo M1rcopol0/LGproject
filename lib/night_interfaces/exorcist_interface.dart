@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../models/player.dart';
+import 'package:fluffer/models/player.dart';
 
 class ExorcistInterface extends StatefulWidget {
   final Player player;
@@ -58,6 +58,9 @@ class _ExorcistInterfaceState extends State<ExorcistInterface> {
       setState(() {
         _targetToMimic = candidates[Random().nextInt(candidates.length)];
       });
+      debugPrint("🎭 CAPTEUR [Action] : Exorciste doit mimer ${_targetToMimic!.name} (${_targetToMimic!.role}). Candidats: ${candidates.length}.");
+    } else {
+      debugPrint("🎭 CAPTEUR [Action] : Exorciste -> aucun candidat éligible.");
     }
   }
 
@@ -114,7 +117,7 @@ class _ExorcistInterfaceState extends State<ExorcistInterface> {
                 icon: const Icon(Icons.check_circle, size: 30),
                 label: const Text("C'EST RÉUSSI !", style: TextStyle(fontSize: 18)),
                 onPressed: () {
-                  // Envoi de "SUCCESS" pour déclencher la victoire villageoise (voir night_actions_screen.dart)
+                  debugPrint("🎭 CAPTEUR [Action] : Exorciste RÉUSSI le mimétisme de ${_targetToMimic!.name}.");
                   widget.onAction("SUCCESS", null);
                 },
               ),

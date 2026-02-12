@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart';
-import '../../globals.dart'; // Pour récupérer le tour actuel
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart'; // Pour récupérer le tour actuel
 import 'target_selector_interface.dart';
 
 class ChuchoteurInterface extends StatelessWidget {
@@ -34,7 +34,10 @@ class ChuchoteurInterface extends StatelessWidget {
           child: TargetSelectorInterface(
             players: players,
             maxTargets: maxMutes,
-            onTargetsSelected: onTargetsSelected,
+            onTargetsSelected: (selected) {
+              debugPrint("🎭 CAPTEUR [Action] : Chuchoteur réduit au silence ${selected.length} joueur(s): ${selected.map((p) => p.name).join(', ')}.");
+              onTargetsSelected(selected);
+            },
             isProtective: false, // C'est une attaque (silence)
           ),
         ),

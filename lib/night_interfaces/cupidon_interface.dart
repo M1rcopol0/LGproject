@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 class CupidonInterface extends StatefulWidget {
   final Player player;
@@ -79,6 +79,7 @@ class _CupidonInterfaceState extends State<CupidonInterface> {
     final p1 = selectedLovers[0];
     final p2 = selectedLovers[1];
 
+    debugPrint("🎭 CAPTEUR [Action] : Cupidon lie ${p1.name} (${p1.role}) et ${p2.name} (${p2.role}).");
     p1.isLinkedByCupidon = true;
     p1.lover = p2;
     p2.isLinkedByCupidon = true;

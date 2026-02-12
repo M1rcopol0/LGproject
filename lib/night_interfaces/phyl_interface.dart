@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 class PhylInterface extends StatefulWidget {
   final Player actor;

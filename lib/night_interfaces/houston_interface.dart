@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../achievement_logic.dart'; // Import nécessaire pour le succès
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/achievement_logic.dart'; // Import nécessaire pour le succès
 import 'target_selector_interface.dart';
 
 class HoustonInterface extends StatelessWidget {

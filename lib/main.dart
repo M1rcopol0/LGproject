@@ -4,8 +4,12 @@ import 'package:talker_flutter/talker_flutter.dart';
 import 'loading_screen.dart';
 import 'globals.dart';
 import 'models/player.dart';
-import 'game_menu_screen.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// IMPORTANT : On importe le nouvel écran de Lobby
+import 'screens/lobby_screen.dart';
+// IMPORTANT : On importe le service de stockage pour la synchro
+import 'player_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +58,11 @@ Future<void> loadSavedData() async {
     if (savedNames != null && savedNames.isNotEmpty) {
       globalPlayers = savedNames.map((name) => Player(name: name, isPlaying: false)).toList();
       debugPrint("📂 Données chargées : ${globalPlayers.length} joueurs récupérés.");
+
+      // --- CORRECTION CRITIQUE : SYNCHRONISATION DE L'ANNUAIRE ---
+      // Cela permet de remplir l'annuaire (PlayerDirectory) avec les joueurs existants
+      // si c'est la première fois qu'on lance la version avec annuaire.
+      await PlayerDirectory.synchronizeWithLegacy(savedNames);
     }
   } catch (e) {
     debugPrint("❌ Erreur chargement sauvegarde : $e");
@@ -109,9 +118,10 @@ class LoupGarouApp extends StatelessWidget {
 
       onGenerateRoute: (settings) {
         if (settings.name == routeGameMenu) {
+          // CORRECTION : On pointe vers le LobbyScreen (Préparation) au lieu de l'ancien GameMenuScreen
           return MaterialPageRoute(
             settings: settings,
-            builder: (context) => GameMenuScreen(players: globalPlayers),
+            builder: (context) => LobbyScreen(players: globalPlayers),
           );
         }
         return null;

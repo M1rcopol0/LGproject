@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
+import 'package:fluffer/models/player.dart';
 
 class VoyanteInterface extends StatefulWidget {
   final Player player;
@@ -58,6 +58,7 @@ class _VoyanteInterfaceState extends State<VoyanteInterface> {
   }
 
   void _revealRole(Player target) {
+    debugPrint("🎭 CAPTEUR [Action] : Voyante regarde ${target.name} -> ${target.role}.");
     setState(() => hasLooked = true);
     showDialog(
       context: context,

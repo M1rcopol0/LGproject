@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
+import 'package:fluffer/models/player.dart';
 
 class KungFuPandaInterface extends StatefulWidget {
   final Player player;
@@ -34,6 +34,7 @@ class _KungFuPandaInterfaceState extends State<KungFuPandaInterface> {
                   leading: const Icon(Icons.record_voice_over, color: Colors.white),
                   title: Text(p.name, style: const TextStyle(color: Colors.white)),
                   onTap: () {
+                    debugPrint("🎭 CAPTEUR [Action] : Kung-Fu Panda désigne ${p.name}.");
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${p.name} devra crier !")));
                     widget.onActionComplete();
                   },

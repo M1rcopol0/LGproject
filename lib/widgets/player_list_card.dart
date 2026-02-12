@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/player.dart';
+import '../models/player_status_icons.dart';
 
 class PlayerListCard extends StatelessWidget {
   final Player player;

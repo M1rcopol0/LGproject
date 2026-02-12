@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart';
-import '../../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 class TargetSelectorInterface extends StatefulWidget {
   final List<Player> players;

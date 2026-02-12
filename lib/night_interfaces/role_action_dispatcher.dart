@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 import 'exorcist_interface.dart';
 import 'grand_mere_interface.dart';
@@ -39,7 +39,7 @@ class RoleActionDispatcher extends StatefulWidget {
   final Function(bool used) onSomnifere;
   final VoidCallback onNext;
   final Function(String title, String msg) showPopUp;
-  final Function(Player target, String reason)? onDirectKill; // Callback Sorcière
+  final Function(Player target, String reason)? onDirectKill;
 
   const RoleActionDispatcher({
     super.key,
@@ -59,12 +59,12 @@ class RoleActionDispatcher extends StatefulWidget {
 }
 
 class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
-  bool _pokemonVengeanceDone = false;
 
   @override
   Widget build(BuildContext context) {
     bool isImmuneToSleep = (widget.action.role == "Archiviste" && widget.actor.isAwayAsMJ);
     if (widget.actor.isEffectivelyAsleep && !isImmuneToSleep && widget.action.role != "Zookeeper") {
+      debugPrint("📡 CAPTEUR [Dispatch] : SKIP ${widget.action.role} (${widget.actor.name}) -> endormi.");
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -79,6 +79,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
       );
     }
 
+    debugPrint("📡 CAPTEUR [Dispatch] : Dispatch action: ${widget.action.role} pour ${widget.actor.name}.");
     switch (widget.action.role) {
       case "Sorcière":
         return SorciereInterface(
@@ -102,6 +103,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           players: widget.allPlayers,
           onVictimChosen: (p) {
             if (p.name != "Personne") {
+              debugPrint("📡 CAPTEUR [Dispatch] : Loups ciblent ${p.name} (${p.role}).");
               nightWolvesTarget = p;
               widget.pendingDeaths[p] = "Morsure de Loup";
             }
@@ -109,22 +111,25 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           },
         );
 
+    // --- CORRECTION : GESTION DE L'ATTAQUE POKEMON ---
       case "Pokémon":
       case "Pokemon":
-        if (!_pokemonVengeanceDone) {
-          return PokemonInterface(
-            actor: widget.actor,
-            players: widget.allPlayers,
-            onTargetSelected: (target) {
-              widget.actor.pokemonRevengeTarget = target;
-              Player? dresseur;
-              try { dresseur = widget.allPlayers.firstWhere((p) => p.role?.toLowerCase() == "dresseur"); } catch (e) {}
-              if (dresseur != null && !dresseur.isAlive) setState(() => _pokemonVengeanceDone = true);
-              else widget.onNext();
-            },
-          );
-        }
-        return DresseurInterface(actor: widget.actor, allPlayers: widget.allPlayers, onComplete: (target) { if(target!=null) widget.pendingDeaths[target] = "Attaque du Pokémon (Rage)"; widget.onNext(); });
+        return PokemonInterface(
+          player: widget.actor,
+          allPlayers: widget.allPlayers,
+          onAction: (target) {
+            // Si une cible est renvoyée (mode actif), on l'enregistre comme mort
+            if (target != null) {
+              if (widget.onDirectKill != null) {
+                widget.onDirectKill!(target, "Attaque Tonnerre");
+              } else {
+                widget.pendingDeaths[target] = "Attaque Tonnerre";
+              }
+            }
+            // On passe à la suite
+            widget.onNext();
+          },
+        );
 
       case "Voyageur": return VoyageurInterface(actor: widget.actor, allPlayers: widget.allPlayers, onDepart: () { widget.actor.isInTravel = true; widget.onNext(); }, onReturnWithoutShooting: () { widget.actor.isInTravel = false; widget.actor.canTravelAgain = false; widget.actor.hasReturnedThisTurn = true; widget.onNext(); }, onStayTraveling: widget.onNext, onStayAtVillage: widget.onNext, onShoot: (t) { widget.actor.isInTravel = false; widget.actor.canTravelAgain = false; widget.actor.hasReturnedThisTurn = true; widget.actor.travelerBullets--; widget.pendingDeaths[t] = "Tir du Voyageur"; widget.onNext(); });
       case "Zookeeper": return ZookeeperInterface(players: widget.allPlayers, onTargetSelected: (t) => widget.onNext());
@@ -145,13 +150,12 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
       case "Ron-Aldo": return RonAldoInterface(actor: widget.actor, allPlayers: widget.allPlayers, onNext: widget.onNext);
       case "Loup-garou chaman": return ChamanInterface(players: widget.allPlayers, onTargetSelected: (p) => widget.onNext());
 
-    // --- CORRECTION MAJEURE ICI ---
-    // On accepte soit "SUCCESS" soit "EXORCISM_SUCCESS" pour être sûr
       case "Exorciste":
         return ExorcistInterface(
             player: widget.actor,
             allPlayers: widget.allPlayers,
             onAction: (t, d) {
+              debugPrint("📡 CAPTEUR [Dispatch] : Exorciste résultat: $t");
               if(t == "SUCCESS" || t == "EXORCISM_SUCCESS") {
                 widget.onExorcisme("SUCCESS");
               } else {
@@ -160,7 +164,9 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
             }
         );
 
-      default: return Center(child: ElevatedButton(onPressed: widget.onNext, child: const Text("PASSER L'ACTION")));
+      default:
+        debugPrint("📡 CAPTEUR [Dispatch] : Rôle inconnu/default: ${widget.action.role}.");
+        return Center(child: ElevatedButton(onPressed: widget.onNext, child: const Text("PASSER L'ACTION")));
     }
   }
 }

@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 
 class GameActionButtons extends StatelessWidget {
   final bool isGameStarted;
-  final VoidCallback onVote;
-  final VoidCallback onNight;
-  final VoidCallback onStartGame;
-  final VoidCallback onAddPlayer;
+  // Ces callbacks sont maintenant optionnels (?)
+  final VoidCallback? onVote;
+  final VoidCallback? onNight;
+  final VoidCallback? onStartGame;
+  final VoidCallback? onAddPlayer;
 
   const GameActionButtons({
     super.key,
     required this.isGameStarted,
-    required this.onVote,
-    required this.onNight,
-    required this.onStartGame,
-    required this.onAddPlayer,
+    this.onVote,
+    this.onNight,
+    this.onStartGame,
+    this.onAddPlayer,
   });
 
   @override
@@ -38,6 +39,7 @@ class GameActionButtons extends StatelessWidget {
                         borderRadius: BorderRadius.circular(15),
                       ),
                     ),
+                    // Si onVote est null, le bouton sera désactivé visuellement (sécurité)
                     onPressed: onVote,
                     icon: const Icon(Icons.how_to_vote, color: Colors.white),
                     label: const Text(

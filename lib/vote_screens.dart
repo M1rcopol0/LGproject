@@ -194,6 +194,7 @@ class _IndividualVoteScreenContentState extends State<_IndividualVoteScreenConte
     bool isFanBlocked = widget.voter.isFanOfRonAldo && ronAldoAlive;
 
     if (voterIsTraveling) {
+      debugPrint("🗳️ CAPTEUR [Vote] : ${widget.voter.name} skip vote (Voyageur absent).");
       return _buildSkippedScreen(
           "ABSENT DU VILLAGE",
           "Vous êtes en voyage. Vous ne pouvez pas voter ce soir.",
@@ -203,6 +204,7 @@ class _IndividualVoteScreenContentState extends State<_IndividualVoteScreenConte
     }
 
     if (isFanBlocked) {
+      debugPrint("🗳️ CAPTEUR [Vote] : ${widget.voter.name} skip vote (Fan bloqué, Ron-Aldo vivant).");
       return _buildSkippedScreen(
           "DÉVOTION TOTALE",
           "Ron-Aldo décide pour vous.\nVotre voix compte automatiquement pour son choix.",

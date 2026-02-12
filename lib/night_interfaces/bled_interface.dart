@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart';
+import 'package:fluffer/models/player.dart';
 import 'target_selector_interface.dart';
 
 class BledInterface extends StatelessWidget {

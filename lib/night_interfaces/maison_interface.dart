@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../models/player.dart';
-import '../../globals.dart';
-import '../../trophy_service.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
+import 'package:fluffer/trophy_service.dart';
 import 'target_selector_interface.dart';
 
 class MaisonInterface extends StatelessWidget {

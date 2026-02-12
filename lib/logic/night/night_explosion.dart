@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../models/player.dart';
-import '../../../../achievement_logic.dart';
-import '../../../../trophy_service.dart';
-import '../../../../logic.dart'; // Pour GameLogic.eliminatePlayer
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/achievement_logic.dart';
+import 'package:fluffer/trophy_service.dart';
+import 'package:fluffer/logic.dart'; // Pour GameLogic.eliminatePlayer
 
 class NightExplosion {
   static void handle({
@@ -21,6 +21,7 @@ class NightExplosion {
     }
 
     if (attacker != null && target == attacker) {
+      debugPrint("💥 CAPTEUR [Mort] : Tardos suicide ! ${attacker.name} se bombarde lui-même.");
       attacker.tardosSuicide = true;
       AchievementLogic.checkTardosOups(context, attacker);
     }
@@ -36,6 +37,7 @@ class NightExplosion {
       } catch (e) {}
 
       var occupants = allPlayers.where((o) => o.isInHouse).toList();
+      debugPrint("💥 CAPTEUR [Mort] : Occupants de la Maison: ${occupants.map((o) => '${o.name}(${o.role})').join(', ')}.");
       for (var occupant in occupants) {
         pendingDeathsMap[occupant] = "Effondrement Maison (Explosion)";
       }

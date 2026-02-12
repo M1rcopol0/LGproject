@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../models/player.dart';
-import '../../../../globals.dart';
-import '../../../../achievement_logic.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
+import 'package:fluffer/achievement_logic.dart';
 
 class NightPreparation {
   static void run(List<Player> players) {
@@ -29,12 +29,12 @@ class NightPreparation {
         }
       }
 
+      if (!p.isAlive) continue;
+
       // --- LOGIQUE VOYAGEUR ---
       if (p.role?.toLowerCase() == "voyageur" && p.isInTravel) {
         AchievementLogic.updateVoyageur(p);
       }
-
-      if (!p.isAlive) continue;
 
       // --- LOGIQUE ZOOKEEPER ---
       if (p.hasBeenHitByDart) {

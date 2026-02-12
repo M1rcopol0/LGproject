@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
-import '../globals.dart';
+import 'package:fluffer/models/player.dart';
+import 'package:fluffer/globals.dart';
 
 class SorciereInterface extends StatefulWidget {
   final Player player;
@@ -99,7 +99,10 @@ class _SorciereInterfaceState extends State<SorciereInterface> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 side: const BorderSide(color: Colors.white24)
             ),
-            onPressed: widget.onActionComplete,
+            onPressed: () {
+              debugPrint("🎭 CAPTEUR [Action] : Sorcière passe son tour.");
+              widget.onActionComplete();
+            },
             child: const Text("TERMINER / SE RENDORMIR", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ),
@@ -108,6 +111,7 @@ class _SorciereInterfaceState extends State<SorciereInterface> {
   }
 
   void _useRevive() {
+    debugPrint("🎭 CAPTEUR [Action] : Sorcière sauve la cible des loups (${nightWolvesTarget?.name}).");
     setState(() {
       widget.player.hasUsedSorciereRevive = true;
       actionUsedThisNight = true;
@@ -147,6 +151,7 @@ class _SorciereInterfaceState extends State<SorciereInterface> {
   }
 
   void _confirmKill(Player target) {
+    debugPrint("🎭 CAPTEUR [Action] : Sorcière empoisonne ${target.name} (${target.role}).");
     setState(() {
       widget.player.hasUsedSorciereKill = true;
       actionUsedThisNight = true;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/player.dart';
+import 'package:fluffer/models/player.dart';
 
 class SaltimbanqueInterface extends StatefulWidget {
   final Player player;
@@ -52,6 +52,7 @@ class _SaltimbanqueInterfaceState extends State<SaltimbanqueInterface> {
   }
 
   void _protect(Player target) {
+    debugPrint("🎭 CAPTEUR [Action] : Saltimbanque protège ${target.name}. Dernière cible: ${widget.player.lastSaltimbanqueTarget?.name ?? 'aucune'}.");
     widget.player.lastSaltimbanqueTarget = target;
     target.isProtectedBySaltimbanque = true;
 
