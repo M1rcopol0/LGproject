@@ -370,66 +370,164 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
 
                     final rarityColor = ach.color;
 
+                    // Générer les étoiles en fonction de la rareté
+                    String stars = "⭐" * ach.rarity;
+
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(15),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isUnlocked ? rarityColor.withOpacity(0.08) : Colors.white.withOpacity(0.02),
-                        borderRadius: BorderRadius.circular(15),
+                        gradient: isUnlocked
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  rarityColor.withOpacity(0.15),
+                                  rarityColor.withOpacity(0.05),
+                                ],
+                              )
+                            : null,
+                        color: isUnlocked ? null : Colors.white.withOpacity(0.02),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: isUnlocked ? rarityColor.withOpacity(0.5) : Colors.transparent,
-                            width: isUnlocked ? 1.5 : 1
+                            color: isUnlocked ? rarityColor.withOpacity(0.6) : Colors.white.withOpacity(0.05),
+                            width: isUnlocked ? 2 : 1
                         ),
+                        boxShadow: isUnlocked
+                            ? [
+                                BoxShadow(
+                                  color: rarityColor.withOpacity(0.3),
+                                  blurRadius: 12,
+                                  spreadRadius: 1,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(ach.icon, style: TextStyle(fontSize: 30, color: isUnlocked ? null : Colors.grey.withOpacity(0.2))),
-                          const SizedBox(width: 15),
+                          // Icône du succès
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isUnlocked
+                                  ? rarityColor.withOpacity(0.2)
+                                  : Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: isUnlocked
+                                  ? Border.all(color: rarityColor.withOpacity(0.5), width: 1.5)
+                                  : null,
+                            ),
+                            child: Text(
+                              ach.icon,
+                              style: TextStyle(
+                                fontSize: 32,
+                                color: isUnlocked ? null : Colors.grey.withOpacity(0.2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Contenu du succès
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Titre + Badge de rareté
                                 Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
-                                      child: Text(ach.title,
-                                          style: TextStyle(
-                                              color: isUnlocked ? Colors.white : Colors.white24,
-                                              fontWeight: FontWeight.bold
-                                          )),
-                                    ),
-                                    if (isUnlocked)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                            color: rarityColor.withOpacity(0.2),
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: rarityColor.withOpacity(0.5), width: 0.5)
+                                      child: Text(
+                                        ach.title,
+                                        style: TextStyle(
+                                          color: isUnlocked ? Colors.white : Colors.white24,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
                                         ),
-                                        child: Text(ach.rarityLabel, style: TextStyle(fontSize: 8, color: rarityColor, fontWeight: FontWeight.bold)),
-                                      )
+                                      ),
+                                    ),
+                                    if (isUnlocked) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              rarityColor.withOpacity(0.3),
+                                              rarityColor.withOpacity(0.1),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: rarityColor.withOpacity(0.7), width: 1),
+                                        ),
+                                        child: Text(
+                                          ach.rarityLabel.toUpperCase(),
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: rarityColor,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(ach.description,
-                                    style: TextStyle(
-                                        color: isUnlocked ? Colors.white70 : Colors.white10,
-                                        fontSize: 12
-                                    )),
+                                const SizedBox(height: 6),
+                                // Étoiles de rareté
                                 if (isUnlocked)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: Text("Obtenu le $dateObtained",
-                                        style: TextStyle(color: rarityColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    stars,
+                                    style: const TextStyle(fontSize: 14),
                                   ),
+                                const SizedBox(height: 8),
+                                // Description
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isUnlocked
+                                        ? Colors.black.withOpacity(0.2)
+                                        : Colors.white.withOpacity(0.02),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isUnlocked
+                                          ? rarityColor.withOpacity(0.2)
+                                          : Colors.white.withOpacity(0.05),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    ach.description,
+                                    style: TextStyle(
+                                      color: isUnlocked ? Colors.white.withOpacity(0.85) : Colors.white10,
+                                      fontSize: 12,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                                // Date d'obtention
+                                if (isUnlocked) ...[
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.calendar_today, color: rarityColor, size: 12),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "Obtenu le $dateObtained",
+                                        style: TextStyle(
+                                          color: rarityColor,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Icon(Icons.verified, color: rarityColor, size: 18),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
-                          if (isUnlocked)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8.0),
-                              child: Icon(Icons.verified, color: rarityColor, size: 20),
-                            ),
                         ],
                       ),
                     );

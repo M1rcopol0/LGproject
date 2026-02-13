@@ -42,28 +42,15 @@ class TrophyService {
 
     if (ach.checkCondition(checkData)) {
       bool isBrandNew = await unlockAchievement(playerName, achievementId);
-      bool shouldShowPopup = false;
 
-      if (isBrandNew) {
-        shouldShowPopup = true;
-        debugPrint("🏆 LOG [Trophy] : Nouveau succès débloqué : ${ach.title}");
-      } else {
-        String? storedDateStr = await _getAchievementDate(playerName, achievementId);
-        if (storedDateStr != null) {
-          DateTime? storedDate = _parseCustomDate(storedDateStr);
-          if (storedDate != null) {
-            final diff = DateTime.now().difference(storedDate);
-            if (diff.inSeconds < 90) {
-              shouldShowPopup = true;
-              debugPrint("♻️ LOG [Trophy] : Succès existant mais RÉCENT (${diff.inSeconds}s) -> Affichage autorisé.");
-            } else {
-              debugPrint("⏳ LOG [Trophy] : Succès ancien (${storedDateStr}) -> Pas de pop-up.");
-            }
-          }
-        }
+      if (!isBrandNew) {
+        debugPrint("⏳ LOG [Trophy] : Succès '${ach.title}' déjà obtenu pour $playerName -> Pas de pop-up.");
+        return;
       }
 
-      if (shouldShowPopup && context.mounted) {
+      debugPrint("🏆 LOG [Trophy] : Nouveau succès débloqué : ${ach.title}");
+
+      if (context.mounted) {
         String ramKey = "${playerName}_$achievementId";
         DateTime? lastShownRAM = _recentlyShownToasts[ramKey];
 

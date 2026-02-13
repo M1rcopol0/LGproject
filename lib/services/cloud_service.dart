@@ -6,10 +6,11 @@ import 'trophy_service.dart';
 import '../models/achievement.dart';
 import '../models/player.dart';
 import '../globals.dart';
+import '../player_storage.dart';
 
 class CloudService {
   // ⚠️ VOTRE URL
-  static const String _scriptUrl = "https://script.google.com/macros/s/AKfycbwwZHAFLcOU0liI-MbLifSFc2EZ0qxGFOpe0aipnd32NWiguM5_FLWuPoocgj6TajLQ/exec";
+  static const String _scriptUrl = "https://script.google.com/macros/s/AKfycbwq0tQC3SeAf0-385ZioPvPhJZzjlHLHuuBzro6kfcTG_QlPUvbpRGj4BGgSKCqIWrs/exec";
 
   // =========================================================================
   // A. SYNCHRONISATION INTELLIGENTE (PULL + MERGE + PUSH)
@@ -34,6 +35,7 @@ class CloudService {
       final prefs = await SharedPreferences.getInstance();
       final localGlobalStats = await TrophyService.getGlobalStats();
       final localPlayerStats = await TrophyService.getStats();
+      final localDirectory = await PlayerDirectory.getDirectory();
 
       final Map<String, dynamic> cloudGlobalStats =
       cloudData != null && cloudData['global_stats'] != null
@@ -43,6 +45,11 @@ class CloudService {
       final Map<String, dynamic> cloudPlayerStats =
       cloudData != null && cloudData['individual_stats'] != null
           ? Map<String, dynamic>.from(cloudData['individual_stats'])
+          : {};
+
+      final Map<String, dynamic> cloudDirectory =
+      cloudData != null && cloudData['player_directory'] != null
+          ? Map<String, dynamic>.from(cloudData['player_directory'])
           : {};
 
       // Fusion des stats globales
@@ -130,14 +137,61 @@ class CloudService {
         if (val is Map) mergeIntoFinal(key, Map<String, dynamic>.from(val));
       });
 
+      // C. FUSION DE L'ANNUAIRE
+      // On fusionne local + cloud en gardant les valeurs maximales
+      Map<String, dynamic> mergedDirectory = {};
+
+      void mergeDirectoryEntry(String rawName, Map<String, dynamic> sourceData) {
+        String cleanName = Player.formatName(rawName);
+        if (cleanName.isEmpty) return;
+
+        if (!mergedDirectory.containsKey(cleanName)) {
+          mergedDirectory[cleanName] = {
+            'gamesPlayed': 0,
+            'wins': 0,
+            'achievements': [],
+            'phoneNumber': null,
+          };
+        }
+
+        var existing = mergedDirectory[cleanName];
+
+        // Prendre le MAX pour les statistiques
+        existing['gamesPlayed'] = _max(existing['gamesPlayed'] ?? 0, sourceData['gamesPlayed'] ?? 0);
+        existing['wins'] = _max(existing['wins'] ?? 0, sourceData['wins'] ?? 0);
+
+        // Pour le téléphone, garder le non-null (ou le cloud si les deux existent)
+        if (sourceData['phoneNumber'] != null && sourceData['phoneNumber'].toString().trim().isNotEmpty) {
+          existing['phoneNumber'] = sourceData['phoneNumber'];
+        }
+
+        // Pour les achievements, faire l'union
+        List<dynamic> existingAch = List.from(existing['achievements'] ?? []);
+        List<dynamic> sourceAch = List.from(sourceData['achievements'] ?? []);
+        for (var ach in sourceAch) {
+          if (!existingAch.contains(ach)) existingAch.add(ach);
+        }
+        existing['achievements'] = existingAch;
+      }
+
+      // Traiter local puis cloud
+      localDirectory.forEach((key, val) {
+        if (val is Map) mergeDirectoryEntry(key, Map<String, dynamic>.from(val));
+      });
+
+      cloudDirectory.forEach((key, val) {
+        if (val is Map) mergeDirectoryEntry(key, Map<String, dynamic>.from(val));
+      });
+
       // 3. SAUVEGARDER EN LOCAL
       await prefs.setString('global_faction_stats', jsonEncode(mergedGlobalStats));
       await prefs.setString('saved_trophies_v2', jsonEncode(mergedPlayerStats));
+      await prefs.setString('registered_players', jsonEncode(mergedDirectory));
 
       // Mise à jour de l'annuaire (Liste des joueurs pour l'auto-complétion)
       List<String> currentDirectory = globalPlayers.map((p) => p.name).toList();
       bool directoryChanged = false;
-      for (String name in mergedPlayerStats.keys) {
+      for (String name in mergedDirectory.keys) {
         if (!currentDirectory.contains(name)) {
           globalPlayers.add(Player(name: name));
           currentDirectory.add(name);
@@ -148,9 +202,11 @@ class CloudService {
         await prefs.setStringList('saved_players_list', currentDirectory);
       }
 
+      debugPrint("☁️ LOG [Cloud] : Annuaire fusionné (${mergedDirectory.length} joueurs).");
+
       // 4. ENVOYER AU CLOUD (PUSH)
       // On envoie la version propre et fusionnée
-      await _pushToCloud(context, mergedGlobalStats, mergedPlayerStats, "Synchro terminée");
+      await _pushToCloud(context, mergedGlobalStats, mergedPlayerStats, mergedDirectory, "Synchro terminée");
 
     } catch (e) {
       debugPrint("❌ LOG [Cloud] : Erreur Synchro - $e");
@@ -171,9 +227,10 @@ class CloudService {
       // On prend juste ce qu'il y a en local (qui vient d'être nettoyé)
       final localGlobalStats = await TrophyService.getGlobalStats();
       final localPlayerStats = await TrophyService.getStats();
+      final localDirectory = await PlayerDirectory.getDirectory();
 
       // On envoie directement sans télécharger avant
-      await _pushToCloud(context, localGlobalStats, localPlayerStats, "Mise à jour Cloud forcée");
+      await _pushToCloud(context, localGlobalStats, localPlayerStats, localDirectory, "Mise à jour Cloud forcée");
 
     } catch (e) {
       debugPrint("❌ LOG [Cloud] : Erreur Force Upload - $e");
@@ -183,7 +240,7 @@ class CloudService {
   // =========================================================================
   // C. MÉTHODE PRIVÉE D'ENVOI (POST)
   // =========================================================================
-  static Future<void> _pushToCloud(BuildContext context, Map<String, dynamic> globalStats, Map<String, dynamic> playerStats, String successMessage) async {
+  static Future<void> _pushToCloud(BuildContext context, Map<String, dynamic> globalStats, Map<String, dynamic> playerStats, Map<String, dynamic> playerDirectory, String successMessage) async {
     // Enrichissement des données pour l'affichage visuel
     Map<String, dynamic> enrichedStats = {};
     playerStats.forEach((name, data) {
@@ -211,8 +268,15 @@ class CloudService {
     Map<String, dynamic> payload = {
       "global_stats": globalStats,
       "individual_stats": enrichedStats,
+      "player_directory": playerDirectory,
       "timestamp": DateTime.now().toIso8601String(),
     };
+
+    // Debug: afficher ce qui est envoyé
+    debugPrint("☁️ LOG [Cloud] : Envoi payload avec ${payload.keys.toList()}");
+    debugPrint("☁️ LOG [Cloud] : - ${globalStats.length} stats globales");
+    debugPrint("☁️ LOG [Cloud] : - ${enrichedStats.length} joueurs (stats individuelles)");
+    debugPrint("☁️ LOG [Cloud] : - ${playerDirectory.length} joueurs (annuaire)");
 
     var postResponse = await http.post(
       Uri.parse(_scriptUrl),

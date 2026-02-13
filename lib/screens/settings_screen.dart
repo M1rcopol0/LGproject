@@ -13,6 +13,7 @@ import '../services/backup_service.dart';
 import '../services/trophy_service.dart';
 import '../models/player.dart';
 import '../services/cloud_service.dart'; // Nécessaire pour forceUploadData
+import '../services/backup_restore_service.dart'; // Pour restaurer la backup prod
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -368,6 +369,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: _showResetDialog,
             icon: const Icon(Icons.delete_forever),
             label: const Text("RÉINITIALISER TOUT (LOCAL + CLOUD)"),
+          ),
+
+          const SizedBox(height: 12),
+
+          // RESTAURER BACKUP PRODUCTION
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.withOpacity(0.1),
+              foregroundColor: Colors.greenAccent,
+              side: const BorderSide(color: Colors.greenAccent),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              BackupRestoreService.showRestoreConfirmation(context, () async {
+                bool success = await BackupRestoreService.restoreProductionBackup(context);
+                if (success) {
+                  // Recharger les données
+                  await _loadSettings();
+                }
+              });
+            },
+            icon: const Icon(Icons.restore),
+            label: const Text("RESTAURER BACKUP PRODUCTION"),
           ),
 
           const SizedBox(height: 20),

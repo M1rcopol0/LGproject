@@ -108,4 +108,46 @@ class PlayerDirectory {
     }
     return null;
   }
+
+  // --- MISE À JOUR STATISTIQUES ---
+  static Future<void> incrementGamesPlayed(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> directory = await getDirectory();
+
+    if (!directory.containsKey(name)) {
+      // Si le joueur n'existe pas encore dans l'annuaire, on le crée
+      directory[name] = {
+        "gamesPlayed": 1,
+        "wins": 0,
+        "achievements": [],
+        "phoneNumber": null,
+      };
+      debugPrint("📊 Joueur $name ajouté à l'annuaire (1ère partie).");
+    } else {
+      directory[name]["gamesPlayed"] = (directory[name]["gamesPlayed"] ?? 0) + 1;
+      debugPrint("📊 Parties jouées par $name : ${directory[name]["gamesPlayed"]}");
+    }
+
+    await prefs.setString(_directoryKey, jsonEncode(directory));
+  }
+
+  static Future<void> incrementWins(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> directory = await getDirectory();
+
+    if (!directory.containsKey(name)) {
+      // Si le joueur n'existe pas, on le crée avec 1 victoire (cas rare)
+      directory[name] = {
+        "gamesPlayed": 0, // Sera incrémenté séparément
+        "wins": 1,
+        "achievements": [],
+        "phoneNumber": null,
+      };
+    } else {
+      directory[name]["wins"] = (directory[name]["wins"] ?? 0) + 1;
+      debugPrint("🏆 Victoires de $name : ${directory[name]["wins"]}");
+    }
+
+    await prefs.setString(_directoryKey, jsonEncode(directory));
+  }
 }

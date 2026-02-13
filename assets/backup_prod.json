@@ -1,0 +1,174 @@
+{
+  "global_stats": {
+    "VILLAGE": 5,
+    "LOUPS-GAROUS": 0,
+    "SOLO": 2
+  },
+  "individual_stats": {
+    "Gabriel": {
+      "totalWins": 1,
+      "roles": {"VILLAGE": 1},
+      "roleWins": {"MAISON": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 16:56",
+        "village_hero": "01/02/2026 à 16:56",
+        "crazy_casa": "08/02/2026 à 15:59",
+        "pokemon_fail": "08/02/2026 à 19:17"
+      },
+      "counters": {}
+    },
+    "Alexis": {
+      "totalWins": 1,
+      "roles": {"VILLAGE": 1},
+      "roleWins": {"GRAND-MÈRE": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 16:56",
+        "village_hero": "01/02/2026 à 16:56",
+        "welcome_wolf": "01/02/2026 à 19:30",
+        "house_collapse": "01/02/2026 à 19:42",
+        "fan_sacrifice": "08/02/2026 à 16:39"
+      },
+      "counters": {}
+    },
+    "Julie": {
+      "totalWins": 2,
+      "roles": {"VILLAGE": 2},
+      "roleWins": {"ARCHIVISTE": 1, "EXORCISTE": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 16:56",
+        "village_hero": "01/02/2026 à 16:56"
+      },
+      "counters": {"archiviste_actions_all_time": ["scapegoat", "cancel_vote", "mute"]}
+    },
+    "Lydia": {
+      "totalWins": 1,
+      "roles": {"VILLAGE": 1},
+      "roleWins": {"ZOOKEEPER": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 16:56",
+        "village_hero": "01/02/2026 à 16:56"
+      },
+      "counters": {}
+    },
+    "Clara": {
+      "totalWins": 4,
+      "roles": {"VILLAGE": 3, "SOLO": 1},
+      "roleWins": {"ENCULATEUR DU BLED": 1, "POKÉMON": 1, "DINGO": 1, "VOYAGEUR": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 16:56",
+        "village_hero": "01/02/2026 à 16:56",
+        "lone_wolf": "01/02/2026 à 17:36",
+        "mime_win": "08/02/2026 à 18:59"
+      },
+      "counters": {}
+    },
+    "Axelle": {
+      "totalWins": 4,
+      "roles": {"VILLAGE": 3, "SOLO": 1},
+      "roleWins": {"GRAND-MÈRE": 1, "DRESSEUR": 1, "DEVIN": 1, "HOUSTON": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 16:56",
+        "village_hero": "01/02/2026 à 16:56",
+        "lone_wolf": "01/02/2026 à 17:36",
+        "pokemon_fail": "08/02/2026 à 15:31",
+        "apollo_13": "08/02/2026 à 16:19"
+      },
+      "counters": {}
+    },
+    "Devon": {
+      "totalWins": 2,
+      "roles": {"VILLAGE": 2},
+      "roleWins": {"HOUSTON": 1, "ENCULATEUR DU BLED": 1},
+      "achievements": {
+        "house_collapse": "01/02/2026 à 17:32",
+        "first_win": "01/02/2026 à 19:22",
+        "village_hero": "01/02/2026 à 19:22"
+      },
+      "counters": {}
+    },
+    "Xantin": {
+      "totalWins": 4,
+      "roles": {"VILLAGE": 3, "SOLO": 1},
+      "roleWins": {"TARDOS": 2, "PANTIN": 1, "EXORCISTE": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 19:22",
+        "village_hero": "01/02/2026 à 19:22",
+        "pantin_clutch": "01/02/2026 à 19:46",
+        "lone_wolf": "01/02/2026 à 19:54"
+      },
+      "counters": {}
+    },
+    "Marc": {
+      "totalWins": 1,
+      "roles": {"VILLAGE": 1},
+      "roleWins": {"ENCULATEUR DU BLED": 1},
+      "achievements": {
+        "first_win": "01/02/2026 à 19:22",
+        "village_hero": "01/02/2026 à 19:22"
+      },
+      "counters": {}
+    },
+    "Claude": {
+      "totalWins": 2,
+      "roles": {"VILLAGE": 2},
+      "roleWins": {"ZOOKEEPER": 1, "ARCHIVISTE": 1},
+      "achievements": {
+        "first_win": "08/02/2026 à 16:39",
+        "village_hero": "08/02/2026 à 16:39"
+      },
+      "counters": {"archiviste_actions_all_time": ["cancel_vote", "scapegoat", "transcendance_start"]}
+    },
+    "Lyazid": {
+      "totalWins": 2,
+      "roles": {"VILLAGE": 2},
+      "roleWins": {"VOYAGEUR": 1, "ARCHIVISTE": 1},
+      "achievements": {
+        "first_win": "08/02/2026 à 15:59",
+        "village_hero": "08/02/2026 à 15:59",
+        "traveler_sniper": "08/02/2026 à 16:01"
+      },
+      "counters": {"cumulative_travels": 1, "archiviste_actions_all_time": ["transcendance_start"]}
+    },
+    "Vincent": {
+      "totalWins": 2,
+      "roles": {"VILLAGE": 2},
+      "roleWins": {"EXORCISTE": 1, "DINGO": 1},
+      "achievements": {
+        "first_win": "08/02/2026 à 15:59",
+        "village_hero": "08/02/2026 à 15:59"
+      },
+      "counters": {}
+    },
+    "Margaux": {
+      "totalWins": 3,
+      "roles": {"VILLAGE": 3},
+      "roleWins": {"HOUSTON": 1, "TARDOS": 1, "DEVIN": 1},
+      "achievements": {
+        "first_win": "08/02/2026 à 15:59",
+        "village_hero": "08/02/2026 à 15:59",
+        "welcome_wolf": "08/02/2026 à 18:44",
+        "house_collapse": "08/02/2026 à 18:55"
+      },
+      "counters": {}
+    },
+    "Alexandre Cenciai": {
+      "totalWins": 1,
+      "roles": {"VILLAGE": 1},
+      "roleWins": {"ZOOKEEPER": 1},
+      "achievements": {},
+      "counters": {}
+    },
+    "Ornella": {
+      "totalWins": 1,
+      "roles": {"VILLAGE": 1},
+      "roleWins": {"GRAND-MÈRE": 1},
+      "achievements": {
+        "assurance_habitation": "08/02/2026 à 18:55",
+        "first_win": "08/02/2026 à 19:34",
+        "village_hero": "08/02/2026 à 19:34"
+      },
+      "counters": {}
+    }
+  },
+  "timestamp": "2026-02-08T19:34:56.908464"
+}

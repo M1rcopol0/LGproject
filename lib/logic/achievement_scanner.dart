@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/player.dart';
 import '../models/achievement.dart';
 import '../services/trophy_service.dart';
@@ -45,7 +44,7 @@ class AchievementScanner {
               context: context,
               playerName: p.name,
               achievementId: achievement.id,
-              checkData: {achievement.id: true},
+              checkData: stats,
             );
           }
         } catch (e) {}
@@ -133,10 +132,36 @@ class AchievementScanner {
     await evaluateGenericAchievements(context, allPlayers, winnerRole: winnerRole);
 
     for (var p in winners) {
-      await _safeUnlock(p.name, "first_win");
-      if (p.team == "village") await _safeUnlock(p.name, "village_hero");
-      if (p.team == "loups") await _safeUnlock(p.name, "wolf_pack");
-      if (p.team == "solo") await _safeUnlock(p.name, "lone_wolf");
+      Map<String, dynamic> winStats = {
+        'totalWins': 1,
+        'roles': {
+          'VILLAGE': p.team == "village" ? 1 : 0,
+          'LOUPS-GAROUS': p.team == "loups" ? 1 : 0,
+          'SOLO': p.team == "solo" ? 1 : 0,
+        },
+      };
+      await TrophyService.checkAndUnlockImmediate(
+        context: context, playerName: p.name,
+        achievementId: "first_win", checkData: winStats,
+      );
+      if (p.team == "village") {
+        await TrophyService.checkAndUnlockImmediate(
+          context: context, playerName: p.name,
+          achievementId: "village_hero", checkData: winStats,
+        );
+      }
+      if (p.team == "loups") {
+        await TrophyService.checkAndUnlockImmediate(
+          context: context, playerName: p.name,
+          achievementId: "wolf_pack", checkData: winStats,
+        );
+      }
+      if (p.team == "solo") {
+        await TrophyService.checkAndUnlockImmediate(
+          context: context, playerName: p.name,
+          achievementId: "lone_wolf", checkData: winStats,
+        );
+      }
     }
 
     for (var p in allPlayers) {
@@ -147,17 +172,16 @@ class AchievementScanner {
         try {
           var pokemon = allPlayers.firstWhere((pl) => pl.role?.toLowerCase() == "pokémon" || pl.role?.toLowerCase() == "pokemon", orElse: () => Player(name: "Unknown", isAlive: true));
           if (pokemon.name != "Unknown" && !pokemon.isAlive) {
-            await TrophyService.unlockAchievement(p.name, "master_no_pokemon");
+            await TrophyService.checkAndUnlockImmediate(
+              context: context, playerName: p.name,
+              achievementId: "master_no_pokemon",
+              checkData: {'player_role': "Dresseur", 'winner_role': "DRESSEUR", 'pokemon_died_t1': pokemonDiedTour1},
+            );
           }
         } catch (_) {}
       }
     }
   }
 
-  static Future<void> _safeUnlock(String name, String id) async {
-    try {
-      await TrophyService.unlockAchievement(name, id);
-    } catch (_) {}
-  }
 }
 

@@ -42,9 +42,6 @@ class AchievementLogic {
   static void checkParkingShot(BuildContext? context, Player dingo, Player victim, List<Player> allPlayers) =>
       AchievementEvents.checkParkingShot(context, dingo, victim, allPlayers);
 
-  static void checkParkingShotCondition(Player dingo, Player victim, List<Player> allPlayers) =>
-      AchievementEvents.checkParkingShotCondition(dingo, victim, allPlayers);
-
   static void checkFanSacrifice(BuildContext context, Player victim, Player savedPlayer) =>
       AchievementEvents.checkFanSacrifice(context, victim, savedPlayer);
 

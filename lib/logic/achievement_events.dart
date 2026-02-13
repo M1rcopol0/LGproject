@@ -24,7 +24,7 @@ class AchievementEvents {
       }
     }
 
-    if (roleLower == "maison" && globalTurnNumber == 1) {
+    if (roleLower == "maison" && globalTurnNumber == 1 && !isDayTime) {
       if (context != null) {
         TrophyService.checkAndUnlockImmediate(context: context, playerName: victim.name, achievementId: "house_fast_death", checkData: {'turn_count': 1, 'player_role': 'Maison', 'death_cause': 'direct_hit'});
       }
@@ -77,10 +77,6 @@ class AchievementEvents {
     }
   }
 
-  static void checkParkingShotCondition(Player dingo, Player victim, List<Player> allPlayers) {
-    checkParkingShot(null, dingo, victim, allPlayers);
-  }
-
   static void checkFanSacrifice(BuildContext context, Player victim, Player savedPlayer) {
     bool isFan = victim.isFanOfRonAldo;
     bool isRonAldoSaved = savedPlayer.role?.toLowerCase() == "ron-aldo";
@@ -115,11 +111,16 @@ class AchievementEvents {
   }
 
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
-    if (votedPlayer.hasSurvivedWolfBite) {
+    if (votedPlayer.hasSurvivedWolfBite && votedPlayer.wolfBiteSurvivedTurn == globalTurnNumber) {
       evolvedHungerAchieved = true;
       debugPrint("🩸 CAPTEUR [Achievement] : Condition Fringale Nocturne remplie.");
-      for (var p in allPlayers) {
-        if (p.team == "loups") {
+      final aliveWolves = allPlayers.where((p) => p.isAlive && p.team == "loups").toList();
+      for (var p in aliveWolves) {
+        bool couldVote = !p.isEffectivelyAsleep;
+        if (p.role?.toLowerCase() == "loup-garou chaman") {
+          couldVote = !aliveWolves.any((other) => other != p);
+        }
+        if (couldVote) {
           TrophyService.checkAndUnlockImmediate(context: context, playerName: p.name, achievementId: "evolved_hunger", checkData: {'is_wolf_faction': true, 'evolved_hunger_achieved': true});
         }
       }
