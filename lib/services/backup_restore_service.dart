@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'trophy_service.dart';
+import '../player_storage.dart';
+import 'cloud_service.dart';
 
 /// Service de restauration de backup depuis un fichier JSON intégré
 class BackupRestoreService {
@@ -34,13 +35,36 @@ class BackupRestoreService {
       await prefs.setString('saved_trophies_v2', jsonEncode(individualStats));
       debugPrint("✅ LOG [Backup] : Stats individuelles restaurées (${individualStats.length} joueurs)");
 
-      // 4. Message de confirmation
+      // 3.5. Restaurer l'annuaire complet (si présent dans la backup)
+      if (backupData.containsKey('player_directory') && backupData['player_directory'] != null) {
+        final playerDirectory = Map<String, dynamic>.from(backupData['player_directory']);
+        await prefs.setString('registered_players', jsonEncode(playerDirectory));
+        debugPrint("✅ LOG [Backup] : Annuaire complet restauré (${playerDirectory.length} joueurs avec parties/victoires/téléphones)");
+      } else {
+        // Fallback : Si l'ancienne version de backup n'a pas player_directory, on synchronise depuis les stats
+        await PlayerDirectory.syncWithTrophyStats();
+        debugPrint("✅ LOG [Backup] : Annuaire synchronisé avec les stats (ancienne version)");
+      }
+
+      // 4. FORCER L'ENVOI AU CLOUD (écrase le cloud avec la backup restaurée)
+      if (context.mounted) {
+        try {
+          debugPrint("☁️ LOG [Backup] : Envoi forcé vers le Cloud...");
+          await CloudService.pushLocalToCloud(context);
+          debugPrint("✅ LOG [Backup] : Cloud synchronisé avec la backup restaurée");
+        } catch (e) {
+          debugPrint("⚠️ LOG [Backup] : Erreur lors de la synchro Cloud : $e");
+          // On continue quand même, la restauration locale a réussi
+        }
+      }
+
+      // 5. Message de confirmation
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("✅ Backup restaurée : ${individualStats.length} joueurs"),
+            content: Text("✅ Backup restaurée : ${individualStats.length} joueurs + Cloud synchronisé"),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
       }

@@ -163,7 +163,7 @@ class _TrophyHubScreenState extends State<TrophyHubScreen> {
 
                             // CORRECTION : Forcer l'envoi au Cloud pour supprimer là-bas aussi
                             if (context.mounted) {
-                              CloudService.forceUploadData(context);
+                              CloudService.pushLocalToCloud(context);
                             }
                           }
                           // Rafraîchir l'interface locale

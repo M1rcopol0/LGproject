@@ -9,11 +9,10 @@ import 'package:talker_flutter/talker_flutter.dart'; // Pour récupérer l'histo
 // IMPORTS JEU
 import 'pick_ban_screen.dart';
 import '../globals.dart';
-import '../services/backup_service.dart';
 import '../services/trophy_service.dart';
 import '../models/player.dart';
-import '../services/cloud_service.dart'; // Nécessaire pour forceUploadData
-import '../services/backup_restore_service.dart'; // Pour restaurer la backup prod
+import '../services/cloud_service.dart';
+import '../services/backup_restore_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -35,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return; // Éviter setState après dispose
     setState(() {
       _volume = prefs.getDouble('app_volume') ?? 1.0;
       _autoCloudSync = prefs.getBool('auto_cloud_sync') ?? false;
@@ -136,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nettoyage Cloud en cours...")));
-                await CloudService.forceUploadData(context);
+                await CloudService.pushLocalToCloud(context);
               }
             },
             child: const Text("TOUT EFFACER", style: TextStyle(color: Colors.redAccent)),
@@ -177,7 +177,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${player.name} supprimé. Mise à jour du Cloud...")));
-                    await CloudService.forceUploadData(context);
+                    await CloudService.pushLocalToCloud(context);
                   }
                 },
               );
@@ -185,6 +185,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("FERMER"))],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 4. CRÉER UNE BACKUP CLOUD
+  // ===========================================================================
+  void _createCloudBackup() {
+    final TextEditingController labelController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("Créer une backup cloud", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: labelController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            labelText: "Nom de la backup (optionnel)",
+            labelStyle: TextStyle(color: Colors.white70),
+            hintText: "Ex: Avant reset, Partie 15/02",
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.orangeAccent),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.orange),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("ANNULER"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+            onPressed: () {
+              Navigator.pop(ctx);
+              String label = labelController.text.trim();
+              if (label.isEmpty) {
+                label = "Backup manuelle";
+              }
+              CloudService.createCloudBackup(context, label);
+            },
+            child: const Text("CRÉER", style: TextStyle(color: Colors.black)),
+          ),
+        ],
       ),
     );
   }
@@ -309,6 +358,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 10),
 
+          // CHARGER DEPUIS CLOUD (PULL-OVERWRITE)
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.withOpacity(0.2),
+              foregroundColor: Colors.blueAccent,
+              side: const BorderSide(color: Colors.blueAccent),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => CloudService.pullAndOverwriteLocal(context),
+            icon: const Icon(Icons.cloud_download),
+            label: const Text("⬇️ CHARGER DEPUIS CLOUD"),
+          ),
+
+          const SizedBox(height: 10),
+
+          // ENVOYER VERS CLOUD (PUSH-ONLY)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green.withOpacity(0.2),
@@ -317,9 +383,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            onPressed: () => CloudService.synchronizeData(context),
+            onPressed: () => CloudService.pushLocalToCloud(context),
             icon: const Icon(Icons.cloud_upload),
-            label: const Text("FORCER LA SYNCHRO (Fusion)"),
+            label: const Text("⬆️ ENVOYER VERS CLOUD"),
+          ),
+
+          const SizedBox(height: 10),
+
+          // CRÉER BACKUP CLOUD
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.withOpacity(0.2),
+              foregroundColor: Colors.orangeAccent,
+              side: const BorderSide(color: Colors.orangeAccent),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => _createCloudBackup(),
+            icon: const Icon(Icons.backup),
+            label: const Text("📦 CRÉER BACKUP CLOUD"),
           ),
 
           const SizedBox(height: 25),
@@ -327,21 +409,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // --- SECTION GESTION LOCALE ---
           const Text("GESTION DONNÉES", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           const SizedBox(height: 15),
-
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueAccent.withOpacity(0.2),
-              foregroundColor: Colors.blueAccent,
-              side: const BorderSide(color: Colors.blueAccent),
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => BackupService.exportData(context),
-            icon: const Icon(Icons.upload_file),
-            label: const Text("EXPORTER SAUVEGARDE JSON"),
-          ),
-
-          const SizedBox(height: 20),
 
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
@@ -369,30 +436,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: _showResetDialog,
             icon: const Icon(Icons.delete_forever),
             label: const Text("RÉINITIALISER TOUT (LOCAL + CLOUD)"),
-          ),
-
-          const SizedBox(height: 12),
-
-          // RESTAURER BACKUP PRODUCTION
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.withOpacity(0.1),
-              foregroundColor: Colors.greenAccent,
-              side: const BorderSide(color: Colors.greenAccent),
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () {
-              BackupRestoreService.showRestoreConfirmation(context, () async {
-                bool success = await BackupRestoreService.restoreProductionBackup(context);
-                if (success) {
-                  // Recharger les données
-                  await _loadSettings();
-                }
-              });
-            },
-            icon: const Icon(Icons.restore),
-            label: const Text("RESTAURER BACKUP PRODUCTION"),
           ),
 
           const SizedBox(height: 20),

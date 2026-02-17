@@ -125,9 +125,18 @@ class _PlayerDirectoryScreenState extends State<PlayerDirectoryScreen> {
               itemCount: _filteredNames.length,
               itemBuilder: (context, index) {
                 String name = _filteredNames[index];
-                String? phone = _directory[name]['phoneNumber'];
-                int games = _directory[name]['gamesPlayed'] ?? 0;
-                int wins = _directory[name]['wins'] ?? 0;
+
+                // Lecture sécurisée des données
+                var playerData = _directory[name];
+                String? phone;
+
+                if (playerData != null) {
+                  // phoneNumber peut être null, String, ou parfois int par erreur
+                  var phoneValue = playerData['phoneNumber'];
+                  if (phoneValue != null) {
+                    phone = phoneValue.toString();
+                  }
+                }
 
                 return Card(
                   color: const Color(0xFF1D1E33),
@@ -135,11 +144,9 @@ class _PlayerDirectoryScreenState extends State<PlayerDirectoryScreen> {
                   child: ListTile(
                     leading: CircleAvatar(backgroundColor: Colors.blueGrey, child: Text(name.isNotEmpty ? name[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if (phone != null && phone.isNotEmpty) Row(children: [const Icon(Icons.phone, size: 12, color: Colors.greenAccent), const SizedBox(width: 4), Text(phone, style: const TextStyle(color: Colors.greenAccent, fontSize: 12))]),
-                      Text("$games parties • $wins victoires", style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                    ],
-                    ),
+                    subtitle: phone != null && phone.isNotEmpty
+                        ? Row(children: [const Icon(Icons.phone, size: 14, color: Colors.greenAccent), const SizedBox(width: 6), Text(phone, style: const TextStyle(color: Colors.greenAccent, fontSize: 13))])
+                        : const Text("Aucun numéro", style: TextStyle(color: Colors.white24, fontSize: 12)),
                     trailing: const Icon(Icons.edit, color: Colors.blueAccent),
                     onTap: () => _showEditDialog(name),
                   ),

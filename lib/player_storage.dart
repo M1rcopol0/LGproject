@@ -104,7 +104,11 @@ class PlayerDirectory {
   static Future<String?> getPhoneNumber(String name) async {
     var dir = await getDirectory();
     if (dir.containsKey(name)) {
-      return dir[name]["phoneNumber"];
+      var phone = dir[name]["phoneNumber"];
+      // Conversion sécurisée : peut être null, String, ou int
+      if (phone != null) {
+        return phone.toString();
+      }
     }
     return null;
   }
@@ -149,5 +153,50 @@ class PlayerDirectory {
     }
 
     await prefs.setString(_directoryKey, jsonEncode(directory));
+  }
+
+  /// Synchronise l'annuaire avec les stats des joueurs (TrophyService)
+  /// Crée les entrées manquantes et initialise les compteurs
+  static Future<void> syncWithTrophyStats() async {
+    try {
+      debugPrint("🔄 LOG [Directory] : Début de la synchronisation avec TrophyService...");
+
+      final prefs = await SharedPreferences.getInstance();
+      Map<String, dynamic> directory = await getDirectory();
+
+      // Charger les stats depuis TrophyService
+      String? trophyData = prefs.getString('saved_trophies_v2');
+      if (trophyData == null || trophyData.isEmpty) {
+        debugPrint("⚠️ LOG [Directory] : Aucune stat trouvée dans TrophyService");
+        return;
+      }
+
+      Map<String, dynamic> trophyStats = Map<String, dynamic>.from(jsonDecode(trophyData));
+      bool hasChanges = false;
+
+      // Pour chaque joueur dans les stats
+      for (String name in trophyStats.keys) {
+        if (!directory.containsKey(name)) {
+          // Créer l'entrée dans l'annuaire
+          directory[name] = {
+            "gamesPlayed": 0,
+            "wins": 0,
+            "achievements": [],
+            "phoneNumber": null,
+          };
+          hasChanges = true;
+          debugPrint("➕ LOG [Directory] : Joueur ajouté à l'annuaire : $name");
+        }
+      }
+
+      if (hasChanges) {
+        await prefs.setString(_directoryKey, jsonEncode(directory));
+        debugPrint("✅ LOG [Directory] : Synchronisation terminée (${directory.length} joueurs)");
+      } else {
+        debugPrint("✅ LOG [Directory] : Annuaire déjà à jour");
+      }
+    } catch (e) {
+      debugPrint("❌ LOG [Directory] : Erreur lors de la synchronisation : $e");
+    }
   }
 }
