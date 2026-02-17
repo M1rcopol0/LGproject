@@ -47,13 +47,27 @@ class AchievementScanner {
               checkData: stats,
             );
           }
-        } catch (e) {}
+        } catch (e) {
+          debugPrint("⚠️ LOG [Achievement] : Erreur vérification succès '${achievement.id}' pour ${p.name} - $e");
+        }
       }
     }
   }
 
   static Map<String, dynamic> buildPlayerStats(Player p, String? winnerRole, List<Player> allPlayers) {
     bool hasDuplicateVotes = p.votedAgainstHistory.length != p.votedAgainstHistory.toSet().length;
+    int totalVotesCast = p.votedAgainstHistory.length;
+
+    // IMPORTANT : On ne remplit 'roles' que si on est en fin de partie (winnerRole != null)
+    // Sinon, les succès de fin ("Héros du Village", "Membre de la Meute", etc.) se déclenchent en mid-game
+    Map<String, int> rolesMap = {};
+    if (winnerRole != null) {
+      rolesMap = {
+        'VILLAGE': p.team == "village" ? 1 : 0,
+        'LOUPS-GAROUS': p.team == "loups" ? 1 : 0,
+        'SOLO': p.team == "solo" ? 1 : 0,
+      };
+    }
 
     return {
       'player_role': p.role,
@@ -62,11 +76,7 @@ class AchievementScanner {
       'turn_count': globalTurnNumber,
       'is_wolf_faction': p.team == "loups",
       'team': p.team,
-      'roles': {
-        'VILLAGE': p.team == "village" ? 1 : 0,
-        'LOUPS-GAROUS': p.team == "loups" ? 1 : 0,
-        'SOLO': p.team == "solo" ? 1 : 0,
-      },
+      'roles': rolesMap,
       'wolves_alive_count': allPlayers.where((pl) => pl.team == "loups" && pl.isAlive).length,
       'wolves_night_kills': wolvesNightKills,
       'no_friendly_fire_vote': !wolfVotedWolf,
@@ -99,7 +109,7 @@ class AchievementScanner {
       'ramenez_la_coupe': p.wasMaisonConverted,
       'house_collapsed': false,
       'is_first_blood': false,
-      'choix_cornelien_valid': p.isAlive && !hasDuplicateVotes,
+      'choix_cornelien_valid': p.isAlive && !hasDuplicateVotes && totalVotesCast >= 3,
     };
   }
 

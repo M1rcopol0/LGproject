@@ -68,7 +68,7 @@ class AchievementData {
       icon: "🕺", rarity: 4,
       checkCondition: (data) =>
       (data['player_role']?.toString().toLowerCase().contains("archiviste") ?? false) &&
-          (data['winner_role'] == "ARCHIVISTE" || data['winner_role'] == "SOLO") &&
+          (data['winner_role']?.toString().toUpperCase() == "ARCHIVISTE" || data['winner_role']?.toString().toUpperCase() == "SOLO") &&
           data['team']?.toString().toLowerCase() == "solo",
     ),
 
@@ -85,7 +85,7 @@ class AchievementData {
       title: "Messmerde",
       description: "Survivez sans jamais exposer le rôle d'un joueur.",
       icon: "😴", rarity: 2,
-      checkCondition: (data) => data['player_role']?.toLowerCase() == "devin" && data['is_player_alive'] == true && (data['devin_reveals_count'] ?? 0) == 0,
+      checkCondition: (data) => data['player_role']?.toLowerCase() == "devin" && data['is_player_alive'] == true && (data['devin_reveals_count'] ?? 0) == 0 && data['winner_role'] != null,
     ),
 
     // --- Dingo ---
@@ -97,7 +97,8 @@ class AchievementData {
       checkCondition: (data) =>
       data['player_role']?.toString().toLowerCase() == "dingo" &&
           data['dingo_self_voted_all_game'] == true &&
-          data['is_player_alive'] == true,
+          data['is_player_alive'] == true &&
+          data['winner_role'] != null,
     ),
     Achievement(
       id: "bad_shooter",
@@ -478,9 +479,9 @@ class AchievementData {
     Achievement(
       id: "choix_cornelien",
       title: "Un choix cornélien",
-      description: "Finissez vivant sans jamais voter 2 fois pour la même personne.",
+      description: "Finissez vivant sans jamais voter 2 fois pour la même personne (min. 3 votes).",
       icon: "⚖️", rarity: 4,
-      checkCondition: (data) => data['choix_cornelien_valid'] == true,
+      checkCondition: (data) => data['choix_cornelien_valid'] == true && data['winner_role'] != null,
     ),
 
     Achievement(
