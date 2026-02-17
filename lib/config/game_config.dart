@@ -5,7 +5,7 @@ import '../models/player.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GENERALE ---
-String globalGameVersion = "1.7.1 - Debug";
+String globalGameVersion = "1.7.1 - Release";
 late Talker globalTalker;
 
 // --- UTILITAIRES ---
