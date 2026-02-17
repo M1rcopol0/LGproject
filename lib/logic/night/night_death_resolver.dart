@@ -58,6 +58,7 @@ class NightDeathResolver {
         }
         if (reason.contains("Attaque des Loups") || reason.contains("Morsure")) {
           target.hasSurvivedWolfBite = true;
+          target.wolfBiteSurvivedTurn = globalTurnNumber;
           nightWolvesTargetSurvived = true;
         }
         return;
@@ -88,6 +89,7 @@ class NightDeathResolver {
         debugPrint("🛡️ CAPTEUR [Protection] : PROTÉGÉ (Pokémon) -> ${target.name} survit.");
         if (reason.contains("Morsure")) {
           target.hasSurvivedWolfBite = true;
+          target.wolfBiteSurvivedTurn = globalTurnNumber;
           nightWolvesTargetSurvived = true;
         }
         return;
@@ -103,6 +105,7 @@ class NightDeathResolver {
         debugPrint("🛡️ CAPTEUR [Protection] : ${target.name} a survécu à l'élimination (Pantin/Voyageur).");
         if (reason.contains("Morsure")) {
           target.hasSurvivedWolfBite = true;
+          target.wolfBiteSurvivedTurn = globalTurnNumber;
           nightWolvesTargetSurvived = true;
         }
       } else {

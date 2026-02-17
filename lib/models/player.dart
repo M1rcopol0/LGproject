@@ -36,6 +36,7 @@ class Player {
 
   // --- NOUVEAU : Succès Fringale Nocturne ---
   bool hasSurvivedWolfBite;
+  int wolfBiteSurvivedTurn;
 
   // --- NOUVEAU : Cible du Devin ---
   bool isRevealedByDevin;
@@ -181,6 +182,7 @@ class Player {
     this.isRevealedByDevin = false,
     this.pantinClutchTriggered = false,
     this.hasSurvivedWolfBite = false,
+    this.wolfBiteSurvivedTurn = -1,
     this.hasBeenHitByDart = false,
     this.zookeeperEffectReady = false,
     this.powerActiveThisTurn = false,
@@ -319,6 +321,7 @@ class Player {
     timeMasterTargets = [];
     lastBledTarget = null;
     hasSurvivedWolfBite = false;
+    wolfBiteSurvivedTurn = -1;
     isBombed = false;
     attachedBombTimer = 0;
     pantinCurseTimer = null;
