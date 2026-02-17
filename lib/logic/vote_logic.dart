@@ -103,7 +103,7 @@ class VoteLogic {
     debugPrint("💀 LOG [Vote] : Cible désignée -> ${first.name} avec ${first.votes} voix.");
 
     for (var p in allPlayers.where((p) => p.isAlive && p.role?.toLowerCase() == "dingo")) {
-      if (p.targetVote == first) {
+      if (p.targetVote?.name == first.name) {
         AchievementLogic.checkParkingShot(context, p, first, allPlayers);
       }
     }

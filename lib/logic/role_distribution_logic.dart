@@ -50,9 +50,9 @@ class RoleDistributionLogic {
   ];
 
   /// Tirage pondéré : favorise les rôles peu distribués cette session.
-  static String _weightedPick(List<String> pool, Random random) {
+  static String _weightedPick(List<String> pool, Random random, Map<String, int> memory) {
     List<double> weights = pool.map((r) =>
-      1.0 / (1 + (distributionMemory[r] ?? 0))
+      1.0 / (1 + (memory[r] ?? 0))
     ).toList();
 
     double totalWeight = weights.reduce((a, b) => a + b);
@@ -80,6 +80,13 @@ class RoleDistributionLogic {
     // Pokémon reste dans poolSolo (paire avec Dresseur)
     // Pas de LG évolué forcé — overflow uniquement
     // Villageois dans le pool uniquement si sélectionné — overflow sinon
+
+    // --- A bis. Clé de configuration + lookup mémoire ---
+    List<String> allConfigRoles = [
+      ...poolSolo, ...poolLoups, ...poolVillage,
+    ]..sort();
+    String configKey = "${totalPlayers}_${allConfigRoles.join(',')}";
+    Map<String, int> memory = distributionMemory.putIfAbsent(configKey, () => {});
 
     // --- B. Gestion des rôles verrouillés (Locked) ---
     int lockedHostileScore = 0;
@@ -158,9 +165,16 @@ class RoleDistributionLogic {
             filled++;
           }
           else if (!soloChosen && trialSolo.isNotEmpty) {
-            if (random.nextBool()) {
+            // Poids par camp = somme des poids individuels (memory-weighted)
+            double wSolo = trialSolo.fold(0.0, (sum, r) => sum + 1.0 / (1 + (memory[r] ?? 0)));
+            double wLoup = trialLoups.isEmpty ? 0.0
+                : trialLoups.fold(0.0, (sum, r) => sum + 1.0 / (1 + (memory[r] ?? 0)));
+            double totalW = wSolo + wLoup;
+            bool pickSolo = totalW > 0 && random.nextDouble() < (wSolo / totalW);
+
+            if (pickSolo) {
               // === SOLO ===
-              String candidate = _weightedPick(trialSolo, random);
+              String candidate = _weightedPick(trialSolo, random, memory);
 
               if (candidate == "Dresseur" || candidate == "Pokémon") {
                 bool bothAvailable = trialSolo.contains("Dresseur")
@@ -176,13 +190,13 @@ class RoleDistributionLogic {
                       .where((s) => s != "Dresseur" && s != "Pokémon")
                       .toList();
                   if (otherSolos.isNotEmpty) {
-                    String picked = _weightedPick(otherSolos, random);
+                    String picked = _weightedPick(otherSolos, random, memory);
                     hostileRoles.add(picked);
                     trialSolo.remove(picked);
                     filled++;
                     soloChosen = true;
                   } else if (trialLoups.isNotEmpty) {
-                    String picked = _weightedPick(trialLoups, random);
+                    String picked = _weightedPick(trialLoups, random, memory);
                     hostileRoles.add(picked);
                     trialLoups.remove(picked);
                     filled++;
@@ -200,7 +214,7 @@ class RoleDistributionLogic {
             } else {
               // === LOUP ===
               if (trialLoups.isNotEmpty) {
-                String picked = _weightedPick(trialLoups, random);
+                String picked = _weightedPick(trialLoups, random, memory);
                 hostileRoles.add(picked);
                 trialLoups.remove(picked);
                 filled++;
@@ -212,7 +226,7 @@ class RoleDistributionLogic {
           }
           else {
             if (trialLoups.isNotEmpty) {
-              String picked = _weightedPick(trialLoups, random);
+              String picked = _weightedPick(trialLoups, random, memory);
               hostileRoles.add(picked);
               trialLoups.remove(picked);
               filled++;
@@ -245,7 +259,7 @@ class RoleDistributionLogic {
           if (trialVillage.isNotEmpty) {
             for (var r in trialVillage) {
               int val = roleValues[r] ?? 2;
-              int freqPenalty = distributionMemory[r] ?? 0;
+              int freqPenalty = (memory[r] ?? 0).clamp(0, 3);
               int diff = (val - neededPerSlot).abs().ceil() + freqPenalty;
               if (diff < minDiff) {
                 minDiff = diff;
@@ -272,39 +286,43 @@ class RoleDistributionLogic {
         batchRatios.add(ratio);
       }
 
-      // --- F. Sélection du meilleur lancer du batch ---
-      int acceptableCount = batchRatios.where((r) => r >= 0.40).length;
+      // --- F. Sélection aléatoire parmi les lancers acceptables (≤15% déséquilibre) ---
+      List<int> acceptableIndices = [];
+      for (int i = 0; i < rollsPerBatch; i++) {
+        if (batchRatios[i] >= 0.35) acceptableIndices.add(i);
+      }
 
-      // Trouver le lancer le plus proche de 50%
-      int bestIndex = 0;
+      // Fallback : index du lancer le plus proche de 50%
+      int fallbackIndex = 0;
       double bestDistance = (batchRatios[0] - 0.5).abs();
       for (int i = 1; i < rollsPerBatch; i++) {
         double dist = (batchRatios[i] - 0.5).abs();
         if (dist < bestDistance) {
           bestDistance = dist;
-          bestIndex = i;
+          fallbackIndex = i;
         }
       }
 
       // Log chaque lancer du batch
       for (int i = 0; i < rollsPerBatch; i++) {
-        String status = batchRatios[i] >= 0.40 ? "✅" : "❌";
+        String status = batchRatios[i] >= 0.35 ? "✅" : "❌";
         debugPrint("🎲 Batch $batch lancer ${i + 1} : "
             "ratio=${(batchRatios[i] * 100).toStringAsFixed(1)}% $status");
       }
 
-      if (acceptableCount >= 2) {
-        rolesToAdd = batchResults[bestIndex];
-        debugPrint("⚖️ BALANCE : meilleur lancer=${bestIndex + 1} "
-            "ratio=${(batchRatios[bestIndex] * 100).toStringAsFixed(1)}% "
-            "($acceptableCount/5 acceptables, batch $batch)");
+      if (acceptableIndices.length >= 2) {
+        int pickedIndex = acceptableIndices[random.nextInt(acceptableIndices.length)];
+        rolesToAdd = batchResults[pickedIndex];
+        debugPrint("⚖️ BALANCE : lancer aléatoire=${pickedIndex + 1} "
+            "ratio=${(batchRatios[pickedIndex] * 100).toStringAsFixed(1)}% "
+            "(${acceptableIndices.length}/5 acceptables, batch $batch)");
         break;
       } else {
-        debugPrint("⚠️ Batch $batch rejeté ($acceptableCount/5 acceptables, minimum 2 requis)");
+        debugPrint("⚠️ Batch $batch rejeté (${acceptableIndices.length}/5 acceptables, minimum 2 requis)");
         if (batch == maxBatches) {
-          rolesToAdd = batchResults[bestIndex];
+          rolesToAdd = batchResults[fallbackIndex];
           debugPrint("⚠️ Max batches atteint, distribution forcée "
-              "(meilleur ratio=${(batchRatios[bestIndex] * 100).toStringAsFixed(1)}%)");
+              "(meilleur ratio=${(batchRatios[fallbackIndex] * 100).toStringAsFixed(1)}%)");
         }
       }
     }
@@ -329,7 +347,7 @@ class RoleDistributionLogic {
       String r = p.role ?? "";
       if (_wolfRoles.contains(r)) {
         p.team = "loups";
-      } else if (["Chuchoteur", "Maître du temps", "Pantin", "Phyl", "Dresseur", "Ron-Aldo"].contains(r)) {
+      } else if (["Chuchoteur", "Maître du temps", "Pantin", "Phyl", "Dresseur", "Ron-Aldo", "Pokémon"].contains(r)) {
         p.team = "solo";
       } else {
         p.team = "village";
@@ -340,10 +358,10 @@ class RoleDistributionLogic {
     for (var p in players) {
       String role = p.role ?? "";
       if (role.isNotEmpty) {
-        distributionMemory[role] = (distributionMemory[role] ?? 0) + 1;
+        memory[role] = (memory[role] ?? 0) + 1;
       }
     }
-    debugPrint("📝 Mémoire de session : $distributionMemory");
+    debugPrint("📝 Mémoire [$configKey] : $memory");
 
     for (var p in players) {
       debugPrint("🎭 [Result] ${p.name} -> ${p.role} (${p.team})");

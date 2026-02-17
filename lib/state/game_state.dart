@@ -18,7 +18,8 @@ bool nightOnePassed = false;
 bool globalVoteAnonyme = true;
 
 // --- MÉMOIRE DE SESSION (jamais persistée, perdue au kill) ---
-Map<String, int> distributionMemory = {};
+// Clé externe = signature de config ("7_Archiviste,Chuchoteur,..."), valeur = compteur par rôle
+Map<String, Map<String, int>> distributionMemory = {};
 
 void resetGameState() {
   globalTimerMinutes = 2.0;

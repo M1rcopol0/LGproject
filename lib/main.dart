@@ -64,6 +64,10 @@ Future<void> loadSavedData() async {
       await PlayerDirectory.synchronizeWithLegacy(legacyNames);
     }
 
+    // --- ÉTAPE 1.5 : SYNCHRONISATION AVEC TROPHY STATS ---
+    // S'assurer que tous les joueurs avec des stats sont dans l'annuaire
+    await PlayerDirectory.syncWithTrophyStats();
+
     // --- ÉTAPE 2 : CHARGEMENT DEPUIS LA SOURCE UNIQUE (ANNUAIRE) ---
     // On récupère la liste des noms depuis l'annuaire (qui est maintenant la source de vérité)
     List<String> loadedNames = await PlayerDirectory.getSavedPlayers();

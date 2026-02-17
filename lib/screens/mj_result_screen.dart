@@ -289,10 +289,27 @@ class _MJResultScreenState extends State<MJResultScreen> {
       debugPrint("🏁 LOG [Route] : Fin détectée ($winner).");
 
       try {
-        List<Player> winnersList = widget.allPlayers.where((p) => (winner == "VILLAGE" && p.team == "village") || (winner == "LOUPS" && p.team == "loups") || (winner == "SOLO" && p.team == "solo")).toList();
+        List<Player> winnersList = widget.allPlayers.where((p) {
+          // Victoires classiques par team
+          if (winner == "VILLAGE" && p.team == "village") return true;
+          if (winner == "LOUPS-GAROUS" && p.team == "loups") return true;
+
+          // Victoires solo spécifiques (filtrer par role exact)
+          String roleUpper = (p.role?.toUpperCase() ?? "");
+          if (winner == "PHYL" && roleUpper == "PHYL") return true;
+          if (winner == "EXORCISTE" && roleUpper == "EXORCISTE") return true;
+          if (winner == "RON-ALDO" && (roleUpper == "RON-ALDO" || p.isFanOfRonAldo)) return true;
+          if (winner == "DRESSEUR" && (roleUpper == "DRESSEUR" || roleUpper == "POKÉMON")) return true;
+          if (winner == "ARCHIVISTE" && roleUpper == "ARCHIVISTE") return true;
+          if (winner == "CHUCHOTEUR" && roleUpper == "CHUCHOTEUR") return true;
+          if (winner == "PANTIN" && roleUpper == "PANTIN") return true;
+          if (winner == "MAÎTRE DU TEMPS" && roleUpper == "MAÎTRE DU TEMPS") return true;
+
+          return false;
+        }).toList();
         await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.allPlayers);
       } catch (e) {
-        debugPrint("⚠️ Erreur succès : $e");
+        debugPrint("⚠️ LOG [Achievements] : Erreur succès fin de partie - $e");
       }
 
       await GameSaveService.clearSave();

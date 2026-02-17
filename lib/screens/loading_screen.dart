@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/cloud_service.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -14,8 +15,11 @@ class _LoadingScreenState extends State<LoadingScreen> {
   double _progress = 0.0;
   late Timer _progressTimer;
   late Timer _phraseTimer;
+  bool _cloudSyncDone = false;
 
   final List<String> _phrases = [
+    "Synchronisation cloud...",
+    "Chargement des données...",
     "Préparation des rôles...",
     "Affûtage des crocs des Loups-garous...",
     "Chargement des fusils...",
@@ -51,16 +55,37 @@ class _LoadingScreenState extends State<LoadingScreen> {
   @override
   void initState() {
     super.initState();
-    _phrases.shuffle();
-    _currentPhrase = _phrases[0];
+    _currentPhrase = "Synchronisation cloud...";
     _startLoading();
+    _syncCloudData();
+  }
+
+  // Synchronisation cloud au démarrage
+  Future<void> _syncCloudData() async {
+    try {
+      await CloudService.pullAndOverwriteLocal(context);
+    } catch (e) {
+      debugPrint("⚠️ Erreur sync cloud dans LoadingScreen: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _cloudSyncDone = true;
+        });
+      }
+    }
   }
 
   void _startLoading() {
     _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       if (mounted) {
         setState(() {
-          _progress += 0.015;
+          // Progression ralentie si sync cloud pas terminée
+          if (!_cloudSyncDone && _progress >= 0.7) {
+            _progress += 0.003; // Ralentir à 70% en attendant le cloud
+          } else {
+            _progress += 0.015;
+          }
+
           if (_progress >= 1.0) {
             _progress = 1.0;
             _stopTimers();

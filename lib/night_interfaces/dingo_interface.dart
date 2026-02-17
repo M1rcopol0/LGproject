@@ -55,7 +55,7 @@ class DingoInterface extends StatelessWidget {
 
                   // --- 1. TRIGGER SUCCÈS "UN TIR DU PARKING" ---
                   // On vérifie si ce tir est légendaire (dernier ennemi tué)
-                  AchievementLogic.checkParkingShotCondition(actor, victim, players);
+                  AchievementLogic.checkParkingShot(context, actor, victim, players);
 
                   // --- 2. MISE À JOUR DES STATS ---
                   actor.dingoShotsFired++;

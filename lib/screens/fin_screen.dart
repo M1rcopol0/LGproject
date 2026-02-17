@@ -8,6 +8,7 @@ import '../logic/achievement_logic.dart';
 import '../services/cloud_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../main.dart'; // Pour resetAllGameData()
+import '../player_storage.dart'; // Pour mettre à jour l'annuaire
 
 class GameOverScreen extends StatefulWidget {
   final String winnerType;
@@ -97,6 +98,25 @@ class _GameOverScreenState extends State<GameOverScreen> {
       // Dédoublonnage au cas où
       computedWinners = computedWinners.toSet().toList();
       if (mounted) setState(() => winners = computedWinners);
+
+      // 1.5. Mise à jour de l'annuaire des joueurs (TOUJOURS, même en cas d'égalité)
+      try {
+        // Incrémenter gamesPlayed pour tous les joueurs qui ont participé
+        for (var player in widget.players) {
+          await PlayerDirectory.incrementGamesPlayed(player.name);
+        }
+
+        // Incrémenter wins pour les gagnants (seulement si pas d'égalité)
+        if (widget.winnerType != "ÉGALITÉ_SANGUINAIRE" && computedWinners.isNotEmpty) {
+          for (var winner in computedWinners) {
+            await PlayerDirectory.incrementWins(winner.name);
+          }
+        }
+
+        debugPrint("📂 LOG [GameOver] : Annuaire des joueurs mis à jour.");
+      } catch (e) {
+        debugPrint("❌ LOG [GameOver] : Erreur lors de la mise à jour de l'annuaire : $e");
+      }
 
       // 2. Enregistrement des statistiques et succès
       if (widget.winnerType != "ÉGALITÉ_SANGUINAIRE" && winners.isNotEmpty) {
@@ -192,18 +212,40 @@ class _GameOverScreenState extends State<GameOverScreen> {
         }
       }
 
-      // 3. Sauvegarde Cloud (si activée)
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        bool autoSync = prefs.getBool('auto_cloud_sync') ?? false;
+      // 3. Sauvegarde Cloud (TOUJOURS - nouveau workflow V3)
+      if (mounted) {
+        try {
+          debugPrint("☁️ LOG [GameOver] : Envoi des stats vers le cloud...");
 
-        if (autoSync && mounted) {
-          debugPrint("☁️ LOG [GameOver] : Lancement de la sauvegarde automatique Google Sheets...");
-          // On ne bloque pas l'UI, on lance juste le process en arrière-plan
-          CloudService.uploadData(context);
+          // Appel à la nouvelle méthode qui retourne un bool
+          bool syncSuccess = await CloudService.pushLocalToCloud(context);
+
+          if (!syncSuccess) {
+            // Échec de la sync → Afficher dialogue d'avertissement
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text("⚠️ Synchronisation Impossible"),
+                  content: const Text(
+                    "Pas de connexion internet.\n\n"
+                    "Les données de cette partie sont sauvegardées localement mais ne sont pas dans le cloud.\n\n"
+                    "Mettez à jour manuellement la backup cloud via Paramètres → Export/Import, "
+                    "sinon ces données seront perdues au prochain lancement de l'app."
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("J'ai compris"),
+                    ),
+                  ],
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint("⚠️ Erreur lors de la sync cloud : $e");
         }
-      } catch (e) {
-        debugPrint("⚠️ Erreur lors de la tentative de synchro auto : $e");
       }
 
     } catch (globalError) {

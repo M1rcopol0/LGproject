@@ -14,7 +14,10 @@ class EliminationLogic {
     List<Player> deadPeople = [];
 
     // 1. Rafraîchissement de la cible pour s'assurer d'avoir l'objet à jour
-    Player realTarget = allPlayers.firstWhere((p) => p.name == target.name, orElse: () => target);
+    Player realTarget = allPlayers.firstWhere(
+      (p) => p.name == target.name,
+      orElse: () => throw StateError("Player ${target.name} not found in allPlayers")
+    );
 
     if (!realTarget.isAlive) return []; // Déjà mort, on ne fait rien
 
@@ -68,25 +71,33 @@ class EliminationLogic {
     // --- CLUTCH PANTIN (Si le Pantin n'est pas la cible mais vote contre le mourant) ---
     if (isVote && roleLower != "pantin") {
       try {
-        Player pantin = allPlayers.firstWhere((p) => p.isAlive && p.role?.toLowerCase() == "pantin");
-        List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
-        survivors.sort((a, b) => b.votes.compareTo(a.votes));
+        Player? pantin = allPlayers.cast<Player?>().firstWhere(
+          (p) => p!.isAlive && p.role?.toLowerCase() == "pantin",
+          orElse: () => null
+        );
 
-        if (realTarget.name == survivors[0].name) {
-          int diff = (realTarget.votes - pantin.votes).abs();
-          if (diff <= 1 && pantin.targetVote?.name == realTarget.name) {
-            pantin.pantinClutchTriggered = true;
-            debugPrint("🎭 LOG [Pantin] : CLUTCH DÉTECTÉ pour ${pantin.name} !");
+        if (pantin != null) {
+          List<Player> survivors = allPlayers.where((p) => p.isAlive).toList();
+          survivors.sort((a, b) => b.votes.compareTo(a.votes));
 
-            TrophyService.checkAndUnlockImmediate(
-              context: context,
-              playerName: pantin.name,
-              achievementId: "pantin_clutch",
-              checkData: {'pantin_clutch_triggered': true},
-            );
+          if (realTarget.name == survivors[0].name) {
+            int diff = (realTarget.votes - pantin.votes).abs();
+            if (diff <= 1 && pantin.targetVote?.name == realTarget.name) {
+              pantin.pantinClutchTriggered = true;
+              debugPrint("🎭 LOG [Pantin] : CLUTCH DÉTECTÉ pour ${pantin.name} !");
+
+              TrophyService.checkAndUnlockImmediate(
+                context: context,
+                playerName: pantin.name,
+                achievementId: "pantin_clutch",
+                checkData: {'pantin_clutch_triggered': true},
+              );
+            }
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        debugPrint("⚠️ LOG [Pantin] : Erreur détection clutch - $e");
+      }
     }
 
     // --- BOUC ÉMISSAIRE (Consommation du pouvoir) ---
@@ -127,6 +138,14 @@ class EliminationLogic {
           debugPrint("🏠 LOG [Maison] : Effondrement ! Le propriétaire meurt à la place de ${realTarget.name}");
           AchievementLogic.checkHouseCollapse(context, houseOwner);
 
+          // L'invité survit grâce à l'effondrement
+          TrophyService.checkAndUnlockImmediate(
+            context: context,
+            playerName: realTarget.name,
+            achievementId: "assurance_habitation",
+            checkData: {'assurance_habitation_triggered': true},
+          );
+
           // RÉCURSIVITÉ : On tue le propriétaire à la place
           return eliminatePlayer(context, allPlayers, houseOwner, isVote: isVote, reason: "Effondrement Maison");
         }
@@ -162,6 +181,16 @@ class EliminationLogic {
     deadPeople.add(realTarget);
     debugPrint("💀 LOG [Mort] : ${realTarget.name} (${realTarget.role}) a quitté la partie. Raison: $reason");
 
+    // --- LOUIS CROIX V (Roi exécuté par le peuple) ---
+    if (isVote && realTarget.isVillageChief && globalGovernanceMode == "ROI") {
+      TrophyService.checkAndUnlockImmediate(
+        context: context,
+        playerName: realTarget.name,
+        achievementId: "louis_croix_v",
+        checkData: {'louis_croix_v_triggered': true},
+      );
+    }
+
     // --- CHAMAN SNIPER ---
     if (isVote && nightChamanTarget != null && realTarget.name == nightChamanTarget!.name) {
       debugPrint("💀 CAPTEUR [Mort] : Chaman sniper détecté ! Cible du chaman ${nightChamanTarget!.name} éliminée au vote.");
@@ -196,18 +225,21 @@ class EliminationLogic {
     if (realTarget.isLinked) {
       try {
         // On cherche le partenaire vivant
-        Player lover = allPlayers.firstWhere(
-              (p) => p.isLinked && p.name != realTarget.name && p.isAlive,
+        Player? lover = allPlayers.cast<Player?>().firstWhere(
+          (p) => p!.isLinked && p.name != realTarget.name && p.isAlive,
+          orElse: () => null,
         );
 
-        debugPrint("💔 DRAME : ${realTarget.name} meurt et entraîne son amant ${lover.name} dans la tombe !");
+        // Protection contre boucle infinie : vérifier que lover n'est pas déjà dans deadPeople
+        if (lover != null && !deadPeople.any((p) => p.name == lover!.name)) {
+          debugPrint("💔 DRAME : ${realTarget.name} meurt et entraîne son amant ${lover.name} dans la tombe !");
 
-        // RÉCURSIVITÉ : On tue l'amant immédiatement
-        List<Player> loverDeaths = eliminatePlayer(context, allPlayers, lover, isVote: isVote, reason: "Chagrin d'amour");
-        deadPeople.addAll(loverDeaths);
-
+          // RÉCURSIVITÉ : On tue l'amant immédiatement
+          List<Player> loverDeaths = eliminatePlayer(context, allPlayers, lover, isVote: isVote, reason: "Chagrin d'amour");
+          deadPeople.addAll(loverDeaths);
+        }
       } catch (e) {
-        // Pas de partenaire vivant trouvé (ou bug de lien)
+        debugPrint("⚠️ LOG [Cupidon] : Erreur lien amoureux - $e");
       }
     }
 
