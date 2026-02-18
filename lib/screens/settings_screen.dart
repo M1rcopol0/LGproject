@@ -10,9 +10,7 @@ import 'package:talker_flutter/talker_flutter.dart'; // Pour récupérer l'histo
 import 'pick_ban_screen.dart';
 import '../globals.dart';
 import '../services/trophy_service.dart';
-import '../models/player.dart';
 import '../services/cloud_service.dart';
-import '../services/backup_restore_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,7 +19,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  double _volume = 1.0;
   bool _autoCloudSync = false;
   // Variable locale pour l'état du switch SMS
   bool _smsAutoEnabled = true;
@@ -36,19 +33,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return; // Éviter setState après dispose
     setState(() {
-      _volume = prefs.getDouble('app_volume') ?? 1.0;
       _autoCloudSync = prefs.getBool('auto_cloud_sync') ?? false;
       // Chargement du réglage SMS (par défaut : true)
       _smsAutoEnabled = prefs.getBool('cfg_sms_auto_send') ?? true;
-    });
-  }
-
-  Future<void> _setVolume(double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('app_volume', value);
-    setState(() {
-      _volume = value;
-      globalVolume = value;
     });
   }
 

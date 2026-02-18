@@ -4,7 +4,6 @@ import 'package:talker_flutter/talker_flutter.dart';
 import 'screens/loading_screen.dart';
 import 'globals.dart';
 import 'models/player.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 // IMPORTANT : On importe le nouvel écran de Lobby
 import 'screens/lobby_screen.dart';

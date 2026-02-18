@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/player.dart';
 import '../models/achievement.dart';
 import '../globals.dart';
 import '../services/trophy_service.dart';
 import '../logic/achievement_logic.dart';
 import '../services/cloud_service.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../main.dart'; // Pour resetAllGameData()
 import '../player_storage.dart'; // Pour mettre à jour l'annuaire
 
 class GameOverScreen extends StatefulWidget {

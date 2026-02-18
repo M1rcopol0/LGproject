@@ -239,7 +239,7 @@ class EliminationLogic {
         );
 
         // Protection contre boucle infinie : vérifier que lover n'est pas déjà dans deadPeople
-        if (lover != null && !deadPeople.any((p) => p.name == lover!.name)) {
+        if (lover != null && !deadPeople.any((p) => p.name == lover.name)) {
           debugPrint("💔 DRAME : ${realTarget.name} meurt et entraîne son amant ${lover.name} dans la tombe !");
 
           // RÉCURSIVITÉ : On tue l'amant immédiatement

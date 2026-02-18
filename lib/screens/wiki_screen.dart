@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../globals.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class WikiPage extends StatelessWidget {
   const WikiPage({super.key});

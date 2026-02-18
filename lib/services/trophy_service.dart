@@ -113,35 +113,6 @@ class TrophyService {
     }
   }
 
-  static Future<String?> _getAchievementDate(String playerName, String achievementId) async {
-    final stats = await getStats();
-    if (!stats.containsKey(playerName)) return null;
-    final achievements = stats[playerName]['achievements'];
-    if (achievements is Map && achievements.containsKey(achievementId)) {
-      return achievements[achievementId] as String;
-    }
-    return null;
-  }
-
-  static DateTime? _parseCustomDate(String dateStr) {
-    try {
-      final parts = dateStr.split(' à ');
-      if (parts.length != 2) return null;
-      final dateParts = parts[0].split('/');
-      final timeParts = parts[1].split(':');
-      if (dateParts.length != 3 || timeParts.length != 2) return null;
-      return DateTime(
-        int.parse(dateParts[2]),
-        int.parse(dateParts[1]),
-        int.parse(dateParts[0]),
-        int.parse(timeParts[0]),
-        int.parse(timeParts[1]),
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
   // ==========================================================
   // 3. AFFICHAGE (QUEUE)
   // ==========================================================

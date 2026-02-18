@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fluffer/models/player.dart';
-import 'package:fluffer/globals.dart';
 
 class TimeMasterInterface extends StatefulWidget {
   final Player player;

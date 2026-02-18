@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../player_storage.dart';
-import '../globals.dart'; // pour globalPlayers si besoin de refresh instantané
 
 class PlayerDirectoryScreen extends StatefulWidget {
   const PlayerDirectoryScreen({super.key});

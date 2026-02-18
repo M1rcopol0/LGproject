@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fluffer/models/player.dart';
 import 'package:fluffer/logic/achievement_logic.dart';
 import 'package:fluffer/services/trophy_service.dart';
-import 'package:fluffer/logic/logic.dart'; // Pour GameLogic.eliminatePlayer
 
 class NightExplosion {
   static void handle({

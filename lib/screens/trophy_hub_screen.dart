@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/trophy_service.dart';
-import '../globals.dart';
 import '../models/achievement.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/player.dart'; // Nécessaire pour le type Player
 import '../services/cloud_service.dart'; // Ajout pour le Force Upload
 

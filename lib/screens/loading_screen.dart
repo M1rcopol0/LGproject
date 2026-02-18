@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'welcome_screen.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/cloud_service.dart';
 
 class LoadingScreen extends StatefulWidget {

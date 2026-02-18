@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fluffer/models/player.dart';
-import 'package:fluffer/globals.dart';
 import 'package:fluffer/logic/achievement_logic.dart'; // Import nécessaire pour le succès
 import 'target_selector_interface.dart';
 

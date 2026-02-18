@@ -6,7 +6,6 @@ import 'exorcist_interface.dart';
 import 'grand_mere_interface.dart';
 import 'devin_interface.dart';
 import 'ron_aldo_interface.dart';
-import 'target_selector_interface.dart';
 import 'dresseur_interface.dart';
 import 'maison_interface.dart';
 import 'archiviste_interface.dart';
