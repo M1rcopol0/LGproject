@@ -5,7 +5,7 @@ import '../models/player.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GENERALE ---
-String globalGameVersion = "1.7.1 - Release";
+String globalGameVersion = "1.7.2 - Release";
 late Talker globalTalker;
 
 // --- UTILITAIRES ---
@@ -39,7 +39,7 @@ List<NightAction> nightActionsOrder = [
   NightAction(role: "Phyl", instruction: "Éliminez vos cibles.", sound: "writing.mp3"),
   NightAction(role: "Tardos", instruction: "Amorcez votre bombe.", sound: "fuse.mp3"),
   NightAction(role: "Dresseur", instruction: "Immobilisation immédiate, Protection ou Attaque ?", sound: "dresseur.mp3"),
-  NightAction(role: "Pokémon", instruction: "Choisissez une cible à tuer si vous mourrez", sound: "pokémon.mp3"),
+  NightAction(role: "Pokémon", instruction: "Foudroie un joueur cette nuit !", sound: "pokémon.mp3"),
   NightAction(role: "Exorciste", instruction: "Mimez le bon rôle.", sound: "mime.mp3"),
   NightAction(role: "Archiviste", instruction: "Consultez les archives.", sound: "paper_scroll.mp3"),
   NightAction(role: "Maison", instruction: "Choisissez un joueur à accueillir.", sound: "door_close.mp3"),

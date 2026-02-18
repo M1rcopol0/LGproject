@@ -85,6 +85,7 @@ class AchievementScanner {
       'paradox_achieved': paradoxAchieved,
       'pokemon_died_t1': pokemonDiedTour1,
       'totalVotesReceivedDuringGame': p.totalVotesReceivedDuringGame,
+      'vote_anonyme': globalVoteAnonyme,
       'somnifere_uses_left': p.somnifereUses,
       'dingo_shots_fired': p.dingoShotsFired,
       'dingo_shots_hit': p.dingoShotsHit,
@@ -180,12 +181,19 @@ class AchievementScanner {
       }
       if (p.role?.toLowerCase() == "dresseur" && winnerRole == "DRESSEUR") {
         try {
-          var pokemon = allPlayers.firstWhere((pl) => pl.role?.toLowerCase() == "pokémon" || pl.role?.toLowerCase() == "pokemon", orElse: () => Player(name: "Unknown", isAlive: true));
+          var pokemon = allPlayers.firstWhere(
+            (pl) => pl.role?.toLowerCase() == "pokémon" || pl.role?.toLowerCase() == "pokemon",
+            orElse: () => Player(name: "Unknown", isAlive: true),
+          );
           if (pokemon.name != "Unknown" && !pokemon.isAlive) {
             await TrophyService.checkAndUnlockImmediate(
               context: context, playerName: p.name,
               achievementId: "master_no_pokemon",
-              checkData: {'player_role': "Dresseur", 'winner_role': "DRESSEUR", 'pokemon_died_t1': pokemonDiedTour1},
+              checkData: {
+                'player_role': "Dresseur",
+                'winner_role': "DRESSEUR",
+                'pokemon_is_dead_at_end': !pokemon.isAlive,
+              },
             );
           }
         } catch (_) {}

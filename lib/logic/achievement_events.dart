@@ -16,7 +16,7 @@ class AchievementEvents {
   static void checkDeathAchievements(BuildContext? context, Player victim, List<Player> allPlayers) {
     final roleLower = victim.role?.toLowerCase() ?? "";
 
-    if ((roleLower == "pokémon" || roleLower == "pokemon") && globalTurnNumber == 1) {
+    if ((roleLower == "pokémon" || roleLower == "pokemon") && globalTurnNumber <= 2) {
       if (context != null) {
         TrophyService.checkAndUnlockImmediate(context: context, playerName: victim.name, achievementId: "pokemon_fail", checkData: {'pokemon_died_t1': true, 'player_role': 'Pokémon'});
       } else {
@@ -70,9 +70,7 @@ class AchievementEvents {
         debugPrint("🎯 CAPTEUR [Achievement] : Condition Tir du Parking remplie.");
         dingo.parkingShotUnlocked = true;
         parkingShotUnlocked = true;
-        if (context != null) {
-          TrophyService.checkAndUnlockImmediate(context: context, playerName: dingo.name, achievementId: "parking_shot", checkData: {'parking_shot_achieved': true});
-        }
+        // Le global scan (context NightActionsScreen, toujours monté) prend en charge l'unlock
       }
     }
   }
@@ -91,13 +89,10 @@ class AchievementEvents {
 
       debugPrint("🛡️ CAPTEUR [Sacrifice] : ${victim.name} (Fan) s'est sacrifié.");
 
-      bool fanVotedAgainstRonAldo = false;
-      if (victim.targetVote != null && victim.targetVote!.name == savedPlayer.name) {
-        fanVotedAgainstRonAldo = true;
-      }
+      bool ronAldoSelfVoted = savedPlayer.targetVote?.name == savedPlayer.name;
 
-      if (fanVotedAgainstRonAldo) {
-        debugPrint("🏆 CAPTEUR [Fan Ultime] : ${victim.name} a trahi Ron-Aldo puis est mort pour lui !");
+      if (ronAldoSelfVoted) {
+        debugPrint("🏆 CAPTEUR [Fan Ultime] : Ron-Aldo s'est voté lui-même, le fan est mort pour lui !");
         TrophyService.checkAndUnlockImmediate(
           context: context,
           playerName: victim.name,
@@ -105,13 +100,15 @@ class AchievementEvents {
           checkData: {'ultimate_fan_action': true},
         );
       } else {
-        debugPrint("ℹ️ CAPTEUR [Fan Ultime] : Echec. Le fan n'avait pas voté contre Ron-Aldo (${victim.targetVote?.name}).");
+        debugPrint("ℹ️ CAPTEUR [Fan Ultime] : Echec. Ron-Aldo n'a pas voté pour lui-même (${savedPlayer.targetVote?.name}).");
       }
     }
   }
 
   static void checkEvolvedHunger(BuildContext context, Player votedPlayer, List<Player> allPlayers) {
-    if (votedPlayer.hasSurvivedWolfBite && votedPlayer.wolfBiteSurvivedTurn == globalTurnNumber) {
+    // wolfBiteSurvivedTurn est mis pendant la nuit (tour N)
+    // le vote se passe le jour d'après (tour N+1) → on vérifie N == globalTurnNumber - 1
+    if (votedPlayer.hasSurvivedWolfBite && votedPlayer.wolfBiteSurvivedTurn == globalTurnNumber - 1) {
       evolvedHungerAchieved = true;
       debugPrint("🩸 CAPTEUR [Achievement] : Condition Fringale Nocturne remplie.");
       final aliveWolves = allPlayers.where((p) => p.isAlive && p.team == "loups").toList();

@@ -5,7 +5,6 @@ import '../models/player.dart';
 import '../logic/logic.dart';
 import '../globals.dart';
 import '../services/game_save_service.dart';
-import '../logic/achievement_logic.dart';
 import '../services/trophy_service.dart';
 import '../services/audio_service.dart'; // Pour centraliser l'audio
 import '../player_storage.dart';
@@ -106,6 +105,14 @@ class _VillageScreenState extends State<VillageScreen> {
         MaterialPageRoute(builder: (_) => NightActionsScreen(players: widget.players))
     ).then((_) async {
       if (!mounted) return;
+
+      // Si NightActionsScreen a navigué vers GameOverScreen via pushAndRemoveUntil,
+      // VillageScreen n'est plus la route active → le callback .then s'est quand même
+      // déclenché (pop implicite) mais on ne doit rien faire.
+      if (ModalRoute.of(context)?.isCurrent != true) {
+        debugPrint("⚠️ LOG [Village] : Callback nuit ignoré (NightActionsScreen a terminé la partie).");
+        return;
+      }
 
       // Retour de la nuit (Matin)
       setState(() {
@@ -331,14 +338,6 @@ class _VillageScreenState extends State<VillageScreen> {
     setState(() => _isGameOverProcessing = true);
     _timer?.cancel();
 
-    List<Player> winnersList = widget.players.where((p) =>
-    (winnerRole == "VILLAGE" && p.team == "village") ||
-        (winnerRole == "LOUPS" && p.team == "loups") ||
-        (winnerRole == "SOLO" && p.team == "solo") ||
-        (winnerRole == "EXORCISTE" && p.team == "village")
-    ).toList();
-
-    await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.players);
     await GameSaveService.clearSave();
 
     if (!mounted) return;

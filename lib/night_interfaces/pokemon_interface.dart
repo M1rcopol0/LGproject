@@ -22,42 +22,7 @@ class PokemonInterface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Vérifier si le Dresseur est mort (Logique active)
-    bool trainerDead = !allPlayers.any((p) => p.role?.toLowerCase() == "dresseur" && p.isAlive);
-
-    if (!trainerDead) {
-      // Cas passif (Dresseur vivant) : Juste un message
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.bolt, size: 80, color: Colors.yellowAccent),
-              const SizedBox(height: 20),
-              const Text(
-                "Le Dresseur est en vie.",
-                style: TextStyle(color: Colors.white70, fontSize: 18),
-                textAlign: TextAlign.center,
-              ),
-              const Text(
-                "Tu agis à travers lui.",
-                style: TextStyle(color: Colors.white54, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              ElevatedButton(
-                onPressed: () => onAction(null),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-                child: const Text("CONTINUER", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Cas Actif (Dresseur Mort) : Sélection de cible pour attaque nocturne
+    // Le Pokémon attaque chaque nuit
     final targets = allPlayers.where((p) => p.isAlive && p.name != player.name).toList();
     targets.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
@@ -70,7 +35,7 @@ class PokemonInterface extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 5),
           child: Text(
-            "Le Dresseur est mort. Ta rage te permet de foudroyer un joueur chaque nuit !",
+            "Foudroie un joueur cette nuit !",
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70),
           ),
@@ -90,6 +55,13 @@ class PokemonInterface extends StatelessWidget {
                 ),
               );
             },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: TextButton(
+            onPressed: () => onAction(null),
+            child: const Text("PASSER", style: TextStyle(color: Colors.white54)),
           ),
         ),
       ],

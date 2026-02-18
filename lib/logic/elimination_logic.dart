@@ -38,8 +38,16 @@ class EliminationLogic {
       bool isManualKill = reason.contains("Manuel") || reason.contains("MJ");
 
       if (!isVote && !isManualKill) {
-        // Le Pantin ne meurt pas la nuit s'il est attaqué
-        debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
+        if (reason.contains("Chagrin d'amour")) {
+          // FIX BUG 10 : Pantin lié par Cupidon → chagrin d'amour DIFFÉRÉ (timer 2 nuits)
+          if ((realTarget.pantinCurseTimer ?? 0) == 0) {
+            realTarget.pantinCurseTimer = 2;
+          }
+          debugPrint("💔 LOG [Pantin] : Chagrin d'amour différé → pantinCurseTimer=${realTarget.pantinCurseTimer}.");
+        } else {
+          // Le Pantin ne meurt pas la nuit s'il est attaqué
+          debugPrint("🛡️ LOG [Pantin] : Survit à l'attaque nocturne.");
+        }
         return [];
       } else if (isVote) {
         if (!realTarget.hasSurvivedVote) {
@@ -204,8 +212,8 @@ class EliminationLogic {
       AchievementLogic.checkFirstBlood(context, realTarget);
     }
 
-    // --- POKEMON T1 (Mort Nuit 1) ---
-    if (roleLower == "pokémon" && globalTurnNumber == 1 && !isDayTime) {
+    // --- POKEMON MORT TÔT (tours 1-2, jour ou nuit) ---
+    if ((roleLower == "pokémon" || roleLower == "pokemon") && globalTurnNumber <= 2) {
       pokemonDiedTour1 = true;
     }
 

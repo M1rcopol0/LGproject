@@ -280,7 +280,7 @@ class AchievementData {
       title: "Exécution Ciblée",
       description: "En tant que Loup-garou chaman, tuez au vote une personne espionnée la nuit précédente.",
       icon: "🎯", rarity: 2,
-      checkCondition: (data) => data['chaman_sniper_achieved'] == true,
+      checkCondition: (data) => data['chaman_sniper_achieved'] == true && data['player_role']?.toString().toLowerCase() == "loup-garou chaman",
     ),
     Achievement(
       id: "chaman_double_agent",
@@ -288,7 +288,7 @@ class AchievementData {
       description: "Gagner sans avoir reçu le moindre vote contre vous en tant que Loup-garou chaman.",
       icon: "👤", rarity: 4,
       checkCondition: (data) =>
-      data['player_role'] == "Loup-garou chaman" && data['winner_role'] == "LOUPS-GAROUS" && (data['totalVotesReceivedDuringGame'] ?? 0) == 0,
+      data['player_role']?.toString().toLowerCase() == "loup-garou chaman" && data['winner_role'] == "LOUPS-GAROUS" && (data['totalVotesReceivedDuringGame'] ?? 0) == 0 && data['vote_anonyme'] == true,
     ),
 
     // --- Loup-garou évolué ---
@@ -341,25 +341,31 @@ class AchievementData {
       description: "Le Pokémon meurt dès le tour 1 (Nuit ou Jour).",
       icon: "⚰️", rarity: 1,
       checkCondition: (data) =>
-      (data['player_role']?.toString().toLowerCase() == "pokémon" ||
-          data['player_role']?.toString().toLowerCase() == "dresseur") &&
+          (data['player_role']?.toString().toLowerCase() == "pokémon" ||
+           data['player_role']?.toString().toLowerCase() == "pokemon") &&
           data['pokemon_died_t1'] == true,
     ),
     Achievement(
       id: "master_no_pokemon",
       title: "Maître sans Pokémon",
-      description: "Gagner en tant que Dresseur alors que le Pokémon est mort la première nuit.",
+      description: "Gagner en tant que Dresseur avec le Pokémon mort en fin de partie.",
       icon: "👊", rarity: 3,
       checkCondition: (data) =>
-      (data['player_role'] == "Dresseur") && (data['winner_role'] == "DRESSEUR") && (data['pokemon_died_t1'] == true),
+          data['player_role'] == "Dresseur" &&
+          data['winner_role'] == "DRESSEUR" &&
+          data['pokemon_is_dead_at_end'] == true,
     ),
     Achievement(
       id: "electric_phoenix",
       title: "Phénix Électrique",
-      description: "Ressusciter et gagner en tant que Pokémon.",
+      description: "Être ressuscité et être vivant en tant que Pokémon quand la partie prend fin.",
       icon: "🐦‍🔥", rarity: 2,
       checkCondition: (data) =>
-      (data['player_role'] == "Pokémon") && (data['winner_role'] == "DRESSEUR") && (data['was_revived'] == true),
+          (data['player_role']?.toString().toLowerCase() == "pokémon" ||
+           data['player_role']?.toString().toLowerCase() == "pokemon") &&
+          data['winner_role'] == "DRESSEUR" &&
+          data['was_revived'] == true &&
+          data['is_player_alive'] == true,
     ),
 
     // --- Maître du temps ---
@@ -446,7 +452,11 @@ class AchievementData {
       icon: "👤", rarity: 1,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
-        return (roles['SOLO'] ?? 0) >= 1;
+        final winnerRole = data['winner_role']?.toString() ?? '';
+        final soloVictory = winnerRole.isNotEmpty &&
+                            winnerRole != 'VILLAGE' &&
+                            winnerRole != 'LOUPS-GAROUS';
+        return (roles['SOLO'] ?? 0) >= 1 && soloVictory;
       },
     ),
     Achievement(
@@ -456,7 +466,7 @@ class AchievementData {
       icon: "🏡", rarity: 1,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
-        return (roles['VILLAGE'] ?? 0) >= 1;
+        return (roles['VILLAGE'] ?? 0) >= 1 && data['winner_role'] == "VILLAGE";
       },
     ),
     Achievement(
@@ -473,7 +483,7 @@ class AchievementData {
       icon: "🐺", rarity: 1,
       checkCondition: (data) {
         final roles = Map<String, dynamic>.from(data['roles'] ?? {});
-        return (roles['LOUPS-GAROUS'] ?? 0) >= 1;
+        return (roles['LOUPS-GAROUS'] ?? 0) >= 1 && data['winner_role'] == "LOUPS-GAROUS";
       },
     ),
     Achievement(
@@ -532,11 +542,11 @@ class AchievementData {
     ),
     Achievement(
       id: "villageois_eternal", title: "On pouvait pas redistribuer les rôles ?",
-      description: "Jouez 5 parties en tant que Villageois.",
+      description: "Jouez 5 parties en tant que Villageois (victoire ou défaite).",
       icon: "👨‍🌾", rarity: 4,
       checkCondition: (data) {
-        final roleWins = Map<String, dynamic>.from(data['roleWins'] ?? {});
-        return (roleWins['VILLAGEOIS'] ?? 0) >= 5;
+        final roleGamesPlayed = Map<String, dynamic>.from(data['roleGamesPlayed'] ?? {});
+        return (roleGamesPlayed['VILLAGEOIS'] ?? 0) >= 5;
       },
     ),
     Achievement(

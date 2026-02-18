@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/player.dart';
 import '../logic/elimination_logic.dart';
 import '../logic/win_condition_logic.dart';
-import '../logic/achievement_logic.dart';
 import 'fin_screen.dart';
 import '../services/game_save_service.dart';
 import '../services/audio_service.dart';
@@ -288,30 +286,6 @@ class _MJResultScreenState extends State<MJResultScreen> {
     } else {
       debugPrint("🏁 LOG [Route] : Fin détectée ($winner).");
 
-      try {
-        List<Player> winnersList = widget.allPlayers.where((p) {
-          // Victoires classiques par team
-          if (winner == "VILLAGE" && p.team == "village") return true;
-          if (winner == "LOUPS-GAROUS" && p.team == "loups") return true;
-
-          // Victoires solo spécifiques (filtrer par role exact)
-          String roleUpper = (p.role?.toUpperCase() ?? "");
-          if (winner == "PHYL" && roleUpper == "PHYL") return true;
-          if (winner == "EXORCISTE" && roleUpper == "EXORCISTE") return true;
-          if (winner == "RON-ALDO" && (roleUpper == "RON-ALDO" || p.isFanOfRonAldo)) return true;
-          if (winner == "DRESSEUR" && (roleUpper == "DRESSEUR" || roleUpper == "POKÉMON")) return true;
-          if (winner == "ARCHIVISTE" && roleUpper == "ARCHIVISTE") return true;
-          if (winner == "CHUCHOTEUR" && roleUpper == "CHUCHOTEUR") return true;
-          if (winner == "PANTIN" && roleUpper == "PANTIN") return true;
-          if (winner == "MAÎTRE DU TEMPS" && roleUpper == "MAÎTRE DU TEMPS") return true;
-
-          return false;
-        }).toList();
-        await AchievementLogic.checkEndGameAchievements(context, winnersList, widget.allPlayers);
-      } catch (e) {
-        debugPrint("⚠️ LOG [Achievements] : Erreur succès fin de partie - $e");
-      }
-
       await GameSaveService.clearSave();
 
       if (mounted) {
@@ -329,22 +303,20 @@ class _MJResultScreenState extends State<MJResultScreen> {
       debugPrint("⚠️ Erreur arrêt audio: $e");
     }
 
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+    if (!mounted) return;
 
-      Navigator.of(context).pushAndRemoveUntil(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => GameOverScreen(
-              winnerType: winner,
-              players: widget.allPlayers,
-            ),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            transitionDuration: const Duration(milliseconds: 500),
+    Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => GameOverScreen(
+            winnerType: winner,
+            players: widget.allPlayers,
           ),
-              (Route<dynamic> route) => false
-      );
-    });
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+            (Route<dynamic> route) => false
+    );
   }
 }

@@ -222,9 +222,7 @@ class TrophyService {
         if (p.travelNightsCount > 0) {
           counters['cumulative_travels'] = (counters['cumulative_travels'] ?? 0) + 1;
         }
-        if ((customData['cumulative_hosted_count'] ?? 0) > 0) {
-          counters['cumulative_hosted_count'] = (counters['cumulative_hosted_count'] ?? 0) + (customData['cumulative_hosted_count'] as int);
-        }
+        // cumulative_hosted_count est géré par recordGamePlayed (tous les joueurs, toutes issues)
       }
       pData['counters'] = counters;
       playerStats[name] = pData;
@@ -235,6 +233,48 @@ class TrophyService {
     Map<String, int> globalStats = await getGlobalStats();
     globalStats[roleGroup] = (globalStats[roleGroup] ?? 0) + 1;
     await prefs.setString(_keyGlobalStats, jsonEncode(globalStats));
+  }
+
+  /// Enregistre une partie jouée pour TOUS les joueurs actifs (victoire ou défaite).
+  /// Accumule :
+  ///   - counters['roleGamesPlayed'][ROLE]++ (pour "redistribuer les rôles")
+  ///   - counters['cumulative_hosted_count'] += hostedCountThisGame (pour "Formation hôtelière")
+  static Future<void> recordGamePlayed(List<Player> allPlayers) async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> playerStats = await getStats();
+    final Set<String> processedNames = {};
+
+    for (var p in allPlayers) {
+      if (processedNames.contains(p.name)) continue;
+      processedNames.add(p.name);
+      if (p.role == null) continue;
+
+      final String name = p.name;
+      final String roleKey = p.role!.toUpperCase().trim();
+
+      Map<String, dynamic> pData = playerStats.containsKey(name)
+          ? Map<String, dynamic>.from(playerStats[name])
+          : {'totalWins': 0, 'roles': {}, 'roleWins': {}, 'achievements': {}, 'counters': {}};
+
+      var counters = Map<String, dynamic>.from(pData['counters'] ?? {});
+
+      // Parties jouées par rôle (toutes issues confondues)
+      Map<String, dynamic> roleGamesPlayed = Map<String, dynamic>.from(counters['roleGamesPlayed'] ?? {});
+      roleGamesPlayed[roleKey] = (roleGamesPlayed[roleKey] ?? 0) + 1;
+      counters['roleGamesPlayed'] = roleGamesPlayed;
+
+      // Joueurs hébergés cumulés (Maison — toutes issues confondues)
+      if (p.hostedCountThisGame > 0) {
+        counters['cumulative_hosted_count'] =
+            (counters['cumulative_hosted_count'] ?? 0) + p.hostedCountThisGame;
+      }
+
+      pData['counters'] = counters;
+      playerStats[name] = pData;
+    }
+
+    await prefs.setString(_keyPlayers, jsonEncode(playerStats));
+    debugPrint("📊 LOG [Trophy] : recordGamePlayed → ${allPlayers.length} joueur(s) mis à jour.");
   }
 
   static Future<void> deletePlayerStats(String playerName) async {

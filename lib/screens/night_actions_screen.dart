@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import '../models/player.dart';
 import '../globals.dart';
 import '../logic/night/night_actions_logic.dart';
@@ -62,16 +61,11 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       shouldWakeUp = widget.players.any((p) => p.role?.toLowerCase() == "dresseur" && p.isAlive);
     }
     else if (roleName == "Pokémon" || roleName == "Pokemon") {
-      // RÈGLE CRITIQUE : Le Pokémon se réveille SEULEMENT si le Dresseur est MORT
-      bool trainerIsAlive = widget.players.any((p) => p.role?.toLowerCase() == "dresseur" && p.isAlive);
+      // Le Pokémon se réveille chaque nuit pour attaquer
       bool pokemonIsAlive = widget.players.any((p) => (p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") && p.isAlive);
-
-      shouldWakeUp = !trainerIsAlive && pokemonIsAlive;
-
+      shouldWakeUp = pokemonIsAlive;
       if (shouldWakeUp) {
-        debugPrint("🔍 CAPTEUR [Pokémon] : Dresseur mort, Pokémon vivant -> RÉVEIL pour attaquer !");
-      } else {
-        // debugPrint("🔍 CAPTEUR [Pokémon] : Dodo (Dresseur vivant: $trainerIsAlive, Pokémon vivant: $pokemonIsAlive)");
+        debugPrint("🔍 CAPTEUR [Pokémon] : Pokémon vivant -> RÉVEIL pour attaquer !");
       }
     }
     else {
@@ -217,21 +211,16 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
   void _navigateToGameOver(String winner) {
     debugPrint("🚀 CAPTEUR [Navigation] : Départ vers GameOverScreen ($winner)...");
-
-    // Utilisation de SchedulerBinding pour éviter les erreurs pendant le build/dispose
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-                builder: (context) => GameOverScreen(
-                    winnerType: winner,
-                    players: List.from(widget.players) // Copie de sécurité
-                )
-            ),
-                (Route<dynamic> route) => false
-        );
-      }
-    });
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+            builder: (context) => GameOverScreen(
+                winnerType: winner,
+                players: List.from(widget.players)
+            )
+        ),
+            (Route<dynamic> route) => false
+    );
   }
 
   void _showPop(String title, String msg, {VoidCallback? onDismiss}) {
@@ -245,8 +234,6 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (nightFinished) return const Scaffold(backgroundColor: Color(0xFF0A0E21), body: SizedBox.shrink());
-
     final action = nightActionsOrder[currentActionIndex];
     Player actor;
     try {

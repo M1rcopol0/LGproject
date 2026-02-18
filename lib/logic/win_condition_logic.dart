@@ -28,6 +28,7 @@ class WinConditionLogic {
     if (players.isEmpty) return null;
 
     // --- CONDITION DE VICTOIRE : PHYL ---
+    // Phyl gagne s'il est chef du village (Maire/Roi/Dictateur selon le mode) ET que ses cibles sont toutes mortes
     try {
       Player phyl = alive.firstWhere((p) => p.role?.toLowerCase() == "phyl");
       if (phyl.isVillageChief && phyl.phylTargets.length >= 2) {
@@ -40,10 +41,10 @@ class WinConditionLogic {
     }
 
     // --- DÉTERMINATION DES FACTIONS ENCORE EN LICE ---
+    // Les fans de Ron-Aldo restent dans sa faction même si Ron-Aldo est mort
     Set<String> activeFactions = {};
     for (var p in alive) {
       if (p.team == "village") {
-        // Un fan de Ron-Aldo, même s'il était villageois, appartient désormais à la faction Ron-Aldo
         activeFactions.add(p.isFanOfRonAldo ? "RON-ALDO" : "VILLAGE");
       } else if (p.team == "loups") {
         activeFactions.add("LOUPS-GAROUS");

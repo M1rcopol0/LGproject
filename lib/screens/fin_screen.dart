@@ -34,16 +34,17 @@ class _GameOverScreenState extends State<GameOverScreen> {
     super.initState();
     debugPrint("🏁 LOG [GameOver] : Arrivée sur l'écran de fin. Vainqueur annoncé : ${widget.winnerType}");
 
-    // CORRECTION CRITIQUE : Délai augmenté à 800ms.
-    // Cela permet à l'animation de transition (Fade) de se terminer AVANT
-    // de surcharger le processeur avec le calcul des stats.
-    Future.delayed(const Duration(milliseconds: 800), _processGameEnd);
+    // Délai court pour laisser l'animation Fade se terminer (500ms) avant le calcul.
+    Future.delayed(const Duration(milliseconds: 200), _processGameEnd);
   }
 
   Future<void> _processGameEnd() async {
     // Évite la double exécution si le widget se reconstruit ou n'est plus monté
     if (_hasProcessed || !mounted) return;
     _hasProcessed = true;
+
+    final sw = Stopwatch()..start();
+    debugPrint("⏱️ [GameOver] Début _processGameEnd (instance: ${identityHashCode(this)})");
 
     try {
       // 1. Identification des gagnants
@@ -99,6 +100,8 @@ class _GameOverScreenState extends State<GameOverScreen> {
       computedWinners = computedWinners.toSet().toList();
       if (mounted) setState(() => winners = computedWinners);
 
+      debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — Gagnants calculés : ${computedWinners.length}");
+
       // 1.5. Mise à jour de l'annuaire des joueurs (TOUJOURS, même en cas d'égalité)
       try {
         // Incrémenter gamesPlayed pour tous les joueurs qui ont participé
@@ -114,6 +117,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
         }
 
         debugPrint("📂 LOG [GameOver] : Annuaire des joueurs mis à jour.");
+        debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — Annuaire mis à jour");
       } catch (e) {
         debugPrint("❌ LOG [GameOver] : Erreur lors de la mise à jour de l'annuaire : $e");
       }
@@ -146,14 +150,23 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
         try {
           await TrophyService.recordWin(winners, roleGroup, customData: customStats);
+          debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — recordWin terminé");
         } catch (e) {
           debugPrint("❌ LOG [GameOver] : Erreur recordWin : $e");
+        }
+
+        try {
+          await TrophyService.recordGamePlayed(activePlayers);
+          debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — recordGamePlayed terminé");
+        } catch (e) {
+          debugPrint("❌ LOG [GameOver] : Erreur recordGamePlayed : $e");
         }
 
         // Vérification des succès de fin de partie
         if (mounted) {
           try {
             await AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
+            debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — checkEndGameAchievements terminé");
           } catch (e) {
             debugPrint("❌ LOG [GameOver] : Erreur checkEndGameAchievements : $e");
           }
@@ -192,7 +205,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
               'devin_reveals_count': winner.devinRevealsCount,
               'devin_revealed_same_twice': winner.hasRevealedSamePlayerTwice,
               'traveler_killed_wolf': winner.travelerKilledWolf,
-              'cumulative_hosted_count': winner.hostedCountThisGame,
               'tardos_suicide': winner.tardosSuicide,
             };
 
@@ -210,48 +222,49 @@ class _GameOverScreenState extends State<GameOverScreen> {
             debugPrint("❌ LOG [GameOver] : Erreur lors du check succès individuel pour ${winner.name}: $e");
           }
         }
-      }
-
-      // 3. Sauvegarde Cloud (TOUJOURS - nouveau workflow V3)
-      if (mounted) {
-        try {
-          debugPrint("☁️ LOG [GameOver] : Envoi des stats vers le cloud...");
-
-          // Appel à la nouvelle méthode qui retourne un bool
-          bool syncSuccess = await CloudService.pushLocalToCloud(context);
-
-          if (!syncSuccess) {
-            // Échec de la sync → Afficher dialogue d'avertissement
-            if (mounted) {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text("⚠️ Synchronisation Impossible"),
-                  content: const Text(
-                    "Pas de connexion internet.\n\n"
-                    "Les données de cette partie sont sauvegardées localement mais ne sont pas dans le cloud.\n\n"
-                    "Mettez à jour manuellement la backup cloud via Paramètres → Export/Import, "
-                    "sinon ces données seront perdues au prochain lancement de l'app."
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text("J'ai compris"),
-                    ),
-                  ],
-                ),
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint("⚠️ Erreur lors de la sync cloud : $e");
-        }
+        debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — Succès individuels terminés (${winners.length} gagnants)");
       }
 
     } catch (globalError) {
       debugPrint("❌ ERREUR FATALE DANS GAMEOVER SCREEN : $globalError");
     } finally {
+      debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — Succès terminés → affichage écran");
+      sw.stop();
       if (mounted) setState(() => _isLoading = false);
+    }
+
+    // 3. Sync cloud en arrière-plan (n'affecte pas le spinner)
+    _syncCloudInBackground();
+  }
+
+  void _syncCloudInBackground() async {
+    debugPrint("☁️ LOG [GameOver] : Sync cloud en arrière-plan...");
+    try {
+      bool syncSuccess = await CloudService.pushLocalToCloud(context);
+      debugPrint("☁️ LOG [GameOver] : Sync cloud terminée (succès: $syncSuccess)");
+
+      if (!syncSuccess && mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("⚠️ Synchronisation Impossible"),
+            content: const Text(
+              "Pas de connexion internet.\n\n"
+              "Les données de cette partie sont sauvegardées localement mais ne sont pas dans le cloud.\n\n"
+              "Mettez à jour manuellement la backup cloud via Paramètres → Export/Import, "
+              "sinon ces données seront perdues au prochain lancement de l'app."
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("J'ai compris"),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("⚠️ Erreur lors de la sync cloud (arrière-plan) : $e");
     }
   }
 

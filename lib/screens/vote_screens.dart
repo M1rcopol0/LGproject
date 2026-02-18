@@ -74,9 +74,10 @@ class _VotePlayerSelectionScreenState extends State<VotePlayerSelectionScreen> {
       ),
     );
 
-    // Quand on revient du MJResultScreen (après le pop-up de mort),
-    // on ferme l'orchestrateur pour revenir au Menu et déclencher l'actualisation.
-    if (mounted) {
+    // Quand on revient du MJResultScreen (partie continue),
+    // on ferme l'orchestrateur. Si la partie est terminée, MJResultScreen
+    // a déjà vidé la pile via pushAndRemoveUntil, donc canPop() sera false.
+    if (mounted && Navigator.canPop(context)) {
       Navigator.pop(context);
     }
   }

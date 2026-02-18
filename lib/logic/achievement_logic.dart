@@ -61,9 +61,9 @@ class AchievementLogic {
       AchievementEvents.checkWelcomeWolf(context, maison);
 
   static void checkTraitorFan(BuildContext context, Player voter, Player target) {
-    AchievementEvents.checkTraitorFan(context, voter, target);
     final targetRole = target.role?.toUpperCase().trim() ?? "";
     if (voter.isFanOfRonAldo && (targetRole == "RON-ALDO" || targetRole == "RON ALDO")) {
+      debugPrint("🐍 CAPTEUR [Achievement] : Fan Traître détecté -> ${voter.name}");
       if (!_traitorsThisTurn.contains(voter.name)) {
         _traitorsThisTurn.add(voter.name);
       }

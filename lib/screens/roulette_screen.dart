@@ -62,7 +62,7 @@ class _RouletteScreenState extends State<RouletteScreen> with SingleTickerProvid
   }
 
   void _skipAnimation() {
-    if (_controller.isAnimating) {
+    if (_controller.isAnimating && result.isEmpty) {
       _controller.stop();
       _calculateResult();
     }

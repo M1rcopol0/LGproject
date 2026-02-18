@@ -8,6 +8,7 @@ import 'trophy_hub_screen.dart';
 import '../globals.dart';
 import '../models/player.dart';
 import '../services/game_save_service.dart';
+import '../logic/role_distribution_logic.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   void initState() {
     super.initState();
     _checkSave();
+    RoleDistributionLogic.logMemoryState();
   }
 
   void _checkSave() async {

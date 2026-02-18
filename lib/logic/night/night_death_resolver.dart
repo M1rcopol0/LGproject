@@ -84,6 +84,12 @@ class NightDeathResolver {
         }
       }
 
+      // Protection Dresseur → Pokémon (le Dresseur a choisi de protéger le Pokémon)
+      if (dresseur != null && target == pokemon && dresseur.lastDresseurAction == pokemon && !isUnstoppable) {
+        debugPrint("🛡️ CAPTEUR [Protection] : Dresseur protège le Pokémon → Pokémon survit.");
+        return;
+      }
+
       // Protection Pokémon (Ciblage direct d'un allié)
       if (target.isProtectedByPokemon && !isUnstoppable) {
         debugPrint("🛡️ CAPTEUR [Protection] : PROTÉGÉ (Pokémon) -> ${target.name} survit.");
@@ -113,15 +119,36 @@ class NightDeathResolver {
           debugPrint("💀 CAPTEUR [Mort] : MORT CONFIRMÉE: ${deadPlayer.name} (${deadPlayer.role})");
 
           if (!finalDeathReasons.containsKey(deadPlayer.name)) {
-            finalDeathReasons[deadPlayer.name] = (deadPlayer == target) ? reason : "Réaction en chaîne ($reason)";
+            if (deadPlayer == target) {
+              finalDeathReasons[deadPlayer.name] = reason;
+            } else if (deadPlayer.isLinked) {
+              // Si la référence lover est nulle (déjà éliminé avant nettoyage), on utilise target.name comme fallback
+              String loverName = deadPlayer.lover?.name ?? target.name;
+              finalDeathReasons[deadPlayer.name] = "Chagrin d'amour ($loverName)";
+            } else {
+              finalDeathReasons[deadPlayer.name] = "Réaction en chaîne ($reason)";
+            }
           }
 
           if (reason.contains("Morsure")) wolvesNightKills++;
 
           _handleSpecialDeathEffects(context, deadPlayer, players, finalDeathReasons, morningAnnouncements);
         }
+
+        // Cas Maison effondrée : la cible des loups (target) survit car la Maison a absorbé la mort.
+        // deaths est non vide (contient le proprio de la Maison) mais ne contient PAS target.
+        if (reason.contains("Morsure") && !deaths.contains(target) && target.isAlive) {
+          target.hasSurvivedWolfBite = true;
+          target.wolfBiteSurvivedTurn = globalTurnNumber;
+          nightWolvesTargetSurvived = true;
+          debugPrint("🛡️ CAPTEUR [Fringale] : ${target.name} a survécu par proxy (Maison effondrée) → hasSurvivedWolfBite = true, turn=$globalTurnNumber");
+        }
       }
     });
+
+    // NOTE : Le Pantin maudit par chagrin d'amour (pantinCurseTimer=2) n'est PAS annoncé mort ici.
+    // Le timer est décrémenté chaque nuit par NightPreparation et la mort est exécutée par NightCleanup
+    // quand le timer atteint 0. L'icône de malédiction sur la carte du joueur signale l'état.
   }
 
   /// Gère les effets secondaires suite à une mort confirmée (Vengeances, Stats, Achievements)
@@ -145,7 +172,7 @@ class NightDeathResolver {
 
       List<Player> revengeDeaths = GameLogic.eliminatePlayer(context, allPlayers, revengeTarget, isVote: false, reason: "Vengeance Pokémon");
       for (var rd in revengeDeaths) {
-        finalDeathReasons[rd.name] = "Foudroyé par le Pokémon";
+        finalDeathReasons[rd.name] = "Vengeance du Pokémon";
         AchievementLogic.checkDeathAchievements(context, rd, allPlayers);
       }
     }

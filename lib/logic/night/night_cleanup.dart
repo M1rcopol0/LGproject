@@ -35,13 +35,14 @@ class NightCleanup {
       }
 
       // Machine d'etat Grand-mere Quiche
+      // Nuit N : hasBakedQuiche=true → active la protection (isVillageProtected=true)
+      // Nuit N+1 : hasBakedQuiche=false et isVillageProtected=true → expire la protection
       if (p.role?.toLowerCase() == "grand-mère" && p.isAlive) {
         if (p.hasBakedQuiche) {
           debugPrint("🔄 CAPTEUR [Cleanup] : Quiche activée pour ${p.name}.");
           p.isVillageProtected = true;
           p.hasBakedQuiche = false;
-          p.powerActiveThisTurn = true;
-        } else if (p.isVillageProtected && !p.powerActiveThisTurn) {
+        } else if (p.isVillageProtected) {
           debugPrint("🔄 CAPTEUR [Cleanup] : Quiche expirée pour ${p.name}.");
           p.isVillageProtected = false;
           p.hasSavedSelfWithQuiche = false;
