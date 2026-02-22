@@ -299,7 +299,9 @@ class RoleDistributionLogic {
         // --- E. Remplissage village (score matching) ---
         int totalHostileScore = lockedHostileScore;
         for (var r in hostileRoles) {
-          totalHostileScore += (roleValues[r] ?? 0);
+          final int base = roleValues[r] ?? 0;
+          final int count = memory[r] ?? 0;
+          totalHostileScore += base * (1 + count);
         }
 
         int villageSlotsToFill = totalPlayers - lockedPlayersCount - hostileRoles.length;
@@ -337,7 +339,9 @@ class RoleDistributionLogic {
           }
 
           villageRoles.add(bestRole);
-          currentVillageScore += (roleValues[bestRole] ?? 2);
+          final int vBase = roleValues[bestRole] ?? 2;
+          final int vCount = memory[bestRole] ?? 0;
+          currentVillageScore += vBase * (1 + vCount);
 
           if (trialVillage.contains(bestRole)) {
             trialVillage.remove(bestRole);
@@ -385,7 +389,12 @@ class RoleDistributionLogic {
         List<String> villageInRoll = roles.where((r) => !_wolfRoles.contains(r) && !_soloRoles.contains(r)).toList()..sort();
 
         String fmt(List<String> lst) =>
-            lst.map((r) => "$r(${roleValues[r] ?? 2})").join(', ');
+            lst.map((r) {
+              final int base = roleValues[r] ?? 2;
+              final int count = memory[r] ?? 0;
+              if (count == 0) return "$r($base)";
+              return "$r($base→${base * (1 + count)})";
+            }).join(', ');
 
         debugPrint("🎲 Batch $batch lancer ${i + 1} : "
             "ratio=${(batchRatios[i] * 100).toStringAsFixed(1)}% $status | "
