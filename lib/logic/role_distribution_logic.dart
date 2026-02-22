@@ -179,8 +179,14 @@ class RoleDistributionLogic {
         // Cible aléatoire du nombre total d'hostiles pour ce lancer
         // (variabilité inter-lancers ; la limite de balance reste active)
         int prefilledCount = hostileRoles.length; // pré-remplis (Dresseur/Pokémon locked)
+        // Si des loups sont dans le pick&ban, le LG évolué est un overflow illimité :
+        // on borne par les slots disponibles, pas par la taille du pool.
+        bool canOverflowWolves = (globalPickBan["loups"] ?? []).isNotEmpty;
+        int hostileCapacity = canOverflowWolves
+            ? (totalUnlockedSlots - prefilledCount - 1)
+            : trialLoups.length + trialSolo.length;
         int maxAdditional = min(
-            trialLoups.length + trialSolo.length,
+            hostileCapacity,
             totalUnlockedSlots - prefilledCount - 1, // -1 pour ≥ 1 slot village
         );
         int minTotal = max(1, prefilledCount);
@@ -192,7 +198,9 @@ class RoleDistributionLogic {
         while (true) {
           // Stop si la cible aléatoire est atteinte
           if (hostileRoles.length >= targetHostileCount) break;
-          if (trialLoups.isEmpty && trialSolo.isEmpty) break;
+          // Stopper seulement si aucun hostile ne peut plus être ajouté
+          // (ni via le pool, ni via l'overflow LG évolué)
+          if (trialLoups.isEmpty && trialSolo.isEmpty && !canOverflowWolves) break;
 
           int villageSlotsAfter = totalUnlockedSlots - hostileRoles.length - 1;
           if (villageSlotsAfter < 0) break;
@@ -201,9 +209,12 @@ class RoleDistributionLogic {
               + hostileRoles.fold(0, (s, r) => s + (roleValues[r] ?? 0));
 
           List<String> candidatePool = [...trialLoups, ...trialSolo];
-          int avgNextHostile = (candidatePool
-              .map((r) => roleValues[r] ?? 12)
-              .reduce((a, b) => a + b) / candidatePool.length).round();
+          // Si pool vide mais overflow loup disponible, on utilise la valeur du LG évolué
+          int avgNextHostile = candidatePool.isNotEmpty
+              ? (candidatePool
+                  .map((r) => roleValues[r] ?? 12)
+                  .reduce((a, b) => a + b) / candidatePool.length).round()
+              : (roleValues["Loup-garou évolué"] ?? 12);
 
           double proj = _projectedRatio(
             currentHostileScore: curHostileScore,

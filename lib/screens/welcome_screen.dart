@@ -9,7 +9,7 @@ import '../globals.dart';
 import '../models/player.dart';
 import '../services/game_save_service.dart';
 import '../logic/role_distribution_logic.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../player_storage.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -150,8 +150,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                       onPressed: () async {
                         await resetAllGameData();
-                        final prefs = await SharedPreferences.getInstance();
-                        final names = prefs.getStringList('saved_players_list') ?? [];
+                        final names = await PlayerDirectory.getSavedPlayers();
                         globalPlayers = names.map((n) => Player(name: n)).toList();
                         for (var p in globalPlayers) {
                           p.isPlaying = false;
