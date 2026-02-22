@@ -189,6 +189,15 @@ class EliminationLogic {
     deadPeople.add(realTarget);
     debugPrint("💀 LOG [Mort] : ${realTarget.name} (${realTarget.role}) a quitté la partie. Raison: $reason");
 
+    // --- MAISON DÉTRUITE (Libération des occupants) ---
+    if (roleLower == "maison") {
+      List<Player> evictedGuests = allPlayers.where((p) => p.isInHouse).toList();
+      if (evictedGuests.isNotEmpty) {
+        debugPrint("🏚️ LOG [Maison] : Maison détruite → occupants libérés: ${evictedGuests.map((p) => p.name).join(', ')}");
+        for (var p in evictedGuests) { p.isInHouse = false; }
+      }
+    }
+
     // --- LOUIS CROIX V (Roi exécuté par le peuple) ---
     if (isVote && realTarget.isVillageChief && globalGovernanceMode == "ROI") {
       TrophyService.checkAndUnlockImmediate(

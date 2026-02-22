@@ -98,7 +98,8 @@ class AchievementData {
       data['player_role']?.toString().toLowerCase() == "dingo" &&
           data['dingo_self_voted_all_game'] == true &&
           data['is_player_alive'] == true &&
-          data['winner_role'] != null,
+          data['winner_role'] != null &&
+          data['vote_anonyme'] == true,
     ),
     Achievement(
       id: "bad_shooter",
@@ -108,7 +109,8 @@ class AchievementData {
       checkCondition: (data) =>
       data['player_role']?.toString().toLowerCase() == "dingo" &&
           (data['dingo_shots_fired'] ?? 0) >= 1 &&
-          (data['dingo_shots_hit'] ?? 0) == 0,
+          (data['dingo_shots_hit'] ?? 0) == 0 &&
+          data['winner_role'] != null,
     ),
     Achievement(
       id: "parking_shot",
