@@ -47,30 +47,31 @@ class DingoInterface extends StatelessWidget {
             child: TargetSelectorInterface(
               players: eligibleTargets,
               maxTargets: 1,
-              isProtective: false, // C'est un tir offensif (Rouge)
+              isProtective: false,
               onTargetsSelected: (selected) {
                 if (selected.isNotEmpty) {
                   Player victim = selected.first;
-
-                  // --- 1. TRIGGER SUCCÈS "UN TIR DU PARKING" ---
-                  // On vérifie si ce tir est légendaire (dernier ennemi tué)
                   AchievementLogic.checkParkingShot(context, actor, victim, players);
-
-                  // --- 2. MISE À JOUR DES STATS ---
                   actor.dingoShotsFired++;
-                  actor.dingoShotsHit++; // Un tir mortel compte comme un tir réussi
-
-                  // --- CORRECTION CRITIQUE : RESET DU COMPTEUR ---
-                  // On remet à 0 pour obliger le Dingo à se ré-entraîner (2 tirs) avant de pouvoir tuer à nouveau.
+                  actor.dingoShotsHit++;
                   actor.dingoStrikeCount = 0;
-
-                  // --- 3. LOGS ---
                   debugPrint("💥 LOG [Dingo] : Tir mortel exécuté sur ${victim.name}. Compteur réinitialisé.");
                   debugPrint("📊 STATS [Dingo] : Tirs totaux: ${actor.dingoShotsFired} | Touchés: ${actor.dingoShotsHit}");
-
-                  // --- 4. ACTION (Tuer) ---
                   onKillTargetSelected(victim);
                 }
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextButton.icon(
+              icon: const Icon(Icons.close, color: Colors.redAccent),
+              label: const Text("LANCER RATÉ", style: TextStyle(color: Colors.redAccent)),
+              onPressed: () {
+                actor.dingoShotsFired++;
+                actor.dingoStrikeCount = 0;
+                debugPrint("💨 LOG [Dingo] : Tir mortel raté. Série réinitialisée.");
+                onMiss();
               },
             ),
           ),

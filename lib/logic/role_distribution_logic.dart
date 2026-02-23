@@ -371,10 +371,10 @@ class RoleDistributionLogic {
         batchVillageScores.add(currentVillageScore);
       }
 
-      // --- F. Sélection aléatoire parmi les lancers acceptables (ratio ≥ 0.35) ---
+      // --- F. Sélection aléatoire parmi les lancers acceptables (ratio ≥ 0.4) ---
       List<int> acceptableIndices = [];
       for (int i = 0; i < rollsPerBatch; i++) {
-        if (batchRatios[i] >= 0.35) acceptableIndices.add(i);
+        if (batchRatios[i] >= 0.4) acceptableIndices.add(i);
       }
 
       // Fallback : index du lancer le plus proche de 50%
@@ -390,7 +390,7 @@ class RoleDistributionLogic {
 
       // Log chaque lancer du batch
       for (int i = 0; i < rollsPerBatch; i++) {
-        String status = batchRatios[i] >= 0.35 ? "✅" : "❌";
+        String status = batchRatios[i] >= 0.4 ? "✅" : "❌";
         List<String> roles = batchResults[i];
         int hostileCount = roles.where((r) => _wolfRoles.contains(r) || _soloRoles.contains(r)).length;
 
@@ -453,19 +453,18 @@ class RoleDistributionLogic {
       }
     }
 
+    // Mélanger les joueurs non-lockés pour éviter l'attribution prévisible par ordre alphabétique
+    List<Player> assignablePlayers = players.where((p) => !p.isRoleLocked).toList();
+    assignablePlayers.shuffle(random);
+
     int addIndex = 0;
+    for (var p in assignablePlayers) {
+      p.resetFullState();
+      p.role = addIndex < rolesToAdd.length ? rolesToAdd[addIndex] : "Villageois";
+      addIndex++;
+    }
+
     for (var p in players) {
-      if (!p.isRoleLocked) {
-        p.resetFullState();
-
-        if (addIndex < rolesToAdd.length) {
-          p.role = rolesToAdd[addIndex];
-          addIndex++;
-        } else {
-          p.role = "Villageois";
-        }
-      }
-
       // Assignation de l'équipe
       String r = p.role ?? "";
       if (_wolfRoles.contains(r)) {

@@ -29,6 +29,15 @@ class NightPreparation {
         }
       }
 
+      // --- RESET DES POUVOIRS NOCTURNES DE L'ARCHIVISTE (réutilisables chaque nuit) ---
+      if (p.role?.toLowerCase() == "archiviste") {
+        // S'assurer que la liste est mutable (peut être const [] si jamais modifiée)
+        p.archivisteActionsUsed = List<String>.from(p.archivisteActionsUsed)
+          ..remove("cancel_vote")
+          ..remove("mute");
+        debugPrint("📖 LOG [Archiviste] : Pouvoirs nocturnes (mute, cancel_vote) réinitialisés pour ${p.name}.");
+      }
+
       if (!p.isAlive) continue;
 
       // --- LOGIQUE VOYAGEUR ---

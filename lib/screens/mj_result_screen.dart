@@ -226,7 +226,8 @@ class _MJResultScreenState extends State<MJResultScreen> {
                     leading: const Icon(Icons.gps_fixed, color: Colors.redAccent),
                     onTap: () { Navigator.pop(ctx, targets[i]); }
                 )
-            ))
+            )),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text("PASSER", style: TextStyle(color: Colors.white54)))]
         );
       },
     );

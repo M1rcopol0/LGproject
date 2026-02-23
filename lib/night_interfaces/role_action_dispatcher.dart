@@ -110,14 +110,20 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
           },
         );
 
-    // --- CORRECTION : GESTION DE L'ATTAQUE POKEMON ---
+    // --- POKÉMON : interface active seulement si le Dresseur est mort ---
       case "Pokémon":
       case "Pokemon":
+        bool dresseurMort = widget.allPlayers.any(
+          (p) => p.role?.toLowerCase() == "dresseur" && !p.isAlive
+        );
+        if (!dresseurMort) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => widget.onNext());
+          return const SizedBox();
+        }
         return PokemonInterface(
           player: widget.actor,
           allPlayers: widget.allPlayers,
           onAction: (target) {
-            // Si une cible est renvoyée (mode actif), on l'enregistre comme mort
             if (target != null) {
               if (widget.onDirectKill != null) {
                 widget.onDirectKill!(target, "Attaque Tonnerre");
@@ -125,7 +131,6 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
                 widget.pendingDeaths[target] = "Attaque Tonnerre";
               }
             }
-            // On passe à la suite
             widget.onNext();
           },
         );

@@ -16,7 +16,7 @@ class WinConditionLogic {
       return "EXORCISTE";
     }
 
-    final alive = players.where((p) => p.isAlive).toList();
+    final alive = players.where((p) => p.isAlive && !p.isAwayAsMJ).toList();
 
     debugPrint("⚔️ CAPTEUR [Victoire] : Joueurs vivants: ${alive.length}/${players.length}. Détail: ${alive.map((p) => '${p.name}(${p.role}/${p.team})').join(', ')}");
 

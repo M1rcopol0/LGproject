@@ -63,22 +63,27 @@ class _VotePlayerSelectionScreenState extends State<VotePlayerSelectionScreen> {
     if (!mounted) return;
 
     // On empile l'écran de résultat par-dessus l'orchestrateur.
-    // On lui passe le onComplete du menu pour qu'il gère la fin du tour.
+    // On NE passe PAS widget.onComplete directement : MJResultScreen appelle son
+    // onComplete AVANT que VotePlayerSelectionScreen se soit fermé, ce qui laisse
+    // l'orchestrateur visible et crée le loop "dernier votant → résultats → dernier votant".
+    // On lui passe un no-op et on gère l'appel à widget.onComplete nous-mêmes.
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MJResultScreen(
           allPlayers: widget.allPlayers,
-          onComplete: widget.onComplete,
+          onComplete: () {}, // géré ci-dessous après le pop de l'orchestrateur
         ),
       ),
     );
 
     // Quand on revient du MJResultScreen (partie continue),
-    // on ferme l'orchestrateur. Si la partie est terminée, MJResultScreen
-    // a déjà vidé la pile via pushAndRemoveUntil, donc canPop() sera false.
+    // on ferme d'abord l'orchestrateur, puis on notifie VillageScreen.
+    // Si la partie est terminée, MJResultScreen a déjà vidé la pile via
+    // pushAndRemoveUntil → mounted sera false → on ne fait rien.
     if (mounted && Navigator.canPop(context)) {
       Navigator.pop(context);
+      widget.onComplete();
     }
   }
 
