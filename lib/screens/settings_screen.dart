@@ -67,13 +67,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       sb.writeln("Version: $globalGameVersion");
       sb.writeln("\n--------------------------------------------------\n");
 
-      final history = globalTalker.history;
+      final lines = globalGameSessionLogs.isNotEmpty
+          ? globalGameSessionLogs
+          : globalTalker.history.map((l) => l.generateTextMessage()).toList();
 
-      if (history.isEmpty) {
+      if (lines.isEmpty) {
         sb.writeln("Aucun log enregistré en mémoire.");
       } else {
-        for (var log in history) {
-          sb.writeln(log.generateTextMessage());
+        for (var line in lines) {
+          sb.writeln(line);
         }
       }
 

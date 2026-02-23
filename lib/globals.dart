@@ -11,6 +11,7 @@ import 'state/game_state.dart';
 import 'state/night_state.dart';
 import 'state/achievement_flags.dart';
 import 'services/audio_service.dart';
+import 'services/trophy_service.dart';
 
 // --- NETTOYAGE (RESET) ---
 Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
@@ -34,6 +35,7 @@ Future<void> resetAllGameData({bool eraseAllHistory = false}) async {
   resetGameState();
   resetNightState();
   resetAchievementFlags();
+  TrophyService.clearQueue();
 
   stopMusic();
 }

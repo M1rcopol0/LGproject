@@ -149,6 +149,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         elevation: 10,
                       ),
                       onPressed: () async {
+                        globalGameSessionLogs.clear();
+                        globalGameSessionActive = true;
                         await resetAllGameData();
                         final names = await PlayerDirectory.getSavedPlayers();
                         globalPlayers = names.map((n) => Player(name: n)).toList();

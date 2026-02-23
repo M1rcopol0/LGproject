@@ -140,7 +140,16 @@ class TrophyService {
   }
 
   // ==========================================================
-  // 4. AUTRES MÉTHODES
+  // 4. NETTOYAGE (RESET ENTRE PARTIES)
+  // ==========================================================
+  static void clearQueue() {
+    _achievementQueue.clear();
+    _recentlyShownToasts.clear();
+    _isDisplaying = false;
+  }
+
+  // ==========================================================
+  // 5. AUTRES MÉTHODES
   // ==========================================================
 
   static Future<List<String>> getUnlockedAchievements(String playerName) async {

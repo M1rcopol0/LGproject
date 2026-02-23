@@ -5,8 +5,12 @@ import '../models/player.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GENERALE ---
-String globalGameVersion = "1.7.3 - Release";
+String globalGameVersion = "1.7.4 - Release";
 late Talker globalTalker;
+
+// --- LOGS DE SESSION ---
+List<String> globalGameSessionLogs = [];
+bool globalGameSessionActive = false;
 
 // --- UTILITAIRES ---
 String formatPlayerName(String name) => Player.formatName(name);

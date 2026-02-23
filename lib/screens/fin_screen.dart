@@ -53,14 +53,14 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
         switch (widget.winnerType) {
           case "VILLAGE":
-            return team == "village" && !p.isFanOfRonAldo;
+            return team == "village" && !p.isFanOfRonAldo && !p.isAwayAsMJ;
 
           case "LOUPS-GAROUS":
           case "LOUPS": // Sécurité pour les deux formats
-            return team == "loups";
+            return team == "loups" && !p.isAwayAsMJ;
 
           case "ARCHIVISTE":
-            return role == "ARCHIVISTE" && team == "solo";
+            return role == "ARCHIVISTE" && team == "solo" && !p.isAwayAsMJ;
 
           case "RON-ALDO":
             return role == "RON-ALDO" || p.isFanOfRonAldo;
@@ -85,7 +85,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
 
           case "EXORCISTE":
           // L'Exorciste fait gagner tout le village
-            return team == "village" && !p.isFanOfRonAldo;
+            return team == "village" && !p.isFanOfRonAldo && !p.isAwayAsMJ;
 
           default:
           // Cas par défaut (victoire solo spécifique)
@@ -451,6 +451,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
                         ),
                         onPressed: () async {
                           debugPrint("🏠 LOG [GameOver] : Reset de la partie et retour à l'accueil.");
+                          globalGameSessionActive = false;
                           await resetAllGameData();
                           if (context.mounted) {
                             Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);

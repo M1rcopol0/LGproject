@@ -28,7 +28,12 @@ void main() async {
       // A. On envoie à Talker (pour l'historique dans l'appli et l'export)
       globalTalker.debug(message);
 
-      // B. On imprime manuellement dans la console Android Studio (pour le débug direct)
+      // B. On capture dans le buffer de session si une partie est active
+      if (globalGameSessionActive) {
+        globalGameSessionLogs.add(message);
+      }
+
+      // C. On imprime manuellement dans la console Android Studio (pour le débug direct)
       print(message);
     }
   };
