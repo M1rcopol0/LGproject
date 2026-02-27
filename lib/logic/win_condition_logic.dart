@@ -40,6 +40,18 @@ class WinConditionLogic {
       // Phyl n'est pas dans la partie ou n'est plus vivant
     }
 
+    // --- CONDITION DE VICTOIRE : AMOUREUX ---
+    final lovers = alive.where((p) => p.isLinkedByCupidon).toList();
+    if (lovers.length == 2) {
+      final nonLoverNonCupidon = alive.where(
+        (p) => !p.isLinkedByCupidon && p.role?.toLowerCase() != "cupidon"
+      ).toList();
+      if (nonLoverNonCupidon.isEmpty) {
+        debugPrint("💕 LOG [Fin] : VICTOIRE DES AMOUREUX !");
+        return "AMOUREUX";
+      }
+    }
+
     // --- DÉTERMINATION DES FACTIONS ENCORE EN LICE ---
     // Les fans de Ron-Aldo restent dans sa faction même si Ron-Aldo est mort
     Set<String> activeFactions = {};

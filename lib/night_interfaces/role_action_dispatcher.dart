@@ -144,7 +144,7 @@ class _RoleActionDispatcherState extends State<RoleActionDispatcher> {
       case "Somnifère": return SomnifereInterface(actor: widget.actor, onActionComplete: widget.onSomnifere);
       case "Devin": return DevinInterface(devin: widget.actor, allPlayers: widget.allPlayers, onNext: (s) => widget.onNext());
       case "Houston": return HoustonInterface(actor: widget.actor, players: widget.allPlayers, onComplete: (l) { widget.actor.houstonTargets = l; widget.onNext(); });
-      case "Enculateur du bled": return BledInterface(actor: widget.actor, players: widget.allPlayers, onComplete: (l) { for(var p in l) { p.isMutedDay = true; p.isImmunizedFromVote = true; } widget.onNext(); });
+      case "Enculateur du bled": return BledInterface(actor: widget.actor, players: widget.allPlayers, onComplete: (l) { for(var p in l) { p.isImmunizedFromVote = true; } widget.onNext(); });
       case "Archiviste": return ArchivisteInterface(players: widget.allPlayers, actor: widget.actor, onComplete: (m) { if(m!=null) widget.showPopUp("Info", m); else widget.onNext(); });
       case "Maison": return MaisonInterface(actor: widget.actor, players: widget.allPlayers, onComplete: (l) { for(var p in l) p.isInHouse = true; widget.onNext(); });
       case "Chuchoteur": return ChuchoteurInterface(players: widget.allPlayers, onTargetsSelected: (l) { for(var p in l) p.isMutedDay = true; widget.onNext(); });

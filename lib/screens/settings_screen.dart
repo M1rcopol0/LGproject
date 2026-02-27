@@ -1,8 +1,6 @@
 import 'dart:io'; // Pour File
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart'; // Pour le dossier temporaire
-import 'package:share_plus/share_plus.dart'; // Pour envoyer le fichier
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:talker_flutter/talker_flutter.dart'; // Pour récupérer l'historique
 
@@ -57,42 +55,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ===========================================================================
-  // 1. LOGIQUE D'EXPORTATION DES LOGS
+  // 1. LOGIQUE D'EXPORTATION DES LOGS → GOOGLE SHEETS
   // ===========================================================================
   Future<void> _generateAndSendLogs() async {
+    final bugController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1D1E33),
+        title: const Text("🐛 Signaler un bug", style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Description courte du bug :", style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: bugController,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "ex: Crash au vote du tour 3",
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF0A0E21),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Annuler")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Envoyer"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final bugDesc = bugController.text.trim().isEmpty ? "bug" : bugController.text.trim();
+    final now = DateTime.now();
+    final tabName =
+        "${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} "
+        "${now.hour.toString().padLeft(2, '0')}h${now.minute.toString().padLeft(2, '0')} - $bugDesc";
+
+    // Construire le contenu des logs
     try {
-      StringBuffer sb = StringBuffer();
-      sb.writeln("=== LOUP GAROU 3.0 - RAPPORT DE BUG ===");
-      sb.writeln("Date: ${DateTime.now()}");
-      sb.writeln("Version: $globalGameVersion");
-      sb.writeln("\n--------------------------------------------------\n");
-
-      final lines = globalGameSessionLogs.isNotEmpty
-          ? globalGameSessionLogs
-          : globalTalker.history.map((l) => l.generateTextMessage()).toList();
-
-      if (lines.isEmpty) {
-        sb.writeln("Aucun log enregistré en mémoire.");
-      } else {
-        for (var line in lines) {
-          sb.writeln(line);
+      String logsContent;
+      if (globalLogFilePath != null) {
+        final persistentFile = File(globalLogFilePath!);
+        if (await persistentFile.exists() && await persistentFile.length() > 0) {
+          logsContent = await persistentFile.readAsString();
+        } else {
+          logsContent = _buildLogsFromMemory();
         }
+      } else {
+        logsContent = _buildLogsFromMemory();
       }
 
-      final directory = await getTemporaryDirectory();
-      final file = File('${directory.path}/debug_logs_lg3.txt');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Envoi en cours…"), duration: Duration(seconds: 2)),
+        );
+      }
 
-      await file.writeAsString(sb.toString());
-      await Share.shareXFiles([XFile(file.path)], text: 'Rapport Bug Loup Garou 3.0');
+      final success = await CloudService.sendLogsToSheet(tabName, logsContent);
 
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? "✅ Logs envoyés dans l'onglet : $tabName" : "❌ Échec de l'envoi des logs."),
+            backgroundColor: success ? Colors.green.shade700 : Colors.red.shade700,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } catch (e) {
       debugPrint("Erreur lors de l'export des logs: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Erreur lors de la création du rapport de bug."), backgroundColor: Colors.red),
+          const SnackBar(content: Text("Erreur lors de l'export des logs."), backgroundColor: Colors.red),
         );
       }
     }
+  }
+
+  String _buildLogsFromMemory() {
+    final sb = StringBuffer();
+    sb.writeln("=== LOUP GAROU 3.0 - RAPPORT DE BUG ===");
+    sb.writeln("Date: ${DateTime.now()}");
+    sb.writeln("Version: $globalGameVersion");
+    sb.writeln("\n--------------------------------------------------\n");
+    final lines = globalGameSessionLogs.isNotEmpty
+        ? globalGameSessionLogs
+        : globalTalker.history.map((l) => l.generateTextMessage()).toList();
+    if (lines.isEmpty) {
+      sb.writeln("Aucun log enregistré en mémoire.");
+    } else {
+      for (var line in lines) sb.writeln(line);
+    }
+    return sb.toString();
   }
 
   // ===========================================================================

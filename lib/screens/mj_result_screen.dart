@@ -7,6 +7,7 @@ import '../services/game_save_service.dart';
 import '../services/audio_service.dart';
 import '../globals.dart';
 import '../widgets/mj_vote_card.dart';
+import '../state/game_history.dart';
 
 class MJResultScreen extends StatefulWidget {
   final List<Player> allPlayers;
@@ -145,24 +146,46 @@ class _MJResultScreenState extends State<MJResultScreen> {
       return;
     }
 
+    // Enregistrement dans l'historique (avec raison correcte pour les morts de chagrin)
+    gameHistory.add(TurnHistoryEntry(
+      turn: globalTurnNumber,
+      phase: "jour",
+      eliminations: victims.map((p) {
+        final bool isHeartbreak = p.isLinkedByCupidon && p.name != target.name;
+        final String reason = isHeartbreak
+            ? "💔 Chagrin d'amour (${p.lover?.name ?? target.name})"
+            : "Vote du village";
+        return EliminationRecord(
+          playerName: p.name,
+          role: p.role ?? "?",
+          team: p.team,
+          reason: reason,
+        );
+      }).toList(),
+    ));
+
     await Future.delayed(const Duration(milliseconds: 500));
     if (!context.mounted) return;
 
     // --- AFFICHAGE DES MORTS ---
-    String message = "Les joueurs suivants sont éliminés :\n\n";
-    for (var p in victims) {
-      message += "- ${p.name} (${p.role})\n";
-    }
-
     await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) {
+          return AlertDialog(
             backgroundColor: const Color(0xFF1D1E33),
             title: const Text("💀 Sentence : MORT", style: TextStyle(color: Colors.white)),
-            content: Text(message, style: const TextStyle(color: Colors.white70)),
-            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))]
-        )
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: victims.map((p) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text("- ${p.name} (${p.role})", style: const TextStyle(color: Colors.white70)),
+              )).toList(),
+            ),
+            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("OK", style: TextStyle(color: Colors.orangeAccent)))],
+          );
+        }
     );
 
     // --- GESTION RÉCURSIVE DES POUVOIRS DE MORT (Chasseur, Pokémon) ---
@@ -176,20 +199,34 @@ class _MJResultScreenState extends State<MJResultScreen> {
       processedNames.add(currentDead.name);
 
       List<Player> newVictims = [];
+      String? directTargetName;
       String? role = currentDead.role?.toLowerCase();
 
       // A. CAS CHASSEUR
       if (role == "chasseur") {
         debugPrint("💀 CAPTEUR [Mort] : Vengeance Chasseur pour ${currentDead.name}.");
-        newVictims = await _handleRetaliationAction(context, currentDead, "Tir du Chasseur", "🔫 DERNIER SOUFFLE", "Il doit éliminer quelqu'un immédiatement.");
+        final result = await _handleRetaliationAction(context, currentDead, "Tir du Chasseur", "🔫 DERNIER SOUFFLE", "Il doit éliminer quelqu'un immédiatement.");
+        newVictims = result.$1;
+        directTargetName = result.$2;
       }
       // B. CAS POKÉMON
       else if (role == "pokémon" || role == "pokemon") {
         debugPrint("💀 CAPTEUR [Mort] : Vengeance Pokémon pour ${currentDead.name}.");
-        newVictims = await _handleRetaliationAction(context, currentDead, "Attaque Tonnerre", "⚡ VENGEANCE ÉLECTRIQUE", "Le Pokémon lance une dernière attaque !");
+        final result = await _handleRetaliationAction(context, currentDead, "Attaque Tonnerre", "⚡ VENGEANCE ÉLECTRIQUE", "Le Pokémon lance une dernière attaque !");
+        newVictims = result.$1;
+        directTargetName = result.$2;
       }
 
       if (newVictims.isNotEmpty) {
+        final String retalReason = (role == "chasseur") ? "Tir du Chasseur" : "Vengeance du Pokémon";
+        addToHistory(globalTurnNumber, "jour", newVictims.map((v) => EliminationRecord(
+          playerName: v.name,
+          role: v.role ?? "?",
+          team: v.team,
+          reason: (v.isLinked && v.name != directTargetName)
+              ? "💔 Chagrin d'amour (${v.lover?.name ?? '?'})"
+              : retalReason,
+        )).toList());
         playersToProcess.addAll(newVictims);
       }
     }
@@ -197,7 +234,7 @@ class _MJResultScreenState extends State<MJResultScreen> {
     if (context.mounted) _routeAfterDecision(context);
   }
 
-  Future<List<Player>> _handleRetaliationAction(BuildContext context, Player source, String reason, String title, String desc) async {
+  Future<(List<Player>, String?)> _handleRetaliationAction(BuildContext context, Player source, String reason, String title, String desc) async {
     await showDialog(
       context: context, barrierDismissible: false,
       builder: (ctx) => AlertDialog(
@@ -208,7 +245,7 @@ class _MJResultScreenState extends State<MJResultScreen> {
       ),
     );
 
-    if (!mounted) return [];
+    if (!mounted) return (<Player>[], null);
 
     Player? selectedTarget = await showDialog<Player>(
       context: context, barrierDismissible: false,
@@ -259,9 +296,9 @@ class _MJResultScreenState extends State<MJResultScreen> {
           )
       );
 
-      return shotVictims;
+      return (shotVictims, selectedTarget.name);
     }
-    return [];
+    return (<Player>[], null);
   }
 
   void _handleNoOneDies(BuildContext context) async {

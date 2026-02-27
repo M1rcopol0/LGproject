@@ -10,6 +10,8 @@ import 'fin_screen.dart';
 import '../widgets/morning_summary_dialog.dart';
 import '../logic/logic.dart';
 import '../night_interfaces/pokemon_interface.dart'; // Assurez-vous d'avoir ce fichier
+import '../night_interfaces/chasseur_death_handler.dart';
+import '../state/game_history.dart';
 
 class NightActionsScreen extends StatefulWidget {
   final List<Player> players;
@@ -84,6 +86,8 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     if (!shouldWakeUp) {
       debugPrint("📡 CAPTEUR [Dispatch] : SKIP $roleName (pas de joueur éligible).");
       Future.microtask(() => _nextAction());
+    } else {
+      playSfx(action.sound);
     }
   }
 
@@ -126,6 +130,20 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
       exorcistWin = true;
     }
 
+    // Enregistrement dans l'historique
+    if (result.deadPlayers.isNotEmpty) {
+      gameHistory.add(TurnHistoryEntry(
+        turn: globalTurnNumber,
+        phase: "nuit",
+        eliminations: result.deadPlayers.map((p) => EliminationRecord(
+          playerName: p.name,
+          role: p.role ?? "?",
+          team: p.team,
+          reason: result.deathReasons[p.name] ?? "Cause inconnue",
+        )).toList(),
+      ));
+    }
+
     playSfx((result.deadPlayers.isEmpty && !result.villageIsNarcoleptic)
         ? "oiseau.mp3"
         : "cloche.mp3");
@@ -141,16 +159,63 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
           debugPrint("🔴 CAPTEUR [Matin] : Bouton Confirm pressé.");
           bool summaryDialogClosed = false;
 
-          // 1. GESTION DES MORTS NOCTURNES SPÉCIALES (Pokémon)
-          for (var p in result.deadPlayers) {
+          // 1. GESTION DES MORTS NOCTURNES SPÉCIALES (Chasseur, Pokémon — chaînes de morts)
+          List<Player> playersToProcess = List.from(result.deadPlayers);
+          List<String> processedNames = [];
+
+          while (playersToProcess.isNotEmpty) {
+            final p = playersToProcess.removeAt(0);
+            if (processedNames.contains(p.name)) continue;
+            processedNames.add(p.name);
+
+            final String? role = p.role?.toLowerCase();
 
             // Si le Dresseur meurt : RIEN DE SPÉCIAL (Le Pokémon survit)
-            if (p.role?.toLowerCase() == "dresseur") {
+            if (role == "dresseur") {
               debugPrint("🔍 CAPTEUR [Mort] : Le Dresseur est mort. Le Pokémon devient indépendant.");
             }
 
+            // Si le Chasseur meurt : VENGEANCE
+            else if (role == "chasseur") {
+              debugPrint("🔍 CAPTEUR [Mort] : Le Chasseur est mort ! Vengeance...");
+
+              if (!summaryDialogClosed) {
+                Navigator.pop(ctx);
+                summaryDialogClosed = true;
+              }
+
+              final chasseurResult = await ChasseurDeathHandler.handleVengeance(
+                context: context,
+                allPlayers: widget.players,
+                chasseur: p,
+              );
+              final List<Player> newVictims = chasseurResult.$1;
+              final String? directTargetName = chasseurResult.$2;
+
+              if (newVictims.isNotEmpty) {
+                addToHistory(globalTurnNumber, "nuit", newVictims.map((v) => EliminationRecord(
+                  playerName: v.name,
+                  role: v.role ?? "?",
+                  team: v.team,
+                  reason: (v.isLinked && v.name != directTargetName)
+                      ? "💔 Chagrin d'amour (${v.lover?.name ?? '?'})"
+                      : "Tir du Chasseur",
+                )).toList());
+              }
+
+              playersToProcess.addAll(newVictims);
+
+              // --- CHECK VICTOIRE IMMÉDIAT APRÈS VENGEANCE ---
+              String? winner = GameLogic.checkWinner(widget.players);
+              if (winner != null) {
+                debugPrint("🏆 CAPTEUR [Victoire] : Victoire détectée après vengeance Chasseur ($winner).");
+                if (mounted) _navigateToGameOver(winner);
+                return;
+              }
+            }
+
             // Si le Pokémon meurt : VENGEANCE
-            else if (p.role?.toLowerCase() == "pokémon" || p.role?.toLowerCase() == "pokemon") {
+            else if (role == "pokémon" || role == "pokemon") {
               debugPrint("🔍 CAPTEUR [Mort] : Le Pokémon est mort ! Vengeance...");
 
               if (!summaryDialogClosed) {
@@ -158,20 +223,33 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
                 summaryDialogClosed = true;
               }
 
-              // Lancement de l'attaque tonnerre
-              await PokemonDeathHandler.handleVengeance(
+              final pokemonResult = await PokemonDeathHandler.handleVengeance(
                   context: context,
                   allPlayers: widget.players,
                   pokemon: p
               );
+              final List<Player> newVictims = pokemonResult.$1;
+              final String? directTargetName = pokemonResult.$2;
+
+              if (newVictims.isNotEmpty) {
+                addToHistory(globalTurnNumber, "nuit", newVictims.map((v) => EliminationRecord(
+                  playerName: v.name,
+                  role: v.role ?? "?",
+                  team: v.team,
+                  reason: (v.isLinked && v.name != directTargetName)
+                      ? "💔 Chagrin d'amour (${v.lover?.name ?? '?'})"
+                      : "Vengeance du Pokémon",
+                )).toList());
+              }
+
+              playersToProcess.addAll(newVictims);
 
               // --- CHECK VICTOIRE IMMÉDIAT APRÈS VENGEANCE ---
-              // Si la vengeance a tué le dernier hostile, on ne doit pas continuer le tour !
               String? winner = GameLogic.checkWinner(widget.players);
               if (winner != null) {
                 debugPrint("🏆 CAPTEUR [Victoire] : Victoire détectée après vengeance Pokémon ($winner).");
                 if (mounted) _navigateToGameOver(winner);
-                return; // STOP TOTAL : On sort de la fonction et on ne fait rien d'autre
+                return;
               }
             }
           }
@@ -213,13 +291,15 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
     debugPrint("🚀 CAPTEUR [Navigation] : Départ vers GameOverScreen ($winner)...");
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-            builder: (context) => GameOverScreen(
-                winnerType: winner,
-                players: List.from(widget.players)
-            )
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => GameOverScreen(
+              winnerType: winner,
+              players: List.from(widget.players)),
+          transitionDuration: const Duration(milliseconds: 700),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
         ),
-            (Route<dynamic> route) => false
+        (Route<dynamic> route) => false,
     );
   }
 
@@ -234,6 +314,14 @@ class _NightActionsScreenState extends State<NightActionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (nightFinished) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0A0E21),
+        body: Center(
+          child: Icon(Icons.wb_sunny, color: Colors.orangeAccent, size: 60),
+        ),
+      );
+    }
     final action = nightActionsOrder[currentActionIndex];
     Player actor;
     try {

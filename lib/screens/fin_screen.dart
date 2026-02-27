@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../models/player.dart';
 import '../models/achievement.dart';
 import '../globals.dart';
@@ -87,6 +88,11 @@ class _GameOverScreenState extends State<GameOverScreen> {
           // L'Exorciste fait gagner tout le village
             return team == "village" && !p.isFanOfRonAldo && !p.isAwayAsMJ;
 
+          case "AMOUREUX":
+          // Les 2 amoureux + Cupidon s'il est vivant et non lui-même amoureux
+            return p.isLinkedByCupidon ||
+              (p.role?.toLowerCase() == "cupidon" && p.isAlive && !p.isLinkedByCupidon);
+
           default:
           // Cas par défaut (victoire solo spécifique)
             return role == widget.winnerType;
@@ -135,7 +141,6 @@ class _GameOverScreenState extends State<GameOverScreen> {
           'fan_sacrifice_achieved': fanSacrificeAchieved,
           'ultimate_fan_achieved': ultimateFanAchieved,
           'wolves_alive_count': activePlayers.where((p) => p.team == "loups" && p.isAlive).length,
-          'no_friendly_fire_vote': !wolfVotedWolf,
           'first_dead_name': firstDeadPlayerName,
           'chaman_sniper_achieved': chamanSniperAchieved,
           'evolved_hunger_achieved': evolvedHungerAchieved,
@@ -162,7 +167,7 @@ class _GameOverScreenState extends State<GameOverScreen> {
         // Vérification des succès de fin de partie
         if (mounted) {
           try {
-            await AchievementLogic.checkEndGameAchievements(context, winners, activePlayers);
+            await AchievementLogic.checkEndGameAchievements(context, winners, activePlayers, winnerType: widget.winnerType);
             debugPrint("⏱️ [GameOver] +${sw.elapsedMilliseconds}ms — checkEndGameAchievements terminé");
           } catch (e) {
             debugPrint("❌ LOG [GameOver] : Erreur checkEndGameAchievements : $e");
@@ -348,6 +353,13 @@ class _GameOverScreenState extends State<GameOverScreen> {
         icon = Icons.volume_off;
         break;
 
+      case "AMOUREUX":
+        title = "VICTOIRE DES AMOUREUX";
+        message = "L'amour a triomphé sur tout le reste !";
+        themeColor = Colors.pinkAccent;
+        icon = Icons.favorite;
+        break;
+
       case "ÉGALITÉ_SANGUINAIRE":
         title = "ÉGALITÉ SANGUINAIRE";
         message = "Personne n'a survécu...";
@@ -440,18 +452,96 @@ class _GameOverScreenState extends State<GameOverScreen> {
                     ],
 
                     const SizedBox(height: 60),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final bugController = TextEditingController();
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1D1E33),
+                            title: const Text("🐛 Signaler un bug", style: TextStyle(color: Colors.white)),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("Description courte du bug :", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: bugController,
+                                  autofocus: true,
+                                  style: const TextStyle(color: Colors.white),
+                                  decoration: InputDecoration(
+                                    hintText: "ex: Crash au vote du tour 3",
+                                    hintStyle: const TextStyle(color: Colors.white38),
+                                    filled: true,
+                                    fillColor: const Color(0xFF0A0E21),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Annuler")),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text("Envoyer"),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || !context.mounted) return;
+                        final bugDesc = bugController.text.trim().isEmpty ? "bug" : bugController.text.trim();
+                        final now = DateTime.now();
+                        final tabName =
+                            "${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} "
+                            "${now.hour.toString().padLeft(2, '0')}h${now.minute.toString().padLeft(2, '0')} - $bugDesc";
+                        try {
+                          String logsContent;
+                          if (globalLogFilePath != null) {
+                            final persistentFile = File(globalLogFilePath!);
+                            if (await persistentFile.exists() && await persistentFile.length() > 0) {
+                              logsContent = await persistentFile.readAsString();
+                            } else {
+                              logsContent = _buildLogsFromMemory();
+                            }
+                          } else {
+                            logsContent = _buildLogsFromMemory();
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Envoi en cours…"), duration: Duration(seconds: 2)),
+                            );
+                          }
+                          final success = await CloudService.sendLogsToSheet(tabName, logsContent);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(success ? "✅ Logs envoyés dans l'onglet : $tabName" : "❌ Échec de l'envoi des logs."),
+                                backgroundColor: success ? Colors.green.shade700 : Colors.red.shade700,
+                                duration: const Duration(seconds: 4),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint("Erreur export logs fin de partie: $e");
+                        }
+                      },
+                      icon: const Icon(Icons.bug_report, color: Colors.white38),
+                      label: const Text("Exporter les logs", style: TextStyle(color: Colors.white38, fontSize: 13)),
+                    ),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity, height: 55,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: themeColor,
                           foregroundColor: Colors.black,
-                          elevation: 5, // Réduction de l'élévation
+                          elevation: 5,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         ),
                         onPressed: () async {
                           debugPrint("🏠 LOG [GameOver] : Reset de la partie et retour à l'accueil.");
-                          globalGameSessionActive = false;
                           await resetAllGameData();
                           if (context.mounted) {
                             Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
@@ -468,6 +558,19 @@ class _GameOverScreenState extends State<GameOverScreen> {
         ),
       ),
     );
+  }
+
+  String _buildLogsFromMemory() {
+    final sb = StringBuffer();
+    sb.writeln("=== LOUP GAROU 3.0 - LOGS DE PARTIE ===");
+    sb.writeln("Date: ${DateTime.now()}");
+    sb.writeln("Version: $globalGameVersion");
+    sb.writeln("\n--------------------------------------------------\n");
+    final lines = globalGameSessionLogs.isNotEmpty
+        ? globalGameSessionLogs
+        : globalTalker.history.map((l) => l.generateTextMessage()).toList();
+    for (var line in lines) sb.writeln(line);
+    return sb.toString();
   }
 
   Widget _buildWinnerChip(Player p, Color color) {

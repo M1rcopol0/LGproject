@@ -23,7 +23,6 @@ void resetGlobalState() {
   // Achievement flags
   anybodyDeadYet = false;
   firstDeadPlayerName = null;
-  wolfVotedWolf = false;
   pokemonDiedTour1 = false;
   pantinClutchSave = false;
   paradoxAchieved = false;

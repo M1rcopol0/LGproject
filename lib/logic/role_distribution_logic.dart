@@ -10,7 +10,7 @@ class RoleDistributionLogic {
     // 🟢 VILLAGE
     "Villageois": 1,
     "Kung-Fu Panda": 1,
-    "Cupidon": 2,
+    "Cupidon": 5,
     "Chasseur": 3,
     "Enculateur du bled": 6,
     "Zookeeper": 6,
@@ -371,10 +371,14 @@ class RoleDistributionLogic {
         batchVillageScores.add(currentVillageScore);
       }
 
-      // --- F. Sélection aléatoire parmi les lancers acceptables (ratio ≥ 0.4) ---
+      // --- F. Sélection aléatoire parmi les lancers acceptables (seuil asymétrique) ---
+      // Si hostile > village : seuil strict 45% (max 5% de désavantage pour le village)
+      // Si village >= hostile : seuil souple 40% (max 10% de désavantage pour les hostiles)
       List<int> acceptableIndices = [];
       for (int i = 0; i < rollsPerBatch; i++) {
-        if (batchRatios[i] >= 0.4) acceptableIndices.add(i);
+        bool hostile = batchHostileScores[i] > batchVillageScores[i];
+        double threshold = hostile ? 0.45 : 0.40;
+        if (batchRatios[i] >= threshold) acceptableIndices.add(i);
       }
 
       // Fallback : index du lancer le plus proche de 50%
@@ -390,7 +394,9 @@ class RoleDistributionLogic {
 
       // Log chaque lancer du batch
       for (int i = 0; i < rollsPerBatch; i++) {
-        String status = batchRatios[i] >= 0.4 ? "✅" : "❌";
+        bool isHostileDominant = batchHostileScores[i] > batchVillageScores[i];
+        double thresh = isHostileDominant ? 0.45 : 0.40;
+        String status = batchRatios[i] >= thresh ? "✅" : "❌";
         List<String> roles = batchResults[i];
         int hostileCount = roles.where((r) => _wolfRoles.contains(r) || _soloRoles.contains(r)).length;
 
@@ -443,14 +449,13 @@ class RoleDistributionLogic {
     bool userWantsWolves = (globalPickBan["loups"] ?? []).isNotEmpty;
     bool hasWolf = rolesToAdd.any((r) => _wolfRoles.contains(r))
                 || assignedRoles.any((r) => _wolfRoles.contains(r));
-    if (userWantsWolves && !hasWolf && rolesToAdd.isNotEmpty) {
-      int soloIndex = rolesToAdd.indexWhere((r) => _soloRoles.contains(r));
-      if (soloIndex >= 0) {
-        debugPrint("⚠️ BALANCE [Fix] : Pas de loup → remplacement solo par Loup-garou évolué");
-        rolesToAdd[soloIndex] = "Loup-garou évolué";
-      } else {
-        rolesToAdd[0] = "Loup-garou évolué";
-      }
+    bool hasSoloHostile = rolesToAdd.any((r) => _soloRoles.contains(r))
+                       || assignedRoles.any((r) => _soloRoles.contains(r));
+    // Sécurité LG : uniquement si aucun hostile du tout (ni loup ni solo).
+    // Si des solos hostiles sont présents (ex. Dresseur+Pokémon), la partie est viable sans loup.
+    if (userWantsWolves && !hasWolf && !hasSoloHostile && rolesToAdd.isNotEmpty) {
+      debugPrint("⚠️ BALANCE [Fix] : Aucun hostile → remplacement par Loup-garou évolué");
+      rolesToAdd[0] = "Loup-garou évolué";
     }
 
     // Mélanger les joueurs non-lockés pour éviter l'attribution prévisible par ordre alphabétique

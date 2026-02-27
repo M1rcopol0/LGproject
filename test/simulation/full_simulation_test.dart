@@ -790,7 +790,7 @@ void main() {
         makePlayer("V7", role: "Saltimbanque"),
       ];
 
-      Player result =
+      List<Player> result =
           GameLogic.eliminatePlayer(ctx, players, pantin, isVote: true);
 
       expect(pantin.isAlive, isTrue,
@@ -798,7 +798,7 @@ void main() {
       expect(pantin.hasSurvivedVote, isTrue);
 
       // Deuxième vote : meurt
-      Player result2 =
+      List<Player> result2 =
           GameLogic.eliminatePlayer(ctx, players, pantin, isVote: true);
       expect(pantin.isAlive, isFalse,
           reason: 'Pantin meurt au deuxième vote');
@@ -875,11 +875,13 @@ void main() {
 
       expect(wolf.isAlive, isFalse);
       expect(pantin.isAlive, isTrue,
-          reason: 'FIX: Pantin survit immédiatement (timer 2 tours)');
+          reason: 'FIX bug 4: Pantin survit immédiatement (timer 2 tours)');
       expect(pantin.pantinCurseTimer, equals(2),
           reason: 'Timer de chagrin initialisé à 2');
-      expect(result.deathReasons["Pantin"],
-          contains("Chagrin d'amour différé"));
+      // Fix bug 4 : le Pantin maudit n'est PAS annoncé mort dans deathReasons (il est vivant)
+      // L'icône de malédiction sur sa carte signale son état ; la mort réelle intervient quand timer=0
+      expect(result.deathReasons["Pantin"], isNull,
+          reason: 'Pantin maudit mais vivant : pas de fausse mort dans deathReasons');
 
       // Nuit 2 : timer 2 → 1
       NightPreparation.run(players);
@@ -1115,6 +1117,7 @@ void main() {
         makePlayer("V1", role: "Villageois"),
       ];
 
+      // Phyl doit être chef du village (Maire/Roi/Dictateur) pour déclencher sa victoire
       String? winner = GameLogic.checkWinner(players);
       expect(winner, isNot(equals("PHYL")),
           reason: 'Phyl ne devrait pas gagner sans être chef');
@@ -1345,7 +1348,7 @@ void main() {
       ];
 
       // On tue l'occupant via eliminatePlayer (pas resolveNight) pour tester la logique Maison
-      Player result = GameLogic.eliminatePlayer(ctx, players, occupant);
+      List<Player> result = GameLogic.eliminatePlayer(ctx, players, occupant);
 
       expect(occupant.isAlive, isTrue,
           reason: 'Occupant protégé par la Maison');
@@ -1610,7 +1613,7 @@ void main() {
       ];
 
       // Vote élimine W1
-      Player eliminated =
+      List<Player> eliminated =
           GameLogic.eliminatePlayer(ctx, players, wolf, isVote: true);
       expect(wolf.isAlive, isFalse);
 
@@ -2055,8 +2058,8 @@ void main() {
 
       // Dresseur a 4 voix (majorité), éliminé
       expect(dresseur.votes, equals(4));
-      Player deadDresseur = GameLogic.eliminatePlayer(ctx, allPlayers, dresseur, isVote: true);
-      expect(deadDresseur.isAlive, isFalse, reason: 'Dresseur éliminé par vote');
+      List<Player> deadDresseur = GameLogic.eliminatePlayer(ctx, allPlayers, dresseur, isVote: true);
+      expect(dresseur.isAlive, isFalse, reason: 'Dresseur éliminé par vote');
 
       // Pas encore de vainqueur (Pokémon solo toujours en vie → faction DRESSEUR)
       expect(GameLogic.checkWinner(allPlayers), isNull,
@@ -2090,15 +2093,15 @@ void main() {
 
       // Pokémon a 3 voix (majorité), éliminé
       expect(pokemon.votes, equals(3));
-      Player deadPokemon = GameLogic.eliminatePlayer(ctx, allPlayers, pokemon, isVote: true);
-      expect(deadPokemon.isAlive, isFalse, reason: 'Pokémon éliminé par vote du village');
+      List<Player> deadPokemon = GameLogic.eliminatePlayer(ctx, allPlayers, pokemon, isVote: true);
+      expect(pokemon.isAlive, isFalse, reason: 'Pokémon éliminé par vote du village');
 
       // --- VENGEANCE DU POKÉMON : tue V2 ---
       // (En jeu réel, c'est le MJ qui choisit la cible via l'UI.
       //  En test, on simule directement l'appel eliminatePlayer.)
-      Player deadVengeance = GameLogic.eliminatePlayer(
+      List<Player> deadVengeance = GameLogic.eliminatePlayer(
           ctx, allPlayers, v2, isVote: false, reason: "Attaque Tonnerre (Vengeance)");
-      expect(deadVengeance.isAlive, isFalse,
+      expect(v2.isAlive, isFalse,
           reason: 'V2 tué par la vengeance du Pokémon');
 
       // ========== VÉRIFICATION VICTOIRE VILLAGE ==========
@@ -2270,8 +2273,8 @@ void main() {
       expect(find.text("Alice"), findsOneWidget);
       expect(find.text("Bob"), findsOneWidget);
 
-      // Drainer les timers TrophyService (toasts de 4s enchaînés)
-      await tester.pump(const Duration(seconds: 15));
+      // Drainer les timers TrophyService (toasts de 4s enchaînés × nombreux succès)
+      await tester.pump(const Duration(seconds: 60));
     });
 
     testWidgets('ÉGALITÉ_SANGUINAIRE : affiche le message correct',

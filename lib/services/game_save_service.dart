@@ -25,7 +25,6 @@ class GameSaveService {
       // Flags Globaux Importants
       'anybodyDeadYet': anybodyDeadYet,
       'firstDeadPlayerName': firstDeadPlayerName,
-      'wolfVotedWolf': wolfVotedWolf,
       'pokemonDiedTour1': pokemonDiedTour1,
       'pantinClutchSave': pantinClutchSave,
       'paradoxAchieved': paradoxAchieved,
@@ -64,7 +63,6 @@ class GameSaveService {
 
       anybodyDeadYet = data['anybodyDeadYet'] ?? false;
       firstDeadPlayerName = data['firstDeadPlayerName'];
-      wolfVotedWolf = data['wolfVotedWolf'] ?? false;
       pokemonDiedTour1 = data['pokemonDiedTour1'] ?? false;
       pantinClutchSave = data['pantinClutchSave'] ?? false;
       paradoxAchieved = data['paradoxAchieved'] ?? false;

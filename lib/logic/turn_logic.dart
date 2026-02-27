@@ -29,7 +29,9 @@ class TurnLogic {
         p.hasBeenHitByDart = false;
         p.zookeeperEffectReady = false;
         p.hasBakedQuiche = false;
-        p.isVillageProtected = false;
+        // isVillageProtected n'est PAS effacé ici : la quiche fait effet
+        // même si la grand-mère est morte (elle a cuisiné avant de mourir).
+        // La machine d'état dans NightCleanup gère l'expiration.
         continue;
       }
 

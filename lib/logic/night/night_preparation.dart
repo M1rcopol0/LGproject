@@ -15,18 +15,10 @@ class NightPreparation {
         debugPrint("💣 LOG [Tardos] : La bombe de ${p.name} tic-tac... (T-Minus: ${p.bombTimer})");
       }
 
-      // --- LOGIQUE BOMBE MANUELLE ---
+      // --- LOGIQUE BOMBE (Tardos ou manuelle) ---
       if (p.isBombed && p.attachedBombTimer > 0) {
-        // Double sécurité pour éviter conflit avec Tardos
-        bool targetedByTardos = players.any((attacker) =>
-        attacker.role?.toLowerCase() == "tardos" &&
-            attacker.hasPlacedBomb &&
-            attacker.tardosTarget == p);
-
-        if (!targetedByTardos) {
-          p.attachedBombTimer--;
-          debugPrint("🧨 LOG [MJ] : Bombe manuelle sur ${p.name} tic-tac... (T-Minus: ${p.attachedBombTimer})");
-        }
+        p.attachedBombTimer--;
+        debugPrint("💣 LOG [Bombe] : Compte à rebours sur ${p.name} : T-${p.attachedBombTimer}");
       }
 
       // --- RESET DES POUVOIRS NOCTURNES DE L'ARCHIVISTE (réutilisables chaque nuit) ---

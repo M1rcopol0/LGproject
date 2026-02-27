@@ -93,7 +93,8 @@ class NightActionsLogic {
     // --- QUICHE ---
     bool quicheIsActive = false;
     if (globalTurnNumber > 1) {
-      quicheIsActive = players.any((p) => p.role?.toLowerCase() == "grand-mère" && p.isAlive && p.isVillageProtected && !p.isEffectivelyAsleep);
+      // p.isAlive retiré : la quiche fait effet même si la grand-mère est morte entre-temps
+      quicheIsActive = players.any((p) => p.role?.toLowerCase() == "grand-mère" && p.isVillageProtected && !p.isEffectivelyAsleep);
     }
 
     // --- RESOLUTION DES MORTS ---

@@ -17,8 +17,8 @@ class AchievementLogic {
   static Future<void> checkMidGameAchievements(BuildContext context, List<Player> allPlayers) =>
       AchievementScanner.checkMidGameAchievements(context, allPlayers);
 
-  static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) =>
-      AchievementScanner.checkEndGameAchievements(context, winners, allPlayers);
+  static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers, {String winnerType = ""}) =>
+      AchievementScanner.checkEndGameAchievements(context, winners, allPlayers, winnerType: winnerType);
 
   // --- Evenements manuels ---
   static void trackVote(Player voter, Player target) =>

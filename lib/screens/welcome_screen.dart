@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'lobby_screen.dart';
@@ -151,6 +152,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       onPressed: () async {
                         globalGameSessionLogs.clear();
                         globalGameSessionActive = true;
+                        if (globalLogFilePath != null) {
+                          try { File(globalLogFilePath!).writeAsStringSync('=== Nouvelle partie — ${DateTime.now()} ===\n'); } catch (_) {}
+                        }
                         await resetAllGameData();
                         final names = await PlayerDirectory.getSavedPlayers();
                         globalPlayers = names.map((n) => Player(name: n)).toList();

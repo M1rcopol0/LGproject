@@ -25,9 +25,19 @@ extension PlayerStatusIconsExtension on Player {
     if (pantinCurseTimer != null) icons.add(const Icon(Icons.link, size: 16, color: Colors.redAccent));
 
     if (isBombed) {
-      icons.add(const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 2.0),
-        child: Icon(FontAwesomeIcons.bomb, size: 14, color: Colors.redAccent),
+      icons.add(Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(FontAwesomeIcons.bomb, size: 14, color: Colors.redAccent),
+            if (attachedBombTimer > 0)
+              Text(
+                "$attachedBombTimer",
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.redAccent),
+              ),
+          ],
+        ),
       ));
     }
 

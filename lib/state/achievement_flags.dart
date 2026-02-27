@@ -1,7 +1,6 @@
 // --- FLAGS DE SUCCES ---
 bool anybodyDeadYet = false;
 String? firstDeadPlayerName;
-bool wolfVotedWolf = false;
 bool pokemonDiedTour1 = false;
 bool pantinClutchSave = false;
 bool paradoxAchieved = false;
@@ -15,7 +14,6 @@ bool exorcistWin = false;
 void resetAchievementFlags() {
   anybodyDeadYet = false;
   firstDeadPlayerName = null;
-  wolfVotedWolf = false;
   pokemonDiedTour1 = false;
   pantinClutchSave = false;
   paradoxAchieved = false;

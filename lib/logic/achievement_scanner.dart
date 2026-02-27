@@ -79,7 +79,6 @@ class AchievementScanner {
       'roles': rolesMap,
       'wolves_alive_count': allPlayers.where((pl) => pl.team == "loups" && pl.isAlive).length,
       'wolves_night_kills': wolvesNightKills,
-      'no_friendly_fire_vote': !wolfVotedWolf,
       'evolved_hunger_achieved': evolvedHungerAchieved,
       'chaman_sniper_achieved': chamanSniperAchieved,
       'paradox_achieved': paradoxAchieved,
@@ -114,10 +113,23 @@ class AchievementScanner {
     };
   }
 
-  static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers) async {
+  static Future<void> checkEndGameAchievements(BuildContext context, List<Player> winners, List<Player> allPlayers, {String winnerType = ""}) async {
     if (winners.isEmpty) return;
 
     debugPrint("🏁 CAPTEUR [EndGame] : Calcul des succès de fin.");
+
+    // Court-circuit : victoire AMOUREUX → pas de succès de faction (village/loups/solo)
+    if (winnerType == "AMOUREUX") {
+      debugPrint("💕 CAPTEUR [EndGame] : Victoire AMOUREUX → succès faction ignorés.");
+      for (var p in winners) {
+        final winStats = {'totalWins': 1, 'roles': {'VILLAGE': 0, 'LOUPS-GAROUS': 0, 'SOLO': 0}};
+        await TrophyService.checkAndUnlockImmediate(
+          context: context, playerName: p.name,
+          achievementId: "first_win", checkData: winStats,
+        );
+      }
+      return;
+    }
 
     String winnerRole = "VILLAGE";
     if (winners.any((p) => p.team == "loups")) {
@@ -167,7 +179,16 @@ class AchievementScanner {
           achievementId: "wolf_pack", checkData: winStats,
         );
       }
-      if (p.team == "solo") {
+      // lone_wolf : uniquement les rôles solo qui gagnent sans alliés
+      // Dresseur/Pokémon gagnent ensemble, Ron-Aldo/Fans gagnent ensemble → exclus
+      final roleLC = p.role?.toLowerCase() ?? '';
+      final isSoloUniqueRole = p.team == "solo" &&
+          roleLC != "dresseur" &&
+          roleLC != "pokémon" &&
+          roleLC != "pokemon" &&
+          roleLC != "ron-aldo" &&
+          !p.isFanOfRonAldo;
+      if (isSoloUniqueRole) {
         await TrophyService.checkAndUnlockImmediate(
           context: context, playerName: p.name,
           achievementId: "lone_wolf", checkData: winStats,

@@ -8,7 +8,7 @@ import '../globals.dart';
 class CloudService {
   // ⚠️ URL DU SCRIPT GOOGLE APPS SCRIPT V3
   // Après déploiement de google_apps_script_v3.js, mettre à jour cette URL
-  static const String _scriptUrl = "https://script.google.com/macros/s/AKfycbx4V7JsiDtJsuJQs48lv5ybwcD2qgtI4QRy8pjRFfwDex4_-2hMcu1g6yCHtpn3pY7v/exec";
+  static const String _scriptUrl = "https://script.google.com/macros/s/AKfycbxNXiJMoA9tvyue9dpYdzjfpFEbhsZ37KTIgX1xO3gerv7CdiyVdxHaqqwaobnxjwwM/exec";
 
   // Cache pour lookup rapide des achievements (optimisation O(n²) → O(n))
   static final Map<String, Achievement> _achievementMap = Map.fromIterable(
@@ -242,7 +242,37 @@ class CloudService {
   }
 
   // =========================================================================
-  // D. UTILITAIRES PRIVÉS
+  // D. ENVOI DES LOGS VERS GOOGLE SHEETS
+  // Crée un nouvel onglet nommé tabName avec les logs ligne par ligne
+  // Retourne true si succès, false si échec
+  // =========================================================================
+  static Future<bool> sendLogsToSheet(String tabName, String logsContent) async {
+    try {
+      debugPrint("☁️ LOG [Cloud] : Envoi logs vers Sheets - onglet: $tabName");
+      final lines = logsContent.split('\n');
+      var response = await http.post(
+        Uri.parse(_scriptUrl),
+        body: jsonEncode({
+          "action": "send_logs",
+          "tab_name": tabName,
+          "logs": lines,
+        }),
+        headers: {"Content-Type": "application/json"},
+      );
+      if (response.statusCode == 200 || response.statusCode == 302) {
+        debugPrint("✅ LOG [Cloud] : Logs envoyés - ${lines.length} lignes");
+        return true;
+      } else {
+        throw Exception("Erreur POST: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("❌ LOG [Cloud] : Erreur envoi logs - $e");
+      return false;
+    }
+  }
+
+  // =========================================================================
+  // E. UTILITAIRES PRIVÉS
   // =========================================================================
 
   // Construire playerDirectory simplifié (seulement phoneNumber) depuis registered_players

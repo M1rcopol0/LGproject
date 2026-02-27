@@ -100,7 +100,7 @@ class PokemonInterface extends StatelessWidget {
 class PokemonDeathHandler {
 
   /// Lance la séquence de vengeance complète (appelé par MJResultScreen ou NightDeathResolver)
-  static Future<List<Player>> handleVengeance({
+  static Future<(List<Player>, String?)> handleVengeance({
     required BuildContext context,
     required List<Player> allPlayers,
     required Player pokemon,
@@ -128,7 +128,7 @@ class PokemonDeathHandler {
       ),
     );
 
-    if (!context.mounted) return [];
+    if (!context.mounted) return (<Player>[], null);
 
     // 2. Sélection de la cible
     // RÈGLE : Le Pokémon ne peut PAS tuer le Dresseur
@@ -168,10 +168,10 @@ class PokemonDeathHandler {
 
     if (selectedTarget == null) {
       debugPrint("⚡ LOG [Pokémon] : Aucune cible sélectionnée.");
-      return [];
+      return (<Player>[], null);
     }
 
-    if (!context.mounted) return [];
+    if (!context.mounted) return (<Player>[], null);
 
     // 3. Exécution du Kill (Peut entraîner des morts en chaîne via List<Player>)
     playSfx("gunshot.mp3");
@@ -236,6 +236,6 @@ class PokemonDeathHandler {
       });
     }
 
-    return victims;
+    return (victims, selectedTarget.name);
   }
 }

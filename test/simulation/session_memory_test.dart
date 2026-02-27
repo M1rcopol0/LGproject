@@ -84,12 +84,27 @@ void runSimulation(String label, int playerCount, int gameCount) {
   }
 
   // === TABLEAU DE FRÉQUENCE ===
+  // Agréger toutes les mémoires par config
+  Map<String, int> flatMemory = {};
+  for (var configEntry in distributionMemory.values) {
+    for (var roleEntry in configEntry.entries) {
+      flatMemory[roleEntry.key] = (flatMemory[roleEntry.key] ?? 0) + roleEntry.value;
+    }
+  }
+
   print("\n");
   print("─" * 80);
   print("  MÉMOIRE DE SESSION FINALE");
   print("─" * 80);
 
-  var sorted = distributionMemory.entries.toList()
+  // Afficher les configs distinctes
+  for (var configKey in distributionMemory.keys) {
+    print("  📦 Config: $configKey");
+    print("     ${distributionMemory[configKey]}");
+  }
+  print("");
+
+  var sorted = flatMemory.entries.toList()
     ..sort((a, b) => b.value.compareTo(a.value));
 
   int maxFreq = sorted.isEmpty ? 1 : sorted.first.value;
@@ -154,9 +169,11 @@ void main() {
     // Vérif : pas de rôles exclus v3.0
     const excluded = ["Villageois", "Kung-Fu Panda", "Sorcière", "Voyante",
                       "Chasseur", "Cupidon", "Saltimbanque"];
-    for (var role in distributionMemory.keys) {
-      expect(excluded.contains(role), isFalse,
-        reason: "Rôle exclu '$role' trouvé dans la distribution !");
+    for (var configMemory in distributionMemory.values) {
+      for (var role in configMemory.keys) {
+        expect(excluded.contains(role), isFalse,
+          reason: "Rôle exclu '$role' trouvé dans la distribution !");
+      }
     }
   });
 
@@ -165,9 +182,11 @@ void main() {
 
     const excluded = ["Villageois", "Kung-Fu Panda", "Sorcière", "Voyante",
                       "Chasseur", "Cupidon", "Saltimbanque"];
-    for (var role in distributionMemory.keys) {
-      expect(excluded.contains(role), isFalse,
-        reason: "Rôle exclu '$role' trouvé dans la distribution !");
+    for (var configMemory in distributionMemory.values) {
+      for (var role in configMemory.keys) {
+        expect(excluded.contains(role), isFalse,
+          reason: "Rôle exclu '$role' trouvé dans la distribution !");
+      }
     }
   });
 }

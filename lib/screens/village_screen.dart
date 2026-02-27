@@ -18,6 +18,8 @@ import 'mj_result_screen.dart';
 import '../screens/achievements_screen.dart';
 import '../screens/wiki_screen.dart';
 import 'settings_screen.dart';
+import 'game_history_screen.dart';
+import '../state/game_history.dart';
 
 // Widgets
 import '../widgets/game_info_header.dart';
@@ -82,6 +84,22 @@ class _VillageScreenState extends State<VillageScreen> {
     return "$m:${s.toString().padLeft(2, '0')}";
   }
 
+  // --- TRANSITIONS ANIMÉES ---
+
+  PageRoute _fadeRoute(Widget page, {int ms = 350}) => PageRouteBuilder(
+    pageBuilder: (_, __, ___) => page,
+    transitionDuration: Duration(milliseconds: ms),
+    transitionsBuilder: (_, anim, __, child) =>
+      FadeTransition(opacity: anim, child: child),
+  );
+
+  void _showHistory() {
+    Navigator.push(context, _fadeRoute(
+      GameHistoryScreen(history: gameHistory),
+      ms: 250,
+    ));
+  }
+
   // --- NAVIGATION PHASES DE JEU ---
 
   void _goToNight({bool force = false}) {
@@ -102,7 +120,7 @@ class _VillageScreenState extends State<VillageScreen> {
 
     Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => NightActionsScreen(players: widget.players))
+        _fadeRoute(NightActionsScreen(players: widget.players), ms: 600),
     ).then((_) async {
       if (!mounted) return;
 
@@ -132,9 +150,10 @@ class _VillageScreenState extends State<VillageScreen> {
 
   void _goToVote() async {
     _resetTimer();
-    await playSfx("vote_music.mp3");
+    playMusic("vote_music.mp3");
 
     void onVoteComplete() {
+      stopMusic();
       hasVotedThisTurn = true;
       setState(() {
         _checkGameOver();
@@ -149,10 +168,10 @@ class _VillageScreenState extends State<VillageScreen> {
 
     if (globalVoteAnonyme) {
       debugPrint("🗳️ CAPTEUR [Vote] : Lancement vote anonyme.");
-      Navigator.push(context, MaterialPageRoute(builder: (_) => VotePlayerSelectionScreen(allPlayers: widget.players, onComplete: onVoteComplete)));
+      Navigator.push(context, _fadeRoute(VotePlayerSelectionScreen(allPlayers: widget.players, onComplete: onVoteComplete), ms: 300));
     } else {
       debugPrint("🗳️ CAPTEUR [Vote] : Lancement vote MJ direct.");
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MJResultScreen(allPlayers: widget.players, onComplete: onVoteComplete)));
+      Navigator.push(context, _fadeRoute(MJResultScreen(allPlayers: widget.players, onComplete: onVoteComplete), ms: 300));
     }
   }
 
@@ -213,6 +232,11 @@ class _VillageScreenState extends State<VillageScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.swap_horiz, color: Colors.orangeAccent),
+              title: const Text("CHANGER LE RÔLE"),
+              onTap: () { Navigator.pop(ctx); _showRoleChangeDialog(p); },
+            ),
+            ListTile(
               leading: const Icon(Icons.auto_fix_high, color: Colors.cyanAccent),
               title: const Text("APPLIQUER UN EFFET"),
               onTap: () { Navigator.pop(ctx); _showEffectsMenu(p); },
@@ -265,18 +289,111 @@ class _VillageScreenState extends State<VillageScreen> {
     ));
   }
 
+  void _showRoleChangeDialog(Player p) {
+    final List<String> allRoles = [
+      ...allRolesByFaction["village"]!.map((r) => "$r (Village)"),
+      ...allRolesByFaction["loups"]!.map((r) => "$r (Loups)"),
+      ...allRolesByFaction["solo"]!.map((r) => "$r (Solo)"),
+    ];
+    String selectedDisplay = allRoles.isNotEmpty ? allRoles.first : "";
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateInner) => AlertDialog(
+          backgroundColor: const Color(0xFF1D1E33),
+          title: Text("Changer le rôle de ${p.name}"),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text("Rôle actuel : ${p.role?.toUpperCase() ?? 'INCONNU'}", style: const TextStyle(color: Colors.white54, fontSize: 13)),
+            const SizedBox(height: 16),
+            DropdownButton<String>(
+              value: selectedDisplay,
+              dropdownColor: const Color(0xFF1D1E33),
+              isExpanded: true,
+              items: allRoles.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(color: Colors.white)))).toList(),
+              onChanged: (v) { if (v != null) setStateInner(() => selectedDisplay = v); },
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuler")),
+            ElevatedButton(
+              onPressed: () {
+                final rawRole = selectedDisplay.replaceAll(RegExp(r' \(.*\)$'), '');
+                final newTeam = GameLogic.getTeamForRole(rawRole.toLowerCase());
+                setState(() { p.changeRole(rawRole.toLowerCase(), newTeam); });
+                Navigator.pop(ctx);
+                debugPrint("🎭 MJ : Rôle de ${p.name} changé en $rawRole ($newTeam)");
+              },
+              child: const Text("CONFIRMER"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showEffectsMenu(Player p) {
-    showModalBottomSheet(context: context, backgroundColor: const Color(0xFF0A0E21), builder: (ctx) => Container(padding: const EdgeInsets.all(20), child: ListView(children: [
-      SwitchListTile(title: const Text("Dans la Maison"), value: p.isInHouse, onChanged: (v) => setState(() => p.isInHouse = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Protégé (Dresseur)"), value: p.isProtectedByPokemon, onChanged: (v) => setState(() => p.isProtectedByPokemon = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Endormi (Venin/Somni)"), value: p.isEffectivelyAsleep, onChanged: (v) => setState(() => p.isEffectivelyAsleep = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Censuré (Muet)"), value: p.isMutedDay, onChanged: (v) => setState(() => p.isMutedDay = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Immunisé Vote (Bled)"), value: p.isImmunizedFromVote, onChanged: (v) => setState(() => p.isImmunizedFromVote = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Révélé (Devin)"), value: p.isRevealedByDevin, onChanged: (v) => setState(() => p.isRevealedByDevin = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("En Voyage"), value: p.isInTravel, onChanged: (v) => setState(() => p.isInTravel = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Fan de Ron-Aldo"), value: p.isFanOfRonAldo, onChanged: (v) => setState(() => p.isFanOfRonAldo = v), activeColor: Colors.blueAccent),
-      SwitchListTile(title: const Text("Transcendance (Absent)"), value: p.isAwayAsMJ, onChanged: (v) => setState(() => p.isAwayAsMJ = v), activeColor: Colors.blueAccent),
-    ])));
+    Widget sectionHeader(String label) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(label, style: const TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+    );
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A0E21),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        maxChildSize: 0.92,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (_, controller) => StatefulBuilder(
+          builder: (ctx, setStateInner) {
+            void toggle(VoidCallback fn) { setStateInner(fn); setState(() {}); }
+            return ListView(controller: controller, children: [
+              const SizedBox(height: 12),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 8),
+
+              // ⚔️ Protections
+              sectionHeader("⚔️ Protections"),
+              SwitchListTile(title: const Text("Protégé par le Saltimbanque"), value: p.isProtectedBySaltimbanque, onChanged: (v) => toggle(() => p.isProtectedBySaltimbanque = v), activeColor: Colors.greenAccent),
+
+              // 🚫 Restrictions
+              sectionHeader("🚫 Restrictions"),
+              SwitchListTile(
+                title: const Text("Touché par la fléchette du Zookeeper"),
+                value: p.hasBeenHitByDart,
+                onChanged: (v) => toggle(() {
+                  p.hasBeenHitByDart = v;
+                  p.zookeeperEffectReady = v;
+                }),
+                activeColor: Colors.purpleAccent,
+              ),
+              SwitchListTile(title: const Text("En voyage (Voyageur)"), value: p.isInTravel, onChanged: (v) => toggle(() => p.isInTravel = v), activeColor: Colors.redAccent),
+              SwitchListTile(title: const Text("Absent — mode MJ (Transcendance)"), value: p.isAwayAsMJ, onChanged: (v) => toggle(() => p.isAwayAsMJ = v), activeColor: Colors.redAccent),
+
+              // ⚡ Effets spéciaux
+              sectionHeader("⚡ Effets spéciaux"),
+              SwitchListTile(title: const Text("Rôle révélé publiquement (Devin)"), value: p.isRevealedByDevin, onChanged: (v) => toggle(() => p.isRevealedByDevin = v), activeColor: Colors.cyanAccent),
+              SwitchListTile(title: const Text("Immunisé contre le vote (Bled)"), value: p.isImmunizedFromVote, onChanged: (v) => toggle(() => p.isImmunizedFromVote = v), activeColor: Colors.cyanAccent),
+              SwitchListTile(title: const Text("Lié par Cupidon (couple)"), value: p.isLinkedByCupidon, onChanged: (v) => toggle(() => p.isLinkedByCupidon = v), activeColor: Colors.pinkAccent),
+              SwitchListTile(title: const Text("Maudit par le Pantin"), value: p.isCursed, onChanged: (v) => toggle(() => p.isCursed = v), activeColor: Colors.purpleAccent),
+              SwitchListTile(title: const Text("Porteur d'une bombe (Tardos)"), value: p.isBombed, onChanged: (v) => toggle(() { p.isBombed = v; p.attachedBombTimer = v ? 2 : 0; }), activeColor: Colors.deepOrangeAccent),
+              SwitchListTile(title: const Text("Pouvoir de bouc émissaire (Archiviste)"), value: p.hasScapegoatPower, onChanged: (v) => toggle(() => p.hasScapegoatPower = v), activeColor: Colors.cyanAccent),
+              SwitchListTile(title: const Text("Fan de Ron-Aldo (change l'équipe en solo)"), value: p.isFanOfRonAldo, onChanged: (v) { if (v) toggle(() { p.isFanOfRonAldo = true; p.changeRole("fan de ron-aldo", "solo"); }); }, activeColor: Colors.amberAccent),
+
+              // 🏠 États de rôle
+              sectionHeader("🏠 États de rôle"),
+              SwitchListTile(title: const Text("Hébergé dans la Maison"), value: p.isInHouse, onChanged: (v) => toggle(() => p.isInHouse = v), activeColor: Colors.blueAccent),
+
+              const SizedBox(height: 24),
+            ]);
+          },
+        ),
+      ),
+    );
   }
 
   void _showAchievementManager(Player p) {
@@ -343,8 +460,8 @@ class _VillageScreenState extends State<VillageScreen> {
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => GameOverScreen(winnerType: winnerRole, players: widget.players)),
-          (route) => false,
+      _fadeRoute(GameOverScreen(winnerType: winnerRole, players: widget.players), ms: 700),
+      (route) => false,
     );
   }
 
@@ -396,7 +513,15 @@ class _VillageScreenState extends State<VillageScreen> {
         title: Text(isDayTime ? "JOUR $globalTurnNumber" : "NUIT $globalTurnNumber"),
         backgroundColor: const Color(0xFF1D1E33),
         actions: [
-          IconButton(icon: const Icon(FontAwesomeIcons.trophy, color: Colors.amber, size: 20), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AchievementsPage()))),
+          IconButton(icon: const Icon(Icons.history, color: Colors.white70), onPressed: _showHistory),
+          IconButton(icon: const Icon(FontAwesomeIcons.trophy, color: Colors.amber, size: 20), onPressed: () {
+            final activeRoles = [
+              ...widget.players.map((p) => p.role ?? '').where((r) => r.isNotEmpty),
+              'MODE_$globalGovernanceMode',
+              ...widget.players.map((p) => 'PLAYER_${p.name}'),
+            ];
+            Navigator.push(context, MaterialPageRoute(builder: (_) => AchievementsPage(activeRoles: activeRoles)));
+          }),
           IconButton(icon: const Icon(Icons.menu_book), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WikiPage()))),
           IconButton(icon: const Icon(Icons.settings), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
         ],

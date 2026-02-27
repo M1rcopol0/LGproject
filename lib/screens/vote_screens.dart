@@ -337,9 +337,6 @@ class _IndividualVoteScreenContentState extends State<_IndividualVoteScreenConte
       widget.voter.targetVote = selectedTarget;
       debugPrint("🗳️ LOG [Vote] : ${widget.voter.name} vote pour ${selectedTarget!.name}");
       AchievementLogic.trackVote(widget.voter, selectedTarget!); // Utilisation de trackVote pour les succès
-      if (widget.voter.team == "loups" && selectedTarget!.team == "loups") {
-        wolfVotedWolf = true;
-      }
     }
     widget.onVote();
   }

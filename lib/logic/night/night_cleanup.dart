@@ -37,7 +37,8 @@ class NightCleanup {
       // Machine d'etat Grand-mere Quiche
       // Nuit N : hasBakedQuiche=true → active la protection (isVillageProtected=true)
       // Nuit N+1 : hasBakedQuiche=false et isVillageProtected=true → expire la protection
-      if (p.role?.toLowerCase() == "grand-mère" && p.isAlive) {
+      // La quiche fait effet même si la grand-mère est morte entre-temps.
+      if (p.role?.toLowerCase() == "grand-mère") {
         if (p.hasBakedQuiche) {
           debugPrint("🔄 CAPTEUR [Cleanup] : Quiche activée pour ${p.name}.");
           p.isVillageProtected = true;

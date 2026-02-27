@@ -5,15 +5,31 @@ import '../models/player.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GENERALE ---
-String globalGameVersion = "1.7.4 - Release";
+String globalGameVersion = "1.8.1";
 late Talker globalTalker;
 
 // --- LOGS DE SESSION ---
 List<String> globalGameSessionLogs = [];
 bool globalGameSessionActive = false;
+String? globalLogFilePath; // Chemin du fichier log persistant (initialisé au démarrage)
 
 // --- UTILITAIRES ---
 String formatPlayerName(String name) => Player.formatName(name);
+
+// --- LISTE COMPLÈTE DE TOUS LES RÔLES DU JEU ---
+const Map<String, List<String>> allRolesByFaction = {
+  "village": [
+    "Archiviste", "Chasseur", "Cupidon", "Devin", "Dingo", "Enculateur du bled",
+    "Exorciste", "Grand-mère", "Houston", "Kung-Fu Panda", "Maison", "Saltimbanque",
+    "Sorcière", "Tardos", "Villageois", "Voyageur", "Voyante", "Zookeeper",
+  ],
+  "loups": [
+    "Loup-garou chaman", "Loup-garou évolué", "Somnifère",
+  ],
+  "solo": [
+    "Chuchoteur", "Dresseur", "Maître du temps", "Pantin", "Phyl", "Pokémon", "Ron-Aldo",
+  ],
+};
 
 // --- PICK & BAN ---
 Map<String, List<String>> globalPickBan = {
@@ -54,7 +70,7 @@ List<NightAction> nightActionsOrder = [
   NightAction(role: "Voyageur", instruction: "Choisissez votre destination.", sound: "footsteps.mp3"),
   NightAction(role: "Loups-garous évolués", instruction: "Votez pour une victime.", sound: "wolf_howl.mp3"),
   NightAction(role: "Loup-garou chaman", instruction: "Consultez l'identité d'un joueur.", sound: "shaman_ritual.mp3"),
-  NightAction(role: "Sorcière", instruction: "Utilisez vos potions.", sound: "witch_brew.mp3"),
+  NightAction(role: "Sorcière", instruction: "Utilisez vos potions.", sound: "sorciere.mp3"),
   NightAction(role: "Maître du temps", instruction: "Éliminez deux personnes.", sound: "clock_tick.mp3"),
   NightAction(role: "Pantin", instruction: "Maudissez un joueur.", sound: "curse.mp3"),
   NightAction(role: "Dingo", instruction: "Tentez un tir.", sound: "dingo_laugh.mp3"),

@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import 'screens/loading_screen.dart';
 import 'globals.dart';
 import 'models/player.dart';
@@ -22,6 +24,12 @@ void main() async {
     ),
   );
 
+  // 1b. Initialisation du fichier de log persistant
+  try {
+    final docsDir = await getApplicationDocumentsDirectory();
+    globalLogFilePath = '${docsDir.path}/lg3_session.log';
+  } catch (_) {}
+
   // 2. Redirection des debugPrint
   debugPrint = (String? message, {int? wrapWidth}) {
     if (message != null) {
@@ -31,9 +39,15 @@ void main() async {
       // B. On capture dans le buffer de session si une partie est active
       if (globalGameSessionActive) {
         globalGameSessionLogs.add(message);
+        // C. Écriture synchrone dans le fichier persistant (append)
+        if (globalLogFilePath != null) {
+          try {
+            File(globalLogFilePath!).writeAsStringSync('$message\n', mode: FileMode.append);
+          } catch (_) {}
+        }
       }
 
-      // C. On imprime manuellement dans la console Android Studio (pour le débug direct)
+      // D. On imprime manuellement dans la console Android Studio (pour le débug direct)
       print(message);
     }
   };
