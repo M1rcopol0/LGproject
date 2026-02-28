@@ -359,6 +359,8 @@ class _VillageScreenState extends State<VillageScreen> {
               // ⚔️ Protections
               sectionHeader("⚔️ Protections"),
               SwitchListTile(title: const Text("Protégé par le Saltimbanque"), value: p.isProtectedBySaltimbanque, onChanged: (v) => toggle(() => p.isProtectedBySaltimbanque = v), activeColor: Colors.greenAccent),
+              SwitchListTile(title: const Text("Immunisé contre le vote (Bled)"), value: p.isImmunizedFromVote, onChanged: (v) => toggle(() => p.isImmunizedFromVote = v), activeColor: Colors.cyanAccent),
+              SwitchListTile(title: const Text("Pouvoir de bouc émissaire (Archiviste)"), value: p.hasScapegoatPower, onChanged: (v) => toggle(() => p.hasScapegoatPower = v), activeColor: Colors.cyanAccent),
 
               // 🚫 Restrictions
               sectionHeader("🚫 Restrictions"),
@@ -371,22 +373,38 @@ class _VillageScreenState extends State<VillageScreen> {
                 }),
                 activeColor: Colors.purpleAccent,
               ),
-              SwitchListTile(title: const Text("En voyage (Voyageur)"), value: p.isInTravel, onChanged: (v) => toggle(() => p.isInTravel = v), activeColor: Colors.redAccent),
-              SwitchListTile(title: const Text("Absent — mode MJ (Transcendance)"), value: p.isAwayAsMJ, onChanged: (v) => toggle(() => p.isAwayAsMJ = v), activeColor: Colors.redAccent),
+              SwitchListTile(title: const Text("Maudit par le Pantin"), value: p.isCursed, onChanged: (v) => toggle(() => p.isCursed = v), activeColor: Colors.purpleAccent),
+              SwitchListTile(title: const Text("Porteur d'une bombe (Tardos)"), value: p.isBombed, onChanged: (v) => toggle(() { p.isBombed = v; p.attachedBombTimer = v ? 2 : 0; }), activeColor: Colors.deepOrangeAccent),
 
               // ⚡ Effets spéciaux
               sectionHeader("⚡ Effets spéciaux"),
               SwitchListTile(title: const Text("Rôle révélé publiquement (Devin)"), value: p.isRevealedByDevin, onChanged: (v) => toggle(() => p.isRevealedByDevin = v), activeColor: Colors.cyanAccent),
-              SwitchListTile(title: const Text("Immunisé contre le vote (Bled)"), value: p.isImmunizedFromVote, onChanged: (v) => toggle(() => p.isImmunizedFromVote = v), activeColor: Colors.cyanAccent),
-              SwitchListTile(title: const Text("Lié par Cupidon (couple)"), value: p.isLinkedByCupidon, onChanged: (v) => toggle(() => p.isLinkedByCupidon = v), activeColor: Colors.pinkAccent),
-              SwitchListTile(title: const Text("Maudit par le Pantin"), value: p.isCursed, onChanged: (v) => toggle(() => p.isCursed = v), activeColor: Colors.purpleAccent),
-              SwitchListTile(title: const Text("Porteur d'une bombe (Tardos)"), value: p.isBombed, onChanged: (v) => toggle(() { p.isBombed = v; p.attachedBombTimer = v ? 2 : 0; }), activeColor: Colors.deepOrangeAccent),
-              SwitchListTile(title: const Text("Pouvoir de bouc émissaire (Archiviste)"), value: p.hasScapegoatPower, onChanged: (v) => toggle(() => p.hasScapegoatPower = v), activeColor: Colors.cyanAccent),
-              SwitchListTile(title: const Text("Fan de Ron-Aldo (change l'équipe en solo)"), value: p.isFanOfRonAldo, onChanged: (v) { if (v) toggle(() { p.isFanOfRonAldo = true; p.changeRole("fan de ron-aldo", "solo"); }); }, activeColor: Colors.amberAccent),
+              SwitchListTile(title: const Text("En voyage (Voyageur)"), value: p.isInTravel, onChanged: (v) => toggle(() => p.isInTravel = v), activeColor: Colors.redAccent),
+              ListTile(
+                title: const Text("Munitions du Voyageur", style: TextStyle(color: Colors.white)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, color: Colors.orangeAccent),
+                      onPressed: p.travelerBullets > 0 ? () => toggle(() => p.travelerBullets--) : null,
+                    ),
+                    Text("${p.travelerBullets}", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, color: Colors.orangeAccent),
+                      onPressed: () => toggle(() => p.travelerBullets++),
+                    ),
+                  ],
+                ),
+              ),
+              SwitchListTile(title: const Text("Absent — mode MJ (Transcendance)"), value: p.isAwayAsMJ, onChanged: (v) => toggle(() => p.isAwayAsMJ = v), activeColor: Colors.redAccent),
+
 
               // 🏠 États de rôle
               sectionHeader("🏠 États de rôle"),
               SwitchListTile(title: const Text("Hébergé dans la Maison"), value: p.isInHouse, onChanged: (v) => toggle(() => p.isInHouse = v), activeColor: Colors.blueAccent),
+              SwitchListTile(title: const Text("Lié par Cupidon (couple)"), value: p.isLinkedByCupidon, onChanged: (v) => toggle(() => p.isLinkedByCupidon = v), activeColor: Colors.pinkAccent),
+              SwitchListTile(title: const Text("Fan de Ron-Aldo (change l'équipe en solo)"), value: p.isFanOfRonAldo, onChanged: (v) { if (v) toggle(() { p.isFanOfRonAldo = true; p.changeRole("fan de ron-aldo", "solo"); }); }, activeColor: Colors.amberAccent),
 
               const SizedBox(height: 24),
             ]);

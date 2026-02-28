@@ -178,7 +178,7 @@ class NightDeathResolver {
     }
 
     // Cas spécifique Voyageur / Dingo (Logs techniques)
-    if (finalDeathReasons[victim.name]?.contains("Tir du Voyageur") ?? false) {
+    if ((finalDeathReasons[victim.name]?.contains("Tir du Voyageur") ?? false) && !(finalDeathReasons[victim.name]?.contains("Village") ?? false)) {
       try {
         allPlayers.firstWhere((p) => p.role?.toLowerCase() == "voyageur").travelerKilledWolf = (victim.team == "loups");
       } catch (_) {}

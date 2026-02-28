@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // Pour lire la con
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/player.dart';
 import '../logic/logic.dart';
+import '../logic/role_distribution_logic.dart';
 import '../globals.dart';
 import '../services/game_save_service.dart';
 import '../player_storage.dart';
@@ -52,6 +53,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
           const SnackBar(content: Text("Il faut au moins 3 joueurs !"), backgroundColor: Colors.red)
       );
       return;
+    }
+
+    // --- 1b. RÉSUMÉ DE L'ÉQUILIBRE DU POOL ---
+    if (mounted) {
+      final String summary = RoleDistributionLogic.getBalanceSummary(globalPickBan);
+      debugPrint("📊 CAPTEUR [Lobby] : Équilibre pool — $summary");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(summary, style: const TextStyle(fontSize: 12)),
+          backgroundColor: const Color(0xFF2A2D4A),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
 
     // --- 1. RAFRAÎCHISSEMENT DES NUMÉROS ---

@@ -7,6 +7,8 @@ import '../services/trophy_service.dart';
 import '../logic/achievement_logic.dart';
 import '../services/cloud_service.dart';
 import '../player_storage.dart'; // Pour mettre à jour l'annuaire
+import 'game_history_screen.dart';
+import '../state/game_history.dart';
 
 class GameOverScreen extends StatefulWidget {
   final String winnerType;
@@ -529,6 +531,23 @@ class _GameOverScreenState extends State<GameOverScreen> {
                       },
                       icon: const Icon(Icons.bug_report, color: Colors.white38),
                       label: const Text("Exporter les logs", style: TextStyle(color: Colors.white38, fontSize: 13)),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity, height: 48,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blueGrey,
+                          side: const BorderSide(color: Colors.blueGrey),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          debugPrint("📜 LOG [GameOver] : Affichage de l'historique de partie.");
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => GameHistoryScreen(history: gameHistory)));
+                        },
+                        icon: const Icon(Icons.history),
+                        label: const Text("HISTORIQUE DE PARTIE", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     SizedBox(

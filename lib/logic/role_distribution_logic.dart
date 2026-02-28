@@ -495,6 +495,30 @@ class RoleDistributionLogic {
     }
   }
 
+  /// Retourne un résumé des scores du pick & ban pour affichage informatif.
+  static String getBalanceSummary(Map<String, List<String>> pickBan) {
+    final wolves = pickBan["loups"] ?? [];
+    final village = pickBan["village"] ?? [];
+    final solo = pickBan["solo"] ?? [];
+
+    int wolfScore = wolves.fold(0, (s, r) => s + (roleValues[r] ?? 12));
+    int villageScore = village.fold(0, (s, r) => s + (roleValues[r] ?? 2));
+    int soloScore = solo.fold(0, (s, r) => s + (roleValues[r] ?? 10));
+    int hostileScore = wolfScore + soloScore;
+    int totalScore = villageScore + hostileScore;
+
+    final int villageRatio = totalScore > 0 ? (villageScore / totalScore * 100).round() : 0;
+    final int hostileRatio = totalScore > 0 ? (hostileScore / totalScore * 100).round() : 0;
+
+    final parts = <String>[];
+    if (wolves.isNotEmpty) parts.add("🐺 Loups : ${wolfScore}pts");
+    if (village.isNotEmpty) parts.add("🏘️ Village : ${villageScore}pts");
+    if (solo.isNotEmpty) parts.add("🌀 Solo : ${soloScore}pts");
+    parts.add("Village $villageRatio% / Hostiles $hostileRatio%");
+
+    return parts.join("   ");
+  }
+
   /// Affiche dans les logs l'état complet de la mémoire de distribution :
   /// pour chaque config active, montre combien de fois chaque rôle a été tiré,
   /// son poids actuel et son pourcentage de débuff.

@@ -49,6 +49,7 @@ class CloudService {
       await prefs.setString('global_faction_stats', jsonEncode(cloudDb['global_stats'] ?? {}));
       await prefs.setString('saved_trophies_v2', jsonEncode(cloudDb['individual_stats'] ?? {}));
 
+
       // IMPORTANT : Reconstruire registered_players avec la structure complète
       // car player_directory ne contient QUE phoneNumber dans le cloud
       Map<String, dynamic> individualStats = cloudDb['individual_stats'] ?? {};

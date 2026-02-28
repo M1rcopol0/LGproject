@@ -5,7 +5,7 @@ import '../models/player.dart';
 const String routeGameMenu = '/GameMenu';
 
 // --- CONFIGURATION GENERALE ---
-String globalGameVersion = "1.8.1";
+String globalGameVersion = "1.8.2";
 late Talker globalTalker;
 
 // --- LOGS DE SESSION ---
@@ -68,15 +68,15 @@ List<NightAction> nightActionsOrder = [
   NightAction(role: "Voyante", instruction: "Découvrez un rôle.", sound: "crystal_ball.mp3"),
   NightAction(role: "Devin", instruction: "Concentrez-vous sur un joueur.", sound: "magic_sparkle.mp3"),
   NightAction(role: "Voyageur", instruction: "Choisissez votre destination.", sound: "footsteps.mp3"),
-  NightAction(role: "Loups-garous évolués", instruction: "Votez pour une victime.", sound: "wolf_howl.mp3"),
   NightAction(role: "Loup-garou chaman", instruction: "Consultez l'identité d'un joueur.", sound: "shaman_ritual.mp3"),
+  NightAction(role: "Loups-garous évolués", instruction: "Votez pour une victime.", sound: "wolf_howl.mp3"),
+  NightAction(role: "Somnifère", instruction: "Voulez-vous rendormir le village demain ?", sound: "sleep.mp3"),
   NightAction(role: "Sorcière", instruction: "Utilisez vos potions.", sound: "sorciere.mp3"),
   NightAction(role: "Maître du temps", instruction: "Éliminez deux personnes.", sound: "clock_tick.mp3"),
   NightAction(role: "Pantin", instruction: "Maudissez un joueur.", sound: "curse.mp3"),
   NightAction(role: "Dingo", instruction: "Tentez un tir.", sound: "dingo_laugh.mp3"),
   NightAction(role: "Enculateur du bled", instruction: "Protégez un joueur du vote.", sound: "unzip.mp3"),
   NightAction(role: "Kung-Fu Panda", instruction: "Désignez un joueur qui devra crier.", sound: "gong.mp3"),
-  NightAction(role: "Somnifère", instruction: "Voulez-vous rendormir le village demain ?", sound: "sleep.mp3"),
   NightAction(role: "Zookeeper", instruction: "Tirez une fléchette narcoleptique.", sound: "dart.mp3"),
   NightAction(role: "Grand-mère", instruction: "Cuisinez une quiche pour demain.", sound: "rocking_chair.mp3"),
   NightAction(role: "Ron-Aldo", instruction: "Recrutez un fan.", sound: "siuuu.mp3"),

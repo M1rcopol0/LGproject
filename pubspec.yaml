@@ -20,6 +20,7 @@ dependencies:
   http: ^1.2.0
   permission_handler: ^11.0.1 # Pour demander la permission d'envoyer des SMS
   telephony: ^0.2.0
+  collection: ^1.17.0
 
 dev_dependencies:
   flutter_test:

@@ -188,7 +188,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               child: _buildCornerButton(
                 icon: Icons.power_settings_new,
                 color: Colors.redAccent,
-                onPressed: () => SystemNavigator.pop(),
+                onPressed: () => exit(0),
               ),
             ),
 

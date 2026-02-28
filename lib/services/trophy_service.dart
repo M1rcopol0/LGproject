@@ -300,4 +300,5 @@ class TrophyService {
     await prefs.remove(_keyGlobalStats);
     debugPrint("🔥 LOG [Trophy] : TOUTES les statistiques et succès ont été effacés.");
   }
+
 }

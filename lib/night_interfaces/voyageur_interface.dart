@@ -10,6 +10,7 @@ class VoyageurInterface extends StatefulWidget {
   final VoidCallback onStayTraveling;
   final VoidCallback onStayAtVillage;
   final Function(Player) onShoot;
+  final Function(Player) onVillageShoot;
 
   const VoyageurInterface({
     super.key,
@@ -20,6 +21,7 @@ class VoyageurInterface extends StatefulWidget {
     required this.onStayTraveling,
     required this.onStayAtVillage,
     required this.onShoot,
+    required this.onVillageShoot,
   });
 
   @override
@@ -28,6 +30,7 @@ class VoyageurInterface extends StatefulWidget {
 
 class _VoyageurInterfaceState extends State<VoyageurInterface> {
   bool _showKillSelector = false;
+  bool _isVillageShot = false;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +52,11 @@ class _VoyageurInterfaceState extends State<VoyageurInterface> {
               isProtective: false,
               onTargetsSelected: (selected) {
                 if (selected.isNotEmpty) {
-                  widget.onShoot(selected.first);
+                  if (_isVillageShot) {
+                    widget.onVillageShoot(selected.first);
+                  } else {
+                    widget.onShoot(selected.first);
+                  }
                 } else {
                   setState(() => _showKillSelector = false); // Retour menu
                 }
@@ -73,25 +80,40 @@ class _VoyageurInterfaceState extends State<VoyageurInterface> {
           const SizedBox(height: 20),
           Text(isTraveling ? "ÉTAT : EN VOYAGE" : "ÉTAT : AU VILLAGE", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 10),
-          Text("Munitions : ${widget.actor.travelerBullets}", style: const TextStyle(color: Colors.white70)),
+          Text(
+            isTraveling
+              ? "Munitions accumulées : ${widget.actor.travelerBullets}"
+              : !canTravel && widget.actor.travelerBullets > 0
+                ? "⚡ ${widget.actor.travelerBullets} munition${widget.actor.travelerBullets > 1 ? 's' : ''} disponible${widget.actor.travelerBullets > 1 ? 's' : ''} ce soir"
+                : !canTravel
+                  ? "Aucune munition restante"
+                  : "Munitions : ${widget.actor.travelerBullets}",
+            style: TextStyle(
+              color: !canTravel && widget.actor.travelerBullets > 0
+                ? Colors.orangeAccent
+                : Colors.white70,
+              fontWeight: !canTravel && widget.actor.travelerBullets > 0
+                ? FontWeight.bold
+                : FontWeight.normal,
+            ),
+          ),
           const SizedBox(height: 40),
 
           if (isTraveling) ...[
-            _btn(Icons.timelapse, "CONTINUER LE VOYAGE", Colors.blueGrey, () {
+            _btn(Icons.timelapse, "RESTER EN VOYAGE", Colors.blueGrey, () {
               debugPrint("🎭 CAPTEUR [Action] : Voyageur continue le voyage.");
               widget.onStayTraveling();
             }),
             const SizedBox(height: 10),
-            _btn(Icons.home, "RENTRER (PACIFIQUE)", Colors.green, () {
-              debugPrint("🎭 CAPTEUR [Action] : Voyageur retour pacifique.");
-              widget.onReturnWithoutShooting();
+            _btn(Icons.home, "RENTRER", widget.actor.travelerBullets > 0 ? Colors.redAccent : Colors.green, () {
+              if (widget.actor.travelerBullets > 0) {
+                debugPrint("🎭 CAPTEUR [Action] : Voyageur rentre en tuant. Munitions: ${widget.actor.travelerBullets}.");
+                setState(() { _showKillSelector = true; _isVillageShot = false; });
+              } else {
+                debugPrint("🎭 CAPTEUR [Action] : Voyageur retour pacifique (0 munitions).");
+                widget.onReturnWithoutShooting();
+              }
             }),
-            const SizedBox(height: 10),
-            if (widget.actor.travelerBullets > 0)
-              _btn(Icons.gps_fixed, "RENTRER EN TUANT...", Colors.redAccent, () {
-                debugPrint("🎭 CAPTEUR [Action] : Voyageur prépare un tir. Munitions: ${widget.actor.travelerBullets}.");
-                setState(() => _showKillSelector = true);
-              }),
           ] else ...[
             if (canTravel) ...[
               _btn(Icons.flight, "PARTIR EN VOYAGE", Colors.blueAccent, () {
@@ -105,7 +127,18 @@ class _VoyageurInterfaceState extends State<VoyageurInterface> {
                 padding: EdgeInsets.all(16.0),
                 child: Text("Vous êtes rentré définitivement.", style: TextStyle(color: Colors.orange)),
               ),
-              _btn(Icons.bed, "PASSER LA NUIT", Colors.grey, widget.onStayAtVillage),
+              if (widget.actor.travelerBullets > 0) ...[
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16.0),
+                  child: Text("Utilisez vos munitions restantes !", style: TextStyle(color: Colors.redAccent)),
+                ),
+                _btn(Icons.gps_fixed, "TIRER SUR QUELQU'UN", Colors.redAccent, () {
+                  debugPrint("🎭 CAPTEUR [Action] : Voyageur utilise une munition au village. Munitions: ${widget.actor.travelerBullets}.");
+                  setState(() { _showKillSelector = true; _isVillageShot = true; });
+                }),
+              ] else ...[
+                _btn(Icons.bed, "PASSER LA NUIT", Colors.grey, widget.onStayAtVillage),
+              ]
             ]
           ],
         ],
