@@ -59,11 +59,25 @@ class _LobbyScreenState extends State<LobbyScreen> {
     if (mounted) {
       final String summary = RoleDistributionLogic.getBalanceSummary(globalPickBan);
       debugPrint("📊 CAPTEUR [Lobby] : Équilibre pool — $summary");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(summary, style: const TextStyle(fontSize: 12)),
-          backgroundColor: const Color(0xFF2A2D4A),
-          duration: const Duration(seconds: 4),
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1D1E33),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            "Équilibre du pool",
+            style: TextStyle(color: Color(0xFFFF6C00), fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          content: Text(
+            summary,
+            style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.6),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text("OK", style: TextStyle(color: Color(0xFFFF6C00), fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
       );
     }
